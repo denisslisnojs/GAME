@@ -4,6 +4,7 @@ import { lookKey, troopLook } from '../battle/looks';
 import type { GameState } from '../game/state';
 import { TROOPS } from '../data/troops';
 import { COMPANION_BY_ID } from '../data/companions';
+import { armsURL } from './heraldry';
 import { companionTroop } from '../game/companions';
 import type { Settlement } from '../game/world';
 import { hash2 } from '../util/rng';
@@ -88,6 +89,11 @@ export function companionPortraitURL(id: string): string {
 export function heroPortraitURL(state: GameState): string {
   const look = heroLook(state);
   return memo(`hp_${lookKey(look)}`, () => bust(look));
+}
+
+/** Знак героя: личный герб или знамя державы. */
+export function heroEmblemURL(state: GameState): string {
+  return state.hero.arms ? armsURL(state.hero.arms) : emblemURL(state.hero.faction);
 }
 
 export function emblemURL(f: FactionId): string {

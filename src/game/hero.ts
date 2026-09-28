@@ -112,8 +112,9 @@ export function heroLook(state: GameState): UnitLook {
     culture: h.faction,
     tier,
     helmet: head?.helmet ?? 'none',
-    cloth: hex(f.color),
-    cloth2: hex(f.color2),
+    // Цвета одежды и щита — из личного герба, если он есть
+    cloth: h.arms?.field ?? hex(f.color),
+    cloth2: h.arms?.chargeColor ?? hex(f.color2),
     armor: body?.metal ?? (bodyKind === 'leather' ? '#8a6a45' : bodyKind === 'cloth' ? '#c8b890' : '#9aa0a8'),
     helmetMetal: head?.metal,
     weapon: weapon?.weapon ?? 'mace',

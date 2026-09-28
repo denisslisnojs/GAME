@@ -12,6 +12,7 @@ import { initCompanions, type CompanionState } from './companions';
 import type { SkillId } from '../data/skills';
 import type { CaptiveLord } from './prisoners';
 import type { FiefState } from './fief';
+import type { Arms } from '../gfx/heraldry';
 
 export interface TroopStack {
   id: string;
@@ -47,6 +48,8 @@ export interface Hero {
   skills?: Partial<Record<SkillId, number>>;
   /** Нераспределённые очки умений. */
   skillPoints?: number;
+  /** Личный герб. */
+  arms?: Arms;
 }
 
 export interface SettlementState {

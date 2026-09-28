@@ -16,6 +16,7 @@ export interface BattleSceneData {
   /** Облик героя из его снаряжения. */
   heroLook?: UnitLook;
   heroPortrait?: string;
+  heroEmblem?: string;
   enemyName: string;
   enemyColor: string;
   /** Осада: облик стены (культура крепости и цвета владельца). */
@@ -192,6 +193,7 @@ export class BattleScene extends Phaser.Scene {
       enemyColor: this.cfg.enemyColor,
       heroFaction: this.cfg.heroFaction,
       heroPortrait: this.cfg.heroPortrait,
+      heroEmblem: this.cfg.heroEmblem,
       arena: !!this.cfg.arena,
       setSpeed: (s) => (this.speed = s),
       togglePause: () => (this.paused = !this.paused),

@@ -32,7 +32,7 @@ import { openHero, openShop } from './heroUi';
 import { openTroopTree } from './troopTree';
 import { openTavern, skillLine } from './tavern';
 import { companionsAt, dismissCompanion, inParty, isWounded, mood } from '../game/companions';
-import { companionPortraitURL } from '../gfx/icons';
+import { companionPortraitURL, heroEmblemURL } from '../gfx/icons';
 import { declareWar, offerPeace } from '../game/crown';
 import { lordRansom, prisonerCap, prisonerCount, ransomPrice, recruitPrisoner, releaseLord } from '../game/prisoners';
 import { heroPortraitURL } from '../gfx/icons';
@@ -47,6 +47,8 @@ export interface GameCtx {
   startRaid?(s: Settlement): void;
   /** Оборона своей осаждённой крепости. */
   defendSiege?(s: Settlement): void;
+  /** Обновить облик отряда на карте (после смены герба). */
+  refreshHero?(): void;
   /** Открыть окно с паузой игры, пока оно открыто. */
   modal?(open: () => void): void;
   /** Запустить бой (сцена или автобой) и вернуть результат. */
@@ -449,7 +451,7 @@ export function openParty(ctx: GameCtx) {
     }
   };
 
-  const head = header('Отряд', sub, () => close(), emblemURL(state.hero.faction));
+  const head = header('Отряд', sub, () => close(), heroEmblemURL(state));
   const closeBtn = head.lastElementChild as HTMLElement;
   closeBtn.style.marginLeft = '6px';
   head.insertBefore(btn('Древо воинов', () => openTroopTree(state), 'small', false, 'Как растут воины'), closeBtn).setAttribute('style', 'margin-left:auto');

@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
+import { drawSnowCover, hash01 } from '../map/season';
 import { music } from '../audio/music';
 import { ART_SCALE, GRID_H, GRID_W, PARTY_SPEED, SECONDS_PER_DAY, TILE, WORLD_H, WORLD_W } from '../config';
 import { FACTIONS, type FactionId } from '../data/factions';
-import { settlementTextureKey } from '../gfx/sprites';
+import { drawRider, settlementTextureKey } from '../gfx/sprites';
 import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo, totalReady } from '../game/logic';
 import { hint, openHelp, resetHints } from '../ui/hints';
 import { enemyArmy, playerArmy } from '../battle/setup';
@@ -26,7 +27,7 @@ import { activeLords, alliesNear, capture, news, lordsNear, placeName, withAllie
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
 import { hasSave, loadGame, newGame, saveGame, type GameState } from '../game/state';
 import { heroLook } from '../game/hero';
-import { heroPortraitURL } from '../gfx/icons';
+import { heroEmblemURL, heroPortraitURL } from '../gfx/icons';
 import { isWaterCell, world, type Settlement } from '../game/world';
 import { cellCenterWorld, geoToWorld, worldToCell } from '../map/geo';
 import { findPath, smoothPath } from '../map/pathfinding';
@@ -91,6 +92,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   private dragging = false;
   private pinch: { dist: number; zoom: number } | null = null;
   private hudTimer = 0;
+  private snowImg: Phaser.GameObjects.Image | null = null;
+  private ambient!: Phaser.GameObjects.Graphics;
   private menuTween: Phaser.Tweens.Tween | null = null;
 
   constructor() {
@@ -108,6 +111,9 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.territoryCanvas = drawTerritory(computeTerritory((s) => s.culture));
     this.textures.addCanvas('territory', this.territoryCanvas);
     this.add.image(0, 0, 'territory').setOrigin(0).setScale(ART_SCALE).setDepth(-9);
+    // Зимний снег поверх карты (рисуется при первой надобности)
+    this.snowImg = null;
+    this.ambient = this.add.graphics().setDepth(9500);
 
     this.pathGfx = this.add.graphics().setDepth(-5);
     this.marker = this.add.graphics().setDepth(9000);
@@ -667,6 +673,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     }
     this.syncParties(deltaMs);
     this.syncWarMarks(deltaMs);
+    this.drawAmbient();
 
     // Анимация шага
     if (moving) {
@@ -704,6 +711,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         }
       }
       music.setCulture(near.culture);
+      this.updateSeason();
     }
   }
 
@@ -974,6 +982,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       heroFaction: this.state.hero.faction,
       heroLook: heroLook(this.state),
       heroPortrait: heroPortraitURL(this.state),
+      heroEmblem: heroEmblemURL(this.state),
       enemyName: view.enemyName,
       enemyColor: view.enemyColor,
       wall: view.wall,
@@ -1213,10 +1222,108 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     }
   }
 
+  // ───────────────────────── времена года и жизнь карты ─────────────────────────
+
+  /** Насколько сейчас зима (0…1). */
+  private winter(): number {
+    const month = Math.floor(this.state.time / 30.4 + 2) % 12; // 0 — январь
+    return ({ 11: 0.8, 0: 1, 1: 1, 2: 0.45, 10: 0.3 } as Record<number, number>)[month] ?? 0;
+  }
+
+  private updateSeason() {
+    const w = this.mode === 'play' ? this.winter() : 0;
+    if (w > 0 && !this.snowImg) {
+      if (!this.textures.exists('snowcover')) this.textures.addCanvas('snowcover', drawSnowCover());
+      this.snowImg = this.add.image(0, 0, 'snowcover').setOrigin(0).setScale(ART_SCALE).setDepth(-9.5);
+    }
+    if (this.snowImg) this.snowImg.setAlpha(w).setVisible(w > 0);
+  }
+
+  /** Дым из труб, огни в окнах ночью, птицы днём — только в видимой части карты. */
+  private drawAmbient() {
+    const g = this.ambient;
+    g.clear();
+    if (this.mode !== 'play') return;
+    const cam = this.cameras.main;
+    const v = cam.worldView;
+    const now = this.time.now / 1000;
+    const hr = (this.state.time % 1) * 24;
+    const night = hr >= 20 || hr < 6;
+    const winter = this.winter();
+    const z = cam.zoom;
+    for (const s of world.settlements) {
+      if (s.type === 'village' && z < 0.45) continue;
+      if (s.x < v.x - 200 || s.x > v.right + 200 || s.y < v.y - 100 || s.y > v.bottom + 300) continue;
+      const img = this.settleSprites.get(s.id);
+      if (!img) continue;
+      const hh = hash01(s.cx * 31 + s.cy);
+      const top = img.y - img.displayHeight * 0.72;
+      // Дым: больше зимой и вечером
+      const puffs = s.type === 'village' ? 1 : winter > 0.3 || night ? 3 : 2;
+      for (let i = 0; i < puffs; i++) {
+        const ph = (now * 0.22 + hh + i / puffs) % 1;
+        const x = img.x + (hh - 0.5) * img.displayWidth * 0.5 + (i - 1) * 10 + Math.sin(ph * 4 + hh * 9) * 6 + ph * 22;
+        const y = top - ph * 60;
+        g.fillStyle(0x8a8580, (1 - ph) * 0.35);
+        g.fillCircle(x + 2, y + 2, 5 + ph * 11);
+        g.fillStyle(0xe8e4dc, (1 - ph) * 0.5);
+        g.fillCircle(x, y, 5 + ph * 11);
+      }
+      // Огни ночью
+      if (night) {
+        const n = s.type === 'town' ? 6 : s.type === 'castle' ? 3 : 2;
+        for (let i = 0; i < n; i++) {
+          const a = hash01(s.cx * 7 + i * 13 + s.cy);
+          const b = hash01(s.cy * 11 + i * 5 + s.cx);
+          const x = img.x + (a - 0.5) * img.displayWidth * 0.62;
+          const y = img.y - img.displayHeight * (0.12 + b * 0.38);
+          const fl = 0.75 + Math.sin(now * (3 + a * 4) + i) * 0.25;
+          g.fillStyle(0xffc860, 0.18 * fl);
+          g.fillCircle(x, y, 10);
+          g.fillStyle(0xffd88a, fl);
+          g.fillRect(Math.round(x) - 2, Math.round(y) - 3, 4, 5);
+        }
+      }
+    }
+    // Птицы: пара стай днём, не зимой
+    if (!night && winter < 0.5) {
+      g.lineStyle(Math.max(1.5, 2 / z), 0x2a2522, 0.8);
+      for (let f = 0; f < 2; f++) {
+        const t = ((now + f * 23) % 45) / 45;
+        const bx = v.x - 150 + t * (v.width + 300);
+        const by = v.y + v.height * (0.14 + f * 0.2) + Math.sin(t * 7 + f) * 30;
+        for (let i = 0; i < 5; i++) {
+          const ox = -Math.abs(i - 2) * 22 / Math.max(0.5, z) * 0.6;
+          const oy = (i - 2) * 16 / Math.max(0.5, z) * 0.6;
+          const flap = Math.sin(now * 9 + i) * 3;
+          const sz = 7 / Math.max(0.5, z);
+          const x = bx + ox;
+          const y = by + oy;
+          g.lineBetween(x - sz, y - flap, x, y);
+          g.lineBetween(x, y, x + sz, y - flap);
+        }
+      }
+    }
+  }
+
   private updatePartyTexture(frame: number) {
     const { cx, cy } = worldToCell(this.party.x, this.party.y);
     const water = cx >= 0 && cy >= 0 && cx < GRID_W && cy < GRID_H && isWaterCell(cy * GRID_W + cx);
+    const a = this.state.hero.arms;
+    if (!water && a) {
+      // Всадник героя в цветах личного герба
+      const key = `rider_arms_${a.field}_${a.chargeColor}_${frame}`;
+      if (!this.textures.exists(key)) this.textures.addCanvas(key, drawRider(a.field, a.chargeColor, frame as 0 | 1, true));
+      this.party.setTexture(key);
+      return;
+    }
     this.party.setTexture(`${water ? 'boat' : 'rider'}_${this.state.hero.faction}_player_${frame}`);
+  }
+
+  /** GameCtx: обновить облик отряда (после смены герба). */
+  refreshHero() {
+    this.updatePartyTexture(this.partyFrame);
+    this.updateHud();
   }
 
   /** Подписи держат постоянный экранный размер; перекрывающиеся менее важные прячутся. */

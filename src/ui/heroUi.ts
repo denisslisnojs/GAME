@@ -1,6 +1,7 @@
 import { ITEMS, SLOT_NAME, SLOTS, type Item } from '../data/items';
 import { DAMAGE_NAME } from '../data/troops';
-import { heroFigureURL, itemIconURL } from '../gfx/icons';
+import { heroEmblemURL, heroFigureURL, itemIconURL } from '../gfx/icons';
+import { openArmsEditor } from './heraldry';
 import { addPoint, addSkill, equipFromBag, equipped, heroLook, heroStats, unequip } from '../game/hero';
 import { SKILL_MAX, SKILLS } from '../data/skills';
 import { partySkill, skillOwner } from '../game/companions';
@@ -228,7 +229,7 @@ export function openHero(ctx: GameCtx) {
 
   const content = panel(
     'modal wide',
-    h('div', { class: 'head' }, h('div', {}, h('h2', { class: 'title' }, hero.name), h('div', { class: 'muted', style: 'font-size:13px' }, 'Герой, снаряжение и характеристики')), btn('✕', () => close(), 'small close')),
+    h('div', { class: 'head' }, h('div', {}, h('h2', { class: 'title' }, hero.name), h('div', { class: 'muted', style: 'font-size:13px' }, 'Герой, снаряжение и характеристики')), btn(h('span', { class: 'row', style: 'gap:6px' }, img(heroEmblemURL(state), 'px', 'width:16px;height:18px'), 'Герб'), () => openArmsEditor(ctx, () => { close(); openHero(ctx); }), 'small', false, 'Личный герб'), btn('✕', () => close(), 'small close')),
     h('div', { class: 'body hero-layout' }, leftCol, slotsCol),
   );
   render();

@@ -9,6 +9,8 @@ export interface BattleHudOpts {
   enemyColor: string;
   heroFaction: FactionId;
   heroPortrait?: string;
+  /** Личный герб героя. */
+  heroEmblem?: string;
   setSpeed(s: number): void;
   togglePause(): void;
   isPaused(): boolean;
@@ -121,7 +123,7 @@ export class BattleHud {
     const top = h(
       'div',
       { class: 'b-top' },
-      h('div', { class: 'b-side' }, h('img', { src: emblemURL(o.heroFaction), class: 'px' }), h('div', { class: 'col', style: 'gap:0' }, h('b', {}, b.armies[ps].name), this.countL)),
+      h('div', { class: 'b-side' }, h('img', { src: o.heroEmblem ?? emblemURL(o.heroFaction), class: 'px' }), h('div', { class: 'col', style: 'gap:0' }, h('b', {}, b.armies[ps].name), this.countL)),
       h(
         'div',
         { class: 'b-morale' },
@@ -144,7 +146,7 @@ export class BattleHud {
       const el = h(
         'div',
         { class: 'b-card', onclick: () => this.select(g.id) },
-        h('img', { class: 'px face', src: rep ? portraitURL(rep) : g.id === 'hero' ? o.heroPortrait ?? portraitURL(`${o.heroFaction}_c3m`) : emblemURL(o.heroFaction) }),
+        h('img', { class: 'px face', src: rep ? portraitURL(rep) : g.id === 'hero' ? o.heroPortrait ?? portraitURL(`${o.heroFaction}_c3m`) : o.heroEmblem ?? emblemURL(o.heroFaction) }),
         badge,
         h('div', { class: 'lbl' }, g.id === 'hero' && this.totals.hero > 1 ? 'Свита' : g.name),
         count,

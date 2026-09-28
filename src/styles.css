@@ -1616,3 +1616,30 @@ input.text:focus {
 .event-modal .options .btn {
   text-align: left;
 }
+
+.arms-layout {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.arms-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.swatch {
+  width: 26px;
+  height: 26px;
+  border: 2px solid #0e0f10;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatch.on {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
