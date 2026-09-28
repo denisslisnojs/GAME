@@ -99,3 +99,33 @@ export function dailyTick(state: GameState) {
 export function canEnter(state: GameState, s: Settlement): boolean {
   return relationTo(state, s) !== 'war';
 }
+
+// ───────────────────────── повышение воинов ─────────────────────────
+
+/** Сколько воинов стека набрали опыт для повышения. */
+export function readyToUpgrade(stack: { id: string; count: number; xp: number }): number {
+  const t = TROOPS[stack.id];
+  if (!t.upgradesTo.length || !t.xpToUpgrade) return 0;
+  return Math.min(stack.count, Math.floor(stack.xp / t.xpToUpgrade));
+}
+
+/** Всего воинов в отряде, готовых к повышению. */
+export function totalReady(state: GameState): number {
+  return state.party.troops.reduce((s, t) => s + readyToUpgrade(t), 0);
+}
+
+/** Повысить до n воинов стека fromId в toId. Возвращает, сколько повышено. */
+export function upgrade(state: GameState, fromId: string, toId: string, n: number): number {
+  const stack = state.party.troops.find((t) => t.id === fromId);
+  const t = TROOPS[fromId];
+  if (!stack || !t.upgradesTo.includes(toId)) return 0;
+  const k = Math.min(n, readyToUpgrade(stack), Math.floor(state.gold / Math.max(1, t.upgradeCost)));
+  if (k <= 0) return 0;
+  stack.count -= k;
+  stack.xp -= k * t.xpToUpgrade;
+  state.gold -= k * t.upgradeCost;
+  if (stack.count <= 0) state.party.troops = state.party.troops.filter((x) => x !== stack);
+  else stack.xp = Math.min(stack.xp, stack.count * t.xpToUpgrade * 2);
+  addTroops(state, toId, k);
+  return k;
+}

@@ -10,7 +10,12 @@ export type Formation = 'classic' | 'archers_front' | 'cav_charge';
 export type Ability = 'volley' | 'stakes' | 'cry' | 'smoke';
 
 export const FIELD_W = 2400;
-export const LANE_Y = [436, 494, 552];
+/** Полоса поля, по которой свободно ходят бойцы (y — глубина). */
+export const FIELD_Y0 = 424;
+export const FIELD_Y1 = 566;
+export const MID_Y = (FIELD_Y0 + FIELD_Y1) / 2;
+/** Расстояние по глубине «весит» больше: полоса поля сжата перспективой. */
+const Y_SCALE = 1.7;
 export const METER = 6; // пикселей поля на «метр» дальности стрельбы
 const MAX_ON_FIELD = 36;
 const SPEED_K = 44;
@@ -35,7 +40,6 @@ export interface BUnit {
   maxHp: number;
   x: number;
   y: number;
-  laneY: number;
   state: 'idle' | 'walk' | 'attack' | 'dead' | 'fled';
   anim: number;
   swing: number; // >0 — идёт замах, секунд до удара
@@ -72,9 +76,9 @@ export interface Projectile {
 
 export interface Stake {
   x: number;
+  y: number;
   side: Side;
   hp: number;
-  laneY: number;
 }
 
 export type EventKind = 'hit' | 'crit' | 'block' | 'dodge' | 'death' | 'shoot' | 'charge' | 'rout' | 'cry' | 'stakes' | 'smoke' | 'volley' | 'heroDown';
@@ -102,6 +106,11 @@ function rand(a: number, b: number) {
   return a + Math.random() * (b - a);
 }
 
+/** Расстояние на поле с учётом перспективы. */
+function ed(dx: number, dy: number) {
+  return Math.hypot(dx, dy * Y_SCALE);
+}
+
 export class Battle {
   units: BUnit[] = [];
   reserves: [BUnit[], BUnit[]] = [[], []];
@@ -121,6 +130,7 @@ export class Battle {
   heroDown = false;
   private uid = 1;
   private aiCavDelay = 3;
+  private attackers = new Map<number, number>();
 
   constructor(
     readonly armies: [ArmyDef, ArmyDef],
@@ -154,7 +164,6 @@ export class Battle {
   }
 
   private make(side: Side, troop: TroopDef, stackKey: string, isHero: boolean): BUnit {
-    const laneY = LANE_Y[Math.floor(Math.random() * 3)];
     return {
       uid: this.uid++,
       side,
@@ -165,8 +174,7 @@ export class Battle {
       hp: troop.hp,
       maxHp: troop.hp,
       x: 0,
-      y: laneY,
-      laneY,
+      y: MID_Y,
       state: 'idle',
       anim: Math.random(),
       swing: 0,
@@ -198,18 +206,21 @@ export class Battle {
       archers_front: ['ranged', 'inf', 'hero', 'cav'],
       cav_charge: ['cav', 'hero', 'inf', 'ranged'],
     };
+    // Каждая группа — прямоугольный блок: ряды по глубине поля, колонны от края
     let depth = 0;
+    const H = FIELD_Y1 - FIELD_Y0 - 16;
     for (const g of order[formation]) {
       const list = byGroup[g].filter((u) => fieldSet.has(u));
+      const rows = Math.max(1, Math.min(6, Math.ceil(Math.sqrt(list.length * 1.6))));
+      const spacing = g === 'cav' || g === 'hero' ? 40 : 28;
       list.forEach((u, i) => {
-        const lane = i % 3;
-        const col = Math.floor(i / 3);
-        u.laneY = LANE_Y[lane] + rand(-10, 10);
-        u.y = u.laneY;
-        const fromEdge = 560 - depth - col * 30 + rand(-6, 6);
+        const row = i % rows;
+        const col = Math.floor(i / rows);
+        u.y = FIELD_Y0 + 8 + ((row + 0.5) * H) / rows + rand(-5, 5);
+        const fromEdge = 560 - depth - col * spacing + rand(-6, 6);
         u.x = side === 0 ? fromEdge : FIELD_W - fromEdge;
       });
-      if (list.length) depth += Math.ceil(list.length / 3) * 30 + 40;
+      if (list.length) depth += Math.ceil(list.length / rows) * spacing + 36;
     }
     for (const u of all) {
       if (fieldSet.has(u)) this.units.push(u);
@@ -244,21 +255,21 @@ export class Battle {
     switch (a) {
       case 'volley':
         for (const u of mine) if (u.troop.role === 'ranged') { u.cd = 0; u.swing = 0; (u as BUnit & { volley?: boolean }).volley = true; }
-        this.events.push({ kind: 'volley', x: front, y: LANE_Y[1], side });
+        this.events.push({ kind: 'volley', x: front, y: MID_Y, side });
         break;
       case 'stakes':
-        for (const ly of LANE_Y) for (let k = 0; k < 2; k++) this.stakes.push({ x: front + dir * (46 + k * 14), side, hp: 3, laneY: ly + rand(-3, 3) });
-        this.events.push({ kind: 'stakes', x: front + dir * 50, y: LANE_Y[1], side });
+        for (let k = 0; k < 7; k++) this.stakes.push({ x: front + dir * (50 + (k % 2) * 16), y: FIELD_Y0 + 10 + k * ((FIELD_Y1 - FIELD_Y0 - 20) / 6), side, hp: 3 });
+        this.events.push({ kind: 'stakes', x: front + dir * 50, y: MID_Y, side });
         break;
       case 'cry':
         this.morale[side] = Math.min(this.maxMorale[side], this.morale[side] + 20);
         this.morale[1 - side] = Math.max(0, this.morale[1 - side] - 6);
         this.buff[side] = 10;
-        this.events.push({ kind: 'cry', x: front, y: LANE_Y[0], side });
+        this.events.push({ kind: 'cry', x: front, y: FIELD_Y0, side });
         break;
       case 'smoke':
         this.smoke = { x: front + dir * 160, t: 14 };
-        this.events.push({ kind: 'smoke', x: front + dir * 160, y: LANE_Y[1], side });
+        this.events.push({ kind: 'smoke', x: front + dir * 160, y: MID_Y, side });
         break;
     }
   }
@@ -284,6 +295,10 @@ export class Battle {
       if (this.smoke.t <= 0) this.smoke = null;
     }
     this.ai(dt);
+    this.attackers.clear();
+    for (const u of this.units) {
+      if (u.target && u.state !== 'dead' && u.state !== 'fled') this.attackers.set(u.target.uid, (this.attackers.get(u.target.uid) ?? 0) + 1);
+    }
 
     for (const u of this.units) {
       if (u.state === 'dead') {
@@ -327,8 +342,10 @@ export class Battle {
     let bestD = Infinity;
     for (const e of this.units) {
       if (e.side === u.side || e.state === 'dead' || e.state === 'fled') continue;
-      let d = Math.abs(e.x - u.x) + Math.abs(e.y - u.y) * 2.5;
+      let d = ed(e.x - u.x, e.y - u.y);
       if (u.group === 'cav' && e.troop.role === 'ranged') d *= 0.8; // конница охотится на стрелков
+      // Не наваливаться всем на одного: занятые цели менее привлекательны
+      if (u.troop.role !== 'ranged') d += (this.attackers.get(e.uid) ?? 0) * (e === u.target ? 0 : 22);
       if (d < bestD) {
         bestD = d;
         best = e;
@@ -360,25 +377,27 @@ export class Battle {
       return;
     }
     const dx = t.x - u.x;
-    const dist = Math.abs(dx);
-    const dy = Math.abs(t.y - u.y);
-    u.facing = dx >= 0 ? 1 : -1;
+    const dyRaw = t.y - u.y;
+    const dist = ed(dx, dyRaw);
+    if (Math.abs(dx) > 2) u.facing = dx >= 0 ? 1 : -1;
 
     // Замах идёт — ждём удара
     if (u.swing > 0) {
       u.swing -= dt;
       u.state = 'attack';
+      this.separate(u, dt, 0.5);
       if (u.swing <= 0) this.strike(u, t);
       return;
     }
 
     const reach = this.reach(u);
-    const inMelee = dist <= reach && dy < 30;
+    const inMelee = dist <= reach;
     const ranged = u.troop.role === 'ranged' && u.ammo > 0;
     const rangePx = u.troop.range * METER;
 
     if (inMelee) {
       u.state = 'attack';
+      this.separate(u, dt, 0.9);
       if (u.cd <= 0) this.startSwing(u, ranged ? 0.25 : 0.3);
       else if (u.anim > 0.5) u.state = 'idle';
       return;
@@ -386,18 +405,18 @@ export class Battle {
 
     if (ranged && dist <= rangePx) {
       // Конные стрелки держат дистанцию
-      if (u.troop.line === 'cavalry' && dist < 140 && t.troop.role !== 'ranged') {
-        this.moveBy(u, -u.facing, dt, 0.9);
+      if (u.troop.line === 'cavalry' && dist < 150 && t.troop.role !== 'ranged') {
+        this.steer(u, -dx, -dyRaw * 0.3, dt, 0.9);
         return;
       }
+      this.separate(u, dt, 0.5);
       u.state = u.cd <= 0.3 ? 'attack' : 'idle';
       if (u.cd <= 0) this.shoot(u, t);
       return;
     }
 
     if (order === 'hold') {
-      // Держим позицию, но сдвигаемся к линии цели
-      this.approachLane(u, t, dt);
+      this.separate(u, dt, 0.6);
       u.state = 'idle';
       return;
     }
@@ -408,50 +427,73 @@ export class Battle {
       if (inf.length) {
         const dir = u.side === 0 ? 1 : -1;
         const front = inf.reduce((m, a) => (dir > 0 ? Math.max(m, a.x) : Math.min(m, a.x)), dir > 0 ? -1e9 : 1e9);
-        if ((u.x - front) * dir > -20 && dist > 60) {
-          this.approachLane(u, t, dt);
+        if ((u.x - front) * dir > -24 && dist > 70) {
+          this.separate(u, dt, 0.6);
           u.state = 'idle';
           return;
         }
       }
     }
-    // Наступление
-    this.approachLane(u, t, dt);
-    this.moveBy(u, u.facing, dt, 1);
+    // Наступление: подходим к цели сбоку, с которого стоим, чтобы встать лицом к лицу
+    const side = dx >= 0 ? -1 : 1;
+    const gx = t.x + side * reach * 0.8 - u.x;
+    const gy = dyRaw;
+    this.steer(u, gx, gy, dt, 1);
   }
 
-  /** Боец держится своего ряда; в соседний переходит, только если в своём врагов рядом нет. */
-  private approachLane(u: BUnit, t: BUnit, dt: number) {
-    const nearestLane = LANE_Y.reduce((best, y) => (Math.abs(y - t.y) < Math.abs(best - t.y) ? y : best), LANE_Y[0]);
-    if (Math.abs(nearestLane - u.laneY) > 4) {
-      const busy = this.units.some(
-        (e) => e.side !== u.side && e.state !== 'dead' && e.state !== 'fled' && Math.abs(e.y - u.laneY) < 24 && Math.abs(e.x - u.x) < 260,
-      );
-      if (!busy) u.laneY = nearestLane + rand(-10, 10);
-    }
-    const want = u.laneY + clampN(t.y - u.laneY, -12, 12);
-    const dy = want - u.y;
-    u.y += Math.sign(dy) * Math.min(Math.abs(dy), 30 * dt);
-  }
-
-  private moveBy(u: BUnit, dir: number, dt: number, k: number) {
-    let speed = u.troop.speed * SPEED_K * k;
-    // Не проходить сквозь своих, сцепившихся в бою впереди
+  /** Отталкивание от соседей, чтобы бойцы не слипались в кучу. Возвращает вектор. */
+  private separation(u: BUnit): [number, number] {
+    let sx = 0;
+    let sy = 0;
+    const cavU = u.troop.line === 'cavalry';
     for (const a of this.units) {
-      if (a === u || a.side !== u.side || a.state === 'dead' || a.state === 'fled') continue;
-      const ahead = (a.x - u.x) * dir;
-      if (ahead > 0 && ahead < 22 && Math.abs(a.y - u.y) < 9 && (a.state === 'attack' || a.state === 'idle')) {
-        speed = 0;
-        break;
-      }
+      if (a === u || a.state === 'dead' || a.state === 'fled') continue;
+      const R = cavU || a.troop.line === 'cavalry' ? 40 : 25;
+      const dx = u.x - a.x;
+      const dy = u.y - a.y;
+      if (Math.abs(dx) > R || Math.abs(dy) * Y_SCALE > R) continue;
+      const d = ed(dx, dy) || 0.01;
+      if (d >= R) continue;
+      const k = ((R - d) / R) * (a.side === u.side ? 1 : 0.7);
+      // Одинаковые координаты — разводим случайно
+      const nx = d < 0.5 ? Math.random() - 0.5 : dx / d;
+      const ny = d < 0.5 ? Math.random() - 0.5 : (dy * Y_SCALE) / d;
+      sx += nx * k;
+      sy += ny * k;
     }
+    return [sx, sy];
+  }
+
+  private separate(u: BUnit, dt: number, k: number) {
+    const [sx, sy] = this.separation(u);
+    if (sx === 0 && sy === 0) return;
+    const sp = u.troop.speed * SPEED_K * k;
+    u.x += sx * sp * dt;
+    u.y += (sy * sp * dt) / Y_SCALE;
+    this.clampY(u);
+  }
+
+  private clampY(u: BUnit) {
+    if (u.y < FIELD_Y0) u.y = FIELD_Y0;
+    if (u.y > FIELD_Y1) u.y = FIELD_Y1;
+  }
+
+  /** Движение к точке (gx, gy — вектор цели) с обходом соседей и кольев. */
+  private steer(u: BUnit, gx: number, gy: number, dt: number, k: number) {
+    let speed = u.troop.speed * SPEED_K * k;
+    const len = ed(gx, gy) || 1;
+    let vx = gx / len;
+    let vy = (gy * Y_SCALE) / len;
+    const [sx, sy] = this.separation(u);
+    vx += sx * 1.8;
+    vy += sy * 1.8;
     // Колья останавливают вражескую конницу
     if (u.troop.line === 'cavalry') {
       for (const s of this.stakes) {
         if (s.side === u.side || s.hp <= 0) continue;
-        const d = (s.x - u.x) * dir;
-        if (d > 0 && d < 16 && Math.abs(s.laneY - u.y) < 16) {
-          speed = 0;
+        const ddx = s.x - u.x;
+        if (Math.abs(ddx) < 18 && Math.abs(s.y - u.y) < 16 && Math.sign(ddx) === Math.sign(vx)) {
+          vx = 0;
           if (u.cd <= 0) {
             u.cd = 1;
             s.hp--;
@@ -461,21 +503,30 @@ export class Battle {
       }
       this.stakes = this.stakes.filter((s) => s.hp > 0);
     }
-    const step = dir * speed * dt;
-    u.x += step;
-    u.facing = dir > 0 ? 1 : -1;
-    u.state = speed > 0 ? 'walk' : 'idle';
+    const vl = Math.hypot(vx, vy);
+    if (vl < 0.05) {
+      u.state = 'idle';
+      return;
+    }
+    vx /= vl;
+    vy /= vl;
+    if (vl < 0.5) speed *= vl * 2;
+    const stepX = vx * speed * dt;
+    const stepY = (vy * speed * dt) / Y_SCALE;
+    u.x += stepX;
+    u.y += stepY;
+    this.clampY(u);
+    if (Math.abs(vx) > 0.15) u.facing = vx > 0 ? 1 : -1;
+    u.state = 'walk';
     if (u.troop.line === 'cavalry') {
-      u.chargeDist += Math.abs(step);
+      u.chargeDist += Math.hypot(stepX, stepY);
       if (u.chargeDist > 140) u.charge = true;
     }
-    if (u.y < LANE_Y[0] - 16) u.y = LANE_Y[0] - 16;
-    if (u.y > LANE_Y[2] + 16) u.y = LANE_Y[2] + 16;
   }
 
   private moveUnit(u: BUnit, dt: number) {
     const dir = u.side === 0 ? -1 : 1;
-    this.moveBy(u, dir, dt, u.routed ? 1.15 : 1);
+    this.steer(u, dir * 100, 0, dt, u.routed ? 1.15 : 1);
     if (u.x < -40 || u.x > FIELD_W + 40) u.state = 'fled';
   }
 
@@ -489,7 +540,7 @@ export class Battle {
     u.cd = u.troop.attackTime * rand(0.9, 1.1);
     u.anim = 0;
     if (t.state === 'dead' || t.state === 'fled') return;
-    if (Math.abs(t.x - u.x) > this.reach(u) + 12 || Math.abs(t.y - u.y) > 30) return;
+    if (ed(t.x - u.x, t.y - u.y) > this.reach(u) + 12) return;
     let mult = u.troop.role === 'ranged' ? 0.55 : 1;
     if (u.charge && u.troop.line === 'cavalry') {
       mult *= u.troop.look.weapon === 'lance' ? 1.9 : 1.5;
@@ -546,7 +597,7 @@ export class Battle {
       p.y = p.y0 + (p.y1 - p.y0) * k - Math.sin(k * Math.PI) * p.arc;
       if (k >= 1) {
         p.done = true;
-        if (p.willHit && p.target.state !== 'dead' && p.target.state !== 'fled' && Math.abs(p.target.x - p.x1) < 30) {
+        if (p.willHit && p.target.state !== 'dead' && p.target.state !== 'fled' && ed(p.target.x - p.x1, p.target.y - (p.y1 + 22)) < 34) {
           this.resolveHit(p.from, p.target, p.mult, true);
         }
       }
@@ -612,8 +663,7 @@ export class Battle {
       while (free-- > 0 && this.reserves[side].length) {
         const u = this.reserves[side].shift()!;
         u.x = side === 0 ? -20 - Math.random() * 30 : FIELD_W + 20 + Math.random() * 30;
-        u.laneY = LANE_Y[Math.floor(Math.random() * 3)] + rand(-10, 10);
-        u.y = u.laneY;
+        u.y = rand(FIELD_Y0 + 6, FIELD_Y1 - 6);
         this.units.push(u);
       }
     }
@@ -675,10 +725,6 @@ export class Battle {
     }
     return { stacks: bySt, heroDead };
   }
-}
-
-function clampN(v: number, a: number, b: number) {
-  return v < a ? a : v > b ? b : v;
 }
 
 function avgX(list: BUnit[]) {

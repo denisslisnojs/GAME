@@ -1,6 +1,6 @@
 import { FACTIONS } from '../data/factions';
 import { emblemURL } from '../gfx/icons';
-import { partySize } from '../game/logic';
+import { partySize, totalReady } from '../game/logic';
 import { dateString, timeOfDay, type GameState } from '../game/state';
 import { btn, h, uiRoot } from './dom';
 
@@ -21,6 +21,8 @@ export class Hud {
   private men = h('span', { class: 'big' });
   private terrain = h('span', {});
   private pauseBtn: HTMLButtonElement;
+  private partyBtn: HTMLButtonElement;
+  private partyBadge = h('span', { class: 'badge-dot' });
   private speedBtns: HTMLButtonElement[] = [];
   private pauseBanner = h('div', { class: 'pause-banner' }, 'ПАУЗА');
   private night = h('div', { class: 'passthrough', style: 'position:fixed;inset:0;pointer-events:none;background:#10183a;opacity:0;transition:opacity 1s' });
@@ -28,6 +30,8 @@ export class Hud {
   constructor(state: GameState, a: HudActions) {
     const f = FACTIONS[state.hero.faction];
     this.pauseBtn = btn('❚❚', () => a.togglePause(), '', false, 'Пауза (пробел)');
+    this.partyBtn = btn('Отряд', () => a.openParty());
+    this.partyBtn.append(this.partyBadge);
     for (const s of [1, 2, 4]) {
       this.speedBtns.push(btn(`×${s}`, () => a.setSpeed(s), 'small'));
     }
@@ -51,7 +55,7 @@ export class Hud {
           'div',
           { class: 'hud-group' },
           btn('◎', () => a.centerParty(), 'icon', false, 'К отряду'),
-          btn('Отряд', () => a.openParty()),
+          this.partyBtn,
           btn('Державы', () => a.openRealms()),
           btn('☰', () => a.openMenu(), 'icon', false, 'Меню'),
         ),
@@ -68,6 +72,9 @@ export class Hud {
     const n = partySize(state);
     this.men.textContent = `${n} ⚔`;
     this.terrain.textContent = terrain;
+    const ready = totalReady(state);
+    this.partyBadge.textContent = ready ? `↑${ready}` : '';
+    this.partyBadge.style.display = ready ? '' : 'none';
     this.pauseBtn.textContent = paused ? '▶' : '❚❚';
     this.pauseBtn.classList.toggle('active', paused);
     this.speedBtns.forEach((b, i) => b.classList.toggle('active', [1, 2, 4][i] === speed));

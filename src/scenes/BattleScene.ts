@@ -3,7 +3,7 @@ import { sfx } from '../audio/sfx';
 import { music } from '../audio/music';
 import { drawFar, drawGround, drawMid, drawSky, drawStake, type BattleTerrain } from '../battle/background';
 import { heroLook, lookKey, troopLook } from '../battle/looks';
-import { FIELD_W, LANE_Y, type Battle, type BattleEvent, type BUnit } from '../battle/sim';
+import { FIELD_W, MID_Y, type Battle, type BattleEvent, type BUnit } from '../battle/sim';
 import type { FactionId } from '../data/factions';
 import { drawUnitSheet, FRAME_H, FRAME_W, type UnitLook } from '../gfx/units';
 import { BattleHud } from '../ui/battleHud';
@@ -291,8 +291,7 @@ export class BattleScene extends Phaser.Scene {
         continue;
       }
       s.setDepth(u.y);
-      if (u.flash > 0.1) s.setTintFill(0xffffff);
-      else if (u.flash > 0) s.setTint(0xff7a6a);
+      if (u.flash > 0) s.setTint(u.flash > 0.1 ? 0xff5a4a : 0xff9a8a);
       else s.clearTint();
       // тень
       const cav = u.troop.line === 'cavalry';
@@ -321,7 +320,7 @@ export class BattleScene extends Phaser.Scene {
     this.stakeImgs.forEach((img, i) => {
       const st = b.stakes[i];
       img.setVisible(!!st);
-      if (st) img.setPosition(st.x, st.laneY + 4).setDepth(st.laneY + 2).setFlipX(st.side === 1);
+      if (st) img.setPosition(st.x, st.y + 4).setDepth(st.y + 2).setFlipX(st.side === 1);
     });
 
     // Стрелы и болты
@@ -357,7 +356,7 @@ export class BattleScene extends Phaser.Scene {
     // Дым
     if (b.smoke) {
       if (this.smokePuffs.length < 26 && Math.random() < 0.5) {
-        this.smokePuffs.push({ x: b.smoke.x + (Math.random() - 0.5) * 360, y: LANE_Y[1] - Math.random() * 90, vx: (Math.random() - 0.5) * 10, vy: -6, life: 5, max: 5, color: 0xd8d8d0, size: 30 + Math.random() * 40, gravity: 0 });
+        this.smokePuffs.push({ x: b.smoke.x + (Math.random() - 0.5) * 360, y: MID_Y - Math.random() * 90, vx: (Math.random() - 0.5) * 10, vy: -6, life: 5, max: 5, color: 0xd8d8d0, size: 30 + Math.random() * 40, gravity: 0 });
       }
     }
     for (const p of this.smokePuffs) {

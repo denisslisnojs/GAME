@@ -11,9 +11,11 @@ import {
   hirePrice,
   ownerOf,
   partySize,
+  readyToUpgrade,
   relationTo,
   sell,
   sellPrice,
+  upgrade,
 } from '../game/logic';
 import type { GameState } from '../game/state';
 import { world, type Settlement } from '../game/world';
@@ -274,7 +276,27 @@ export function openParty(ctx: GameCtx) {
     const troops = [...state.party.troops].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier || (TROOPS[a.id].line === 'cavalry' ? -1 : 1));
     for (const stack of troops) {
       const t = TROOPS[stack.id];
-      const xpPct = t.xpToUpgrade ? Math.min(100, Math.round((stack.xp / t.xpToUpgrade) * 100)) : 100;
+      const ready = readyToUpgrade(stack);
+      const xpPct = t.xpToUpgrade ? (ready >= stack.count ? 100 : Math.round(((stack.xp % t.xpToUpgrade) / t.xpToUpgrade) * 100)) : 100;
+      const doUpgrade = (to: string, n: number) => {
+        const k = upgrade(state, stack.id, to, n);
+        if (k > 0) {
+          sfxCoins();
+          toast(`${t.name} → ${TROOPS[to].name} ×${k}`);
+          ctx.commit();
+        } else if (state.gold < t.upgradeCost) toast('Не хватает денег на повышение');
+        render();
+      };
+      const upgradeRow = ready
+        ? h(
+            'div',
+            { class: 'row', style: 'gap:4px;flex-wrap:wrap;margin-top:2px' },
+            ...t.upgradesTo.flatMap((to) => [
+              btn(`↑ ${TROOPS[to].name} · ${t.upgradeCost} ¤`, () => doUpgrade(to, 1), 'small primary', state.gold < t.upgradeCost),
+              ready > 1 ? btn(`×${ready}`, () => doUpgrade(to, ready), 'small', state.gold < t.upgradeCost) : null,
+            ]),
+          )
+        : null;
       body.append(
         h(
           'div',
@@ -290,9 +312,10 @@ export function openParty(ctx: GameCtx) {
             t.upgradesTo.length
               ? h('div', { class: 'row', style: 'gap:6px;font-size:12px' },
                   h('div', { style: 'width:90px;height:6px;background:#0e0f10;border:1px solid #45494e' }, h('div', { style: `height:100%;width:${xpPct}%;background:var(--gold)` })),
-                  h('span', { class: 'muted' }, `→ ${t.upgradesTo.map((u) => TROOPS[u].name).join(' / ')}`),
+                  h('span', { class: ready ? 'gold' : 'muted' }, ready ? `Готовы к повышению: ${ready}` : `→ ${t.upgradesTo.map((u) => TROOPS[u].name).join(' / ')}`),
                 )
               : h('div', { class: 'muted', style: 'font-size:12px' }, 'Высший уровень'),
+            upgradeRow,
           ),
           h('div', { class: 'col', style: 'align-items:flex-end;gap:4px' },
             h('span', { class: 'count' }, `×${stack.count}`),

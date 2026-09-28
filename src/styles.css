@@ -1149,3 +1149,12 @@ input.text:focus {
 .result-title.lose {
   color: #e07a6a;
 }
+
+.badge-dot {
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 12px;
+  background: var(--gold);
+  color: #1d160b;
+  border: 1px solid #0e0c0a;
+}
