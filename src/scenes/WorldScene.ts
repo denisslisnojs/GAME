@@ -700,6 +700,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         return `rider_${p.faction}_${frame}`;
       case 'lord':
         return `lord_${p.faction}_${frame}`;
+      case 'caravan':
+        return `caravan_${p.faction}_${frame}`;
       default:
         return `band_${frame}`;
     }
@@ -993,7 +995,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   }
 
   private isHostile(p: MapParty): boolean {
-    if (p.kind !== 'patrol' && p.kind !== 'lord') return true;
+    if (p.kind !== 'patrol' && p.kind !== 'lord' && p.kind !== 'caravan') return true;
     return atWar(this.state, p.faction as FactionId, this.state.hero.faction);
   }
 

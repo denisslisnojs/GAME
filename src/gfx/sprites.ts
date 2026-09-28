@@ -767,3 +767,56 @@ export function drawPlague(frame: 0 | 1): HTMLCanvasElement {
   P.outline('#141810');
   return P.canvas;
 }
+
+/** Торговый караван: крытая повозка, лошадь и флажок державы. */
+export function drawCaravan(main: string, sec: string, frame: 0 | 1): HTMLCanvasElement {
+  const P = new Pix(32, 22);
+  const canvas = '#e8dcc0';
+  const canvasD = '#b8a888';
+  const wood = '#7a5332';
+  const woodD = '#4a3220';
+  // Тент повозки (дуга)
+  for (let x = 12; x < 30; x++) {
+    const hgt = Math.round(Math.sin(((x - 12) / 17) * Math.PI) * 3);
+    P.vline(x, 6 - hgt, 12, (x - 12) % 5 === 0 ? canvasD : canvas);
+  }
+  P.hline(12, 29, 13, wood);
+  P.hline(12, 29, 14, woodD);
+  // Колёса
+  for (const wx of [15, 26]) {
+    const spoke = frame ? 1 : 0;
+    P.rect(wx - 2, 15, 5, 5, woodD);
+    P.rect(wx - 1, 16, 3, 3, wood);
+    P.p(wx, 17, woodD);
+    P.p(wx - 1 + spoke * 2, 16, woodD);
+  }
+  // Лошадь
+  const horse = '#8a5a32';
+  P.rect(2, 9, 9, 4, horse);
+  P.rect(0, 6, 3, 4, horse);
+  P.p(0, 5, horse);
+  P.rect(8, 8, 2, 2, '#5a3a22');
+  const legs = frame ? [[3, 1], [9, 0]] : [[2, 0], [8, 1]];
+  for (const [lx, o] of legs) {
+    P.vline(lx + o, 13, 17, horse);
+    P.vline(lx + 2 - o, 13, 17, '#6a4428');
+  }
+  P.hline(10, 12, 11, woodD);
+  // Флажок державы
+  P.vline(28, 0, 6, woodD);
+  P.rect(29, 0, 3, 2, main);
+  P.p(29, 2, sec);
+  // Груз сзади
+  P.rect(30, 9, 2, 4, '#a07a48');
+  P.outline(OUT);
+  P.rect(2, 20, 28, 1, 'rgba(0,0,0,0.25)');
+  // Рисовали мордой влево; на карте все отряды по умолчанию смотрят вправо
+  const out = document.createElement('canvas');
+  out.width = P.canvas.width;
+  out.height = P.canvas.height;
+  const c = out.getContext('2d')!;
+  c.translate(out.width, 0);
+  c.scale(-1, 1);
+  c.drawImage(P.canvas, 0, 0);
+  return out;
+}

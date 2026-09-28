@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { FACTIONS, FACTION_IDS } from '../data/factions';
 import { hex } from '../gfx/pixel';
-import { allSettlementTextures, drawBandits, drawBoat, drawCamp, drawLord, drawPlague, drawRider, drawSmoke } from '../gfx/sprites';
+import { allSettlementTextures, drawBandits, drawBoat, drawCamp, drawCaravan, drawLord, drawPlague, drawRider, drawSmoke } from '../gfx/sprites';
 import { buildWorld } from '../game/world';
 import { loadCachedMap, saveMapLater } from '../map/cache';
 import { generateMap } from '../map/terrain';
@@ -51,6 +51,8 @@ export class BootScene extends Phaser.Scene {
         this.textures.addCanvas(`boat_${id}${suffix}_0`, drawBoat(hex(f.color), hex(f.color2), 0));
         this.textures.addCanvas(`boat_${id}${suffix}_1`, drawBoat(hex(f.color), hex(f.color2), 1));
       }
+      this.textures.addCanvas(`caravan_${id}_0`, drawCaravan(hex(f.color), hex(f.color2), 0));
+      this.textures.addCanvas(`caravan_${id}_1`, drawCaravan(hex(f.color), hex(f.color2), 1));
       this.textures.addCanvas(`lord_${id}_0`, drawLord(hex(f.color), hex(f.color2), 0));
       this.textures.addCanvas(`lord_${id}_1`, drawLord(hex(f.color), hex(f.color2), 1));
     }

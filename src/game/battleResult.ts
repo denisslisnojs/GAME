@@ -152,8 +152,8 @@ export function gainHeroXp(state: GameState, xp: number): number {
   return ups;
 }
 
-const ITEM_CHANCE: Record<string, number> = { bandits: 0.14, raiders: 0.2, desert: 0.22, pirates: 0.16, deserters: 0.35, patrol: 0.45, lord: 0.8 };
-const ITEM_CAP: Record<string, number> = { bandits: 2, raiders: 3, desert: 3, pirates: 2, deserters: 3, patrol: 4, lord: 5 };
+const ITEM_CHANCE: Record<string, number> = { caravan: 0.3, bandits: 0.14, raiders: 0.2, desert: 0.22, pirates: 0.16, deserters: 0.35, patrol: 0.45, lord: 0.8 };
+const ITEM_CAP: Record<string, number> = { caravan: 3, bandits: 2, raiders: 3, desert: 3, pirates: 2, deserters: 3, patrol: 4, lord: 5 };
 
 /** Бой с отрядом на карте (разбойники, разъезд, лорд). others — вражеские лорды, вступившие в бой. */
 export function applyBattle(state: GameState, battle: Battle, party: MapParty, allies: MapParty[] = [], others: MapParty[] = []): AppliedResult {
@@ -164,7 +164,7 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty, a
     itemChance: ITEM_CHANCE[party.kind] ?? 0.1,
     itemCap: ITEM_CAP[party.kind] ?? 2,
     culture: party.faction === 'outlaw' ? null : party.faction,
-    bonusGoods: party.kind === 'patrol' || party.kind === 'deserters' || party.kind === 'lord',
+    bonusGoods: party.kind === 'patrol' || party.kind === 'deserters' || party.kind === 'lord' || party.kind === 'caravan',
   }, allies);
   afterAllies(state, allies, res.won, party.faction);
   if (res.won) {
@@ -173,6 +173,10 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty, a
       defeatLord(state, o, 'player');
     }
     onPartyDefeated(state, party);
+    if (party.kind === 'caravan') {
+      news(state, `${state.hero.name} разграбил караван державы «${FACTIONS[party.faction as FactionId].short}».`, 'player');
+      res.headline = 'Караван разграблен! Товары погружены в ваш обоз.';
+    }
     if (party.kind === 'lord') {
       defeatLord(state, party, 'player');
       res.headline = `${party.name} разбит и бежал!`;

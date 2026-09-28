@@ -13,7 +13,7 @@ import { atWar, partySize } from './logic';
 import type { GameState } from './state';
 import { isWaterCell, world } from './world';
 
-export type PartyKind = 'bandits' | 'raiders' | 'desert' | 'pirates' | 'deserters' | 'patrol' | 'lord';
+export type PartyKind = 'bandits' | 'raiders' | 'desert' | 'pirates' | 'deserters' | 'patrol' | 'lord' | 'caravan';
 
 export interface MapParty {
   id: number;
@@ -33,6 +33,8 @@ export interface MapParty {
   lord?: LordInfo;
   /** Отряд, за которым охотится поручение. */
   questId?: number;
+  /** Караван: город назначения. */
+  dest?: string;
 }
 
 export interface LordInfo {
@@ -50,7 +52,7 @@ export interface LordInfo {
 
 interface Runtime {
   path: { x: number; y: number }[];
-  mode: 'wander' | 'chase' | 'flee';
+  mode: 'wander' | 'chase' | 'flee' | 'travel';
   repathAt: number;
   facing: number;
   moving: boolean;
@@ -63,6 +65,7 @@ export const KIND_INFO: Record<PartyKind, { name: string; speed: number; about: 
   pirates: { name: 'Морские разбойники', speed: 14, about: 'Грабители с моря: высаживаются на берег и уходят с добычей.' },
   deserters: { name: 'Дезертиры', speed: 16, about: 'Сбежавшие из войска солдаты. Хорошо вооружены и отчаянны.' },
   patrol: { name: 'Разъезд', speed: 17, about: 'Вражеский отряд, охраняющий свои земли.' },
+  caravan: { name: 'Караван', speed: 13, about: 'Торговый обоз державы под охраной. Вражеский караван можно разграбить — товары и золото достанутся вам.' },
   lord: { name: 'Лорд', speed: 16, about: 'Вельможа державы со своей дружиной. Разбитый, он бежит и вернётся с новой армией.' },
 };
 
@@ -129,6 +132,11 @@ function makeTroops(kind: PartyKind, faction: FactionId | 'outlaw', state: GameS
       list.push([`${f}_i2`, n(2, 5)], [`${f}_i3m`, n(1, 3)], [`${f}_i3r`, n(1, 3)]);
       break;
     }
+    case 'caravan': {
+      const f = faction as FactionId;
+      list.push([`${f}_i2`, n(3, 5)], [`${f}_i3r`, n(1, 2)], [`${f}_c2`, n(0, 2)]);
+      break;
+    }
     case 'patrol': {
       const f = faction as FactionId;
       list.push([`${f}_i2`, n(3, 6)], [`${f}_i3m`, n(2, 4)], [`${f}_i3r`, n(2, 4)], [`${f}_c2`, n(1, 3)], [`${f}_c3m`, n(0, 2)], [`${f}_c3r`, f === 'horde' ? n(2, 4) : 0]);
@@ -146,6 +154,16 @@ function randomLoot(r: () => number, kind: PartyKind): Partial<Record<GoodId, nu
   for (let i = 0; i < n; i++) {
     const g = pool[Math.floor(r() * pool.length)];
     out[g] = (out[g] ?? 0) + randInt(r, 1, GOODS[g].price > 150 ? 2 : 5);
+  }
+  return out;
+}
+
+function caravanLoot(r: () => number): Partial<Record<GoodId, number>> {
+  const all = Object.keys(GOODS) as GoodId[];
+  const out: Partial<Record<GoodId, number>> = {};
+  for (let i = 0; i < 4; i++) {
+    const g = all[Math.floor(r() * all.length)];
+    out[g] = (out[g] ?? 0) + randInt(r, 2, GOODS[g].price > 150 ? 3 : 8);
   }
   return out;
 }
@@ -190,7 +208,7 @@ export function spawn(state: GameState, kind: PartyKind | null, faction: Faction
   const id = (state.nextPartyId = (state.nextPartyId ?? 1) + 1);
   let fac: FactionId | 'outlaw' = faction;
   if (k === 'deserters') fac = FACTION_IDS[Math.floor(r() * 4)];
-  const name = k === 'patrol' ? `Разъезд: ${FACTIONS[fac as FactionId].short}` : k === 'deserters' ? `Дезертиры (${FACTIONS[fac as FactionId].short})` : KIND_INFO[k].name;
+  const name = k === 'caravan' ? `Караван: ${FACTIONS[fac as FactionId].short}` : k === 'patrol' ? `Разъезд: ${FACTIONS[fac as FactionId].short}` : k === 'deserters' ? `Дезертиры (${FACTIONS[fac as FactionId].short})` : KIND_INFO[k].name;
   const p: MapParty = {
     id,
     kind: k,
@@ -201,8 +219,8 @@ export function spawn(state: GameState, kind: PartyKind | null, faction: Faction
     hx: c.cx,
     hy: c.cy,
     troops: makeTroops(k, fac, state, r),
-    gold: randInt(r, 20, 90),
-    loot: k === 'patrol' ? {} : randomLoot(r, k),
+    gold: k === 'caravan' ? randInt(r, 150, 350) : randInt(r, 20, 90),
+    loot: k === 'patrol' ? {} : k === 'caravan' ? caravanLoot(r) : randomLoot(r, k),
     calmUntil: 0,
   };
   if (!p.troops.length) return null;
@@ -213,12 +231,22 @@ export function spawn(state: GameState, kind: PartyKind | null, faction: Faction
 export function dailySpawn(state: GameState) {
   state.parties ??= [];
   const r = mulberry32((Math.floor(state.time) * 7919) ^ 0x5a5a);
-  const outlaws = state.parties.filter((p) => p.kind !== 'patrol').length;
+  const outlaws = state.parties.filter((p) => p.kind !== 'patrol' && p.kind !== 'caravan').length;
   const need = Math.min(6, OUTLAW_TARGET - outlaws);
   for (let i = 0; i < need; i++) {
     const s = world.settlements[Math.floor(r() * world.settlements.length)];
     const p = spawn(state, null, 'outlaw', { cx: s.cx, cy: s.cy }, r);
     if (p) state.parties.push(p);
+  }
+  // Караваны: по два на державу, из своих городов
+  for (const f of FACTION_IDS) {
+    const have = state.parties.filter((p) => p.kind === 'caravan' && p.faction === f).length;
+    const towns = world.settlements.filter((s) => s.type === 'town' && state.settlements[s.id].owner === f);
+    for (let i = have; i < 2 && towns.length; i++) {
+      const s = towns[Math.floor(r() * towns.length)];
+      const p = spawn(state, 'caravan', f, { cx: s.cx, cy: s.cy }, r);
+      if (p) state.parties.push(p);
+    }
   }
   // Разъезды держав, воюющих с игроком
   for (const f of FACTION_IDS) {
@@ -271,9 +299,13 @@ export function updateParties(state: GameState, dtDays: number, targetId: number
     const calm = state.time < p.calmUntil;
     const sight = p.kind === 'patrol' ? 11 : 9;
     const ratio = powerRatio(state, p);
-    const hostile = p.kind !== 'patrol' || atWar(state, p.faction as FactionId, state.hero.faction);
+    const civil = p.kind === 'patrol' || p.kind === 'caravan';
+    const hostile = !civil || atWar(state, p.faction as FactionId, state.hero.faction);
     let mode: Runtime['mode'] = 'wander';
-    if (hostile && !calm && playerAlive && dCells < sight) {
+    if (p.kind === 'caravan') {
+      // Караван не нападает: от врага уходит, иначе идёт по торговому пути
+      mode = hostile && dCells < 6 ? 'flee' : 'travel';
+    } else if (hostile && !calm && playerAlive && dCells < sight) {
       mode = ratio > (p.kind === 'patrol' ? 0.7 : 0.85) ? 'chase' : dCells < 7 ? 'flee' : 'wander';
     }
     if (mode !== r.mode) {
@@ -294,6 +326,21 @@ export function updateParties(state: GameState, dtDays: number, targetId: number
         const ty = Math.max(1, Math.min(GRID_H - 2, Math.round(pcx.cy + (ay / len) * 12)));
         r.path = pathTo(p, tx, ty);
         r.repathAt = 0.3;
+      } else if (mode === 'travel') {
+        if (!r.path.length) {
+          const rr = mulberry32(p.id * 131 + Math.floor(state.time * 10));
+          const f = p.faction as FactionId;
+          const dest = p.dest ? world.byId.get(p.dest) : undefined;
+          if (!dest || Math.hypot(dest.x - p.x, dest.y - p.y) / TILE < 2.5) {
+            const towns = world.settlements.filter((s) => s.type === 'town' && s.id !== p.dest && !atWar(state, f, state.settlements[s.id].owner));
+            const near = towns.sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, 5);
+            p.dest = near[Math.floor(rr() * near.length)]?.id;
+          }
+          const d2 = p.dest ? world.byId.get(p.dest) : undefined;
+          r.path = d2 ? pathTo(p, d2.cx, d2.cy) : [];
+          if (!r.path.length) p.dest = undefined;
+          r.repathAt = r.path.length ? 999 : 2;
+        }
       } else if (!r.path.length) {
         const rr = mulberry32(p.id * 131 + Math.floor(state.time * 10));
         const tx = Math.max(1, Math.min(GRID_W - 2, p.hx + Math.round((rr() - 0.5) * 20)));
