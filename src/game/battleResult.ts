@@ -7,6 +7,7 @@ import { dismiss } from './logic';
 import { KIND_INFO, removeParty, type MapParty } from './parties';
 import type { GameState } from './state';
 import { capture, defeatLord, distributeLosses, news, placeName, type Troops } from './war';
+import { onPartyDefeated, onVillageRaided } from './quests';
 import { spawnPointNear, world, type Settlement } from './world';
 
 export interface AppliedResult {
@@ -126,14 +127,21 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo): Appli
   // В больших сражениях опыт растёт медленнее, чтобы герой не прыгал через уровни
   const tierXp = enemyTierSum <= 20 ? enemyTierSum * 9 : 180 + (enemyTierSum - 20) * 3;
   res.heroXp = Math.round(tierXp + (won ? 20 : 5));
-  state.hero.xp += res.heroXp;
+  res.levelUp = gainHeroXp(state, res.heroXp);
+  return res;
+}
+
+/** Начислить опыт герою; возвращает число новых уровней (2 очка характеристик за уровень). */
+export function gainHeroXp(state: GameState, xp: number): number {
+  let ups = 0;
+  state.hero.xp += xp;
   while (state.hero.xp >= heroXpToLevel(state.hero.level)) {
     state.hero.xp -= heroXpToLevel(state.hero.level);
     state.hero.level++;
     state.hero.points = (state.hero.points ?? 0) + 2;
-    res.levelUp++;
+    ups++;
   }
-  return res;
+  return ups;
 }
 
 const ITEM_CHANCE: Record<string, number> = { bandits: 0.14, raiders: 0.2, desert: 0.22, pirates: 0.16, deserters: 0.35, patrol: 0.45, lord: 0.8 };
@@ -151,6 +159,7 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty): 
     bonusGoods: party.kind === 'patrol' || party.kind === 'deserters' || party.kind === 'lord',
   });
   if (res.won) {
+    onPartyDefeated(state, party);
     if (party.kind === 'lord') {
       defeatLord(state, party, 'player');
       res.headline = `${party.name} разбит и бежал!`;
@@ -177,6 +186,7 @@ export function applySiege(state: GameState, battle: Battle, s: Settlement, garr
   if (res.won) {
     for (const l of lords) if (l.lord?.status === 'active') defeatLord(state, l, 'player');
     capture(state, s, state.hero.faction, true);
+    (state.capturedByHero ??= []).push(s.id);
     state.stats!.captured = (state.stats!.captured ?? 0) + 1;
     res.headline = `${s.name} взят! Крепость отходит государю — ${FACTIONS[state.hero.faction].rulerTitle.toLowerCase()} ${FACTIONS[state.hero.faction].ruler}.`;
   } else {
@@ -193,6 +203,7 @@ export function applyRaid(state: GameState, battle: Battle, s: Settlement, milit
   if (res.won) {
     state.war!.looted[s.id] = state.time + 14;
     state.settlements[s.id].recruits = {};
+    onVillageRaided(state, s);
     news(state, `${state.hero.name} разорил ${placeName(s)}.`, 'player');
     res.headline = `${s.name} разорена. Крестьяне разбежались.`;
   }

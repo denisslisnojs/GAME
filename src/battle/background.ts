@@ -211,3 +211,37 @@ export function drawWall(culture: string, banner: string, banner2: string): HTML
   P.outline('#1c1612');
   return P.canvas;
 }
+
+/** Трибуны ристалища вместо холмов: зрители, навесы, знамёна, ограда. */
+export function drawArena(W: number, H: number, colors: string[]): HTMLCanvasElement {
+  const P = new Pix(W, H);
+  const wood = '#7a5332';
+  const woodD = '#523620';
+  // Ярусы трибун
+  for (let tier = 0; tier < 4; tier++) {
+    const y = 14 + tier * 9;
+    P.rect(0, y + 7, W, 2, woodD);
+    for (let x = 0; x < W; x += 3) {
+      if (hash2(x, tier, 31) < 0.12) continue; // пустые места
+      const c = colors[Math.floor(hash2(x, tier, 32) * colors.length)];
+      const skin = hash2(x, tier, 33) < 0.5 ? '#e0b48a' : '#c89068';
+      P.p(x, y + 2, skin);
+      P.p(x, y + 1, hash2(x, tier, 34) < 0.3 ? c : '#4a3520');
+      P.rect(x, y + 3, 2, 4, c);
+      P.p(x + 1, y + 3, shade(c, -0.25));
+    }
+  }
+  // Навесы и знамёна над трибунами
+  for (let x = 6; x < W; x += 46) {
+    const c = colors[Math.floor(hash2(x, 1, 35) * colors.length)];
+    for (let k = 0; k < 30; k++) P.vline(x + k, 4 + (k % 6 < 3 ? 0 : 1), 10, k % 6 < 3 ? c : '#e8dcc0');
+    P.vline(x, 0, 48, woodD);
+    P.vline(x + 30, 0, 48, woodD);
+    P.rect(x + 12, 0, 6, 3, c);
+  }
+  // Ограда поля
+  P.rect(0, H - 10, W, 2, wood);
+  P.rect(0, H - 5, W, 2, wood);
+  for (let x = 0; x < W; x += 12) P.vline(x, H - 12, H - 1, woodD);
+  return P.canvas;
+}

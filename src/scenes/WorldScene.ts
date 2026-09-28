@@ -8,7 +8,8 @@ import { enemyArmy, playerArmy } from '../battle/setup';
 import { Battle, type Formation } from '../battle/sim';
 import type { BattleTerrain } from '../battle/background';
 import { applyBattle, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
-import { activeLords, capture, initWar, isLooted, mergeTroops, onNews, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
+import { questsDaily } from '../game/quests';
+import { activeLords, capture, placeName, initWar, isLooted, mergeTroops, onNews, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
 import { hasSave, loadGame, newGame, saveGame, type GameState } from '../game/state';
 import { heroLook } from '../game/hero';
@@ -22,7 +23,7 @@ import { openBattleResult, openChronicle, openEncounter, openOutcome, openSiegeD
 import { openHero } from '../ui/heroUi';
 import { btn, h, openModal, panel, toast, uiRoot } from '../ui/dom';
 import { Hud } from '../ui/hud';
-import { openParty, openRealms, openSettlement, type GameCtx } from '../ui/panels';
+import { openParty, openRealms, openSettlement, type BattleView, type GameCtx } from '../ui/panels';
 import { showCreation, showMainMenu, showSettings } from '../ui/screens';
 
 type Pt = { x: number; y: number };
@@ -244,7 +245,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   }
 
   /** Открыть окно, ставящее игру на паузу, пока открыто хоть одно окно. */
-  private modal(open: (close: () => void) => unknown) {
+  modal(open: (close: () => void) => unknown) {
     this.modals++;
     this.tooltip?.remove();
     this.tooltip = null;
@@ -468,7 +469,9 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   }
 
   private onTap(x: number, y: number) {
-    const mp = this.partyAt(x, y);
+    let mp = this.partyAt(x, y);
+    // Союзный или мирный отряд, стоящий на поселении, не мешает войти в поселение
+    if (mp && !this.isHostile(mp) && this.settlementAt(x, y)) mp = null;
     if (mp) {
       if (!this.isHostile(mp)) {
         toast(mp.kind === 'lord' ? `${mp.name} · ${partyCount(mp)} воинов · ${this.lordTask(mp)}` : `${mp.name}: мирный отряд`, 3000);
@@ -578,6 +581,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         dailyTick(this.state);
         dailySpawn(this.state);
         warDaily(this.state);
+        for (const msg of questsDaily(this.state)) this.hud?.news(msg, '#ffd24a');
         this.commit();
       }
       if (moving) this.moveParty(dtDays);
@@ -699,7 +703,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         v = { s, label, frameT: 0, frame: 0, color: '' };
         this.partySprites.set(p.id, v);
       }
-      const color = this.isHostile(p) ? '#ffb8a0' : p.faction === this.state.hero.faction ? '#c8f0a8' : '#e8e0c8';
+      const quarry = p.questId || (this.state.quests ?? []).some((q) => q.kind === 'hunt' && !q.done && q.lordId === p.id);
+      const color = quarry ? '#ffd24a' : this.isHostile(p) ? '#ffb8a0' : p.faction === this.state.hero.faction ? '#c8f0a8' : '#e8e0c8';
       if (color !== v.color) {
         v.color = color;
         v.label.setColor(color);
@@ -801,8 +806,13 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     });
   }
 
-  /** Запуск боя: автобой сразу, иначе сцена сражения поверх усыплённой карты. */
-  private runBattle(battle: Battle, auto: boolean, view: { enemyName: string; enemyColor: string; wall?: { culture: string; color: string; color2: string } }, done: (b: Battle) => void) {
+  /** GameCtx: снова открыть поселение (после турнира). */
+  visit(s: Settlement) {
+    this.arrive(s);
+  }
+
+  /** GameCtx: запуск боя — автобой сразу, иначе сцена сражения поверх усыплённой карты. */
+  runBattle(battle: Battle, auto: boolean, view: BattleView, done: (b: Battle) => void) {
     if (auto) {
       battle.runToEnd();
       done(battle);
@@ -821,6 +831,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       enemyName: view.enemyName,
       enemyColor: view.enemyColor,
       wall: view.wall,
+      arena: view.arena,
       onFinish: (b: Battle) => {
         this.scene.stop('battle');
         this.scene.wake();
@@ -855,6 +866,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const { garrison, lords } = siegeDefenders(this.state, s);
     if (troopCount(garrison) + lords.reduce((n, l) => n + troopCount(l.troops), 0) === 0) {
       capture(this.state, s, this.state.hero.faction, true);
+      (this.state.capturedByHero ??= []).push(s.id);
       this.state.stats!.captured = (this.state.stats!.captured ?? 0) + 1;
       if (takeOwnershipChanged()) this.refreshOwnership();
       toast(`${s.name} сдаётся без боя!`, 4000);
@@ -953,10 +965,10 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
   private lordTask(p: MapParty): string {
     const info = p.lord!;
-    const t = info.target ? world.byId.get(info.target)?.name : '';
-    if (info.task === 'campaign' && info.target) return this.state.war?.sieges[info.target] ? `осаждает ${t}` : `в походе на ${t}`;
-    if (info.task === 'relieve') return `спешит на помощь ${t}`;
-    return `стережёт владения у ${world.byId.get(info.home)?.name ?? 'дома'}`;
+    const ts = info.target ? world.byId.get(info.target) : undefined;
+    if (info.task === 'campaign' && ts) return this.state.war?.sieges[ts.id] ? `осаждает ${placeName(ts)}` : `в походе на ${placeName(ts)}`;
+    if (info.task === 'relieve' && ts) return `спешит на выручку: ${ts.name}`;
+    return `стережёт свои земли (${world.byId.get(info.home)?.name ?? 'дом'})`;
   }
 
   /** Лагеря осаждающих у стен и дым над разорёнными деревнями. */

@@ -6,6 +6,7 @@ import { cavRecruitOf, peasantOf } from '../data/troops';
 import type { MapParty } from './parties';
 import type { WarState } from './war';
 import { spawnPointNear, world, type Settlement } from './world';
+import type { Quest } from './quests';
 
 export interface TroopStack {
   id: string;
@@ -63,10 +64,22 @@ export interface GameState {
   parties?: MapParty[];
   nextPartyId?: number;
   /** Статистика побед и поражений. */
-  stats?: { won: number; lost: number; killed: number; captured?: number };
+  stats?: { won: number; lost: number; killed: number; captured?: number; quests?: number; tourneys?: number };
   /** Лорды держав (этап 4). */
   lords?: MapParty[];
   war?: WarState;
+  /** Когда в городе был последний турнир (день). */
+  tourneys?: Record<string, number>;
+  /** Отношения с лордами и старостами (-100…100). */
+  relations?: Record<string, number>;
+  quests?: Quest[];
+  nextQuestId?: number;
+  /** Отказ от поручения: ключ хозяина → номер трёхдневки. */
+  questDeclined?: Record<string, number>;
+  /** Владения, пожалованные герою. */
+  fiefs?: string[];
+  /** Крепости, взятые самим героем. */
+  capturedByHero?: string[];
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {

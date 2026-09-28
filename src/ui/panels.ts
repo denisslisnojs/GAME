@@ -18,7 +18,12 @@ import {
   upgrade,
 } from '../game/logic';
 import type { GameState } from '../game/state';
+import type { Battle } from '../battle/sim';
+import { openArena } from './tournament';
 import { activeLords, isLooted, siegeDefenders, troopCount } from '../game/war';
+import { tourneyReady } from '../game/tournament';
+import { canTurnIn, hostOf, offerQuest, questsOf } from '../game/quests';
+import { openHost } from './nobles';
 import { world, type Settlement } from '../game/world';
 import { btn, h, img, openModal, panel, plural, sfxCoins, stars, toast } from './dom';
 import { openHero, openShop } from './heroUi';
@@ -32,9 +37,32 @@ export interface GameCtx {
   startSiege?(s: Settlement): void;
   /** Разорение вражеской деревни. */
   startRaid?(s: Settlement): void;
+  /** Открыть окно с паузой игры, пока оно открыто. */
+  modal?(open: () => void): void;
+  /** Запустить бой (сцена или автобой) и вернуть результат. */
+  runBattle?(battle: Battle, auto: boolean, view: BattleView, done: (b: Battle) => void): void;
+  /** Снова войти в поселение. */
+  visit?(s: Settlement): void;
+}
+
+export interface BattleView {
+  enemyName: string;
+  enemyColor: string;
+  wall?: { culture: string; color: string; color2: string };
+  arena?: { colors: string[] };
 }
 
 const TYPE_NAME = { town: 'Город', castle: 'Замок', village: 'Деревня' } as const;
+
+/** Подсказка на кнопке хозяина: можно сдать поручение или есть новое. */
+function hostHint(state: GameState, s: Settlement): string {
+  const host = hostOf(state, s);
+  const qs = questsOf(state, host.key);
+  if (qs.some((q) => canTurnIn(state, q))) return '✔ поручение выполнено';
+  if (qs.length) return 'поручение в работе';
+  if (offerQuest(state, s, host)) return 'есть поручение';
+  return host.name;
+}
 
 function siegeSize(state: GameState, s: Settlement): number {
   const { garrison, lords } = siegeDefenders(state, s);
@@ -135,13 +163,13 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
         optF('Оружейник', 'оружие и щиты', () => openShop(ctx, s, 'weapons')),
         optF('Бронник', 'шлемы и доспехи', () => openShop(ctx, s, 'armor')),
         optF('Конюшня', 'кони', () => openShop(ctx, s, 'horses')),
-        optF('Арена и турниры', 'этап 5', () => {}, '', true),
-        optF(owner === state.hero.faction && FACTIONS[owner].capital === s.id ? 'Тронный зал' : 'Замок лорда', 'этап 5', () => {}, '', true),
+        optF('Ристалище', tourneyReady(state, s) ? `турнир через ${tourneyReady(state, s)} дн.` : 'турнир сегодня!', () => openArena(ctx, s, () => close())),
+        optF(FACTIONS[owner].capital === s.id ? 'Тронный зал' : 'Замок лорда', hostHint(state, s), () => openHost(ctx, s)),
       );
     } else if (s.type === 'castle') {
-      options.append(optF('Конюшня', 'кони', () => openShop(ctx, s, 'horses')), optF('Поговорить с кастеляном', 'этап 5', () => {}, '', true));
+      options.append(optF('Конюшня', 'кони', () => openShop(ctx, s, 'horses')), optF(hostOf(state, s).lord ? 'Зал лорда' : 'Поговорить с кастеляном', hostHint(state, s), () => openHost(ctx, s)));
     } else {
-      options.append(optF('Поговорить со старостой', 'этап 5', () => {}, '', true));
+      options.append(optF('Поговорить со старостой', hostHint(state, s), () => openHost(ctx, s)));
     }
     options.append(optF('Покинуть', '', leave, 'primary'));
   }

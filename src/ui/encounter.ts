@@ -7,7 +7,8 @@ import { ITEMS } from '../data/items';
 import { heroXpToLevel, type AppliedResult } from '../game/battleResult';
 import { KIND_INFO, type MapParty } from '../game/parties';
 import { dateString, type GameState } from '../game/state';
-import type { Settlement } from '../game/world';
+import { world, type Settlement } from '../game/world';
+import { canTurnIn, fiefIncome, questProgress } from '../game/quests';
 import { FACTIONS } from '../data/factions';
 import { btn, h, img, openModal, panel, plural } from './dom';
 
@@ -208,6 +209,23 @@ const NEWS_COLOR: Record<string, string> = { war: '#e07a6a', peace: '#7ad06a', c
 export function openChronicle(state: GameState) {
   let close = () => {};
   const list = h('div', { class: 'list' });
+  const quests = state.quests ?? [];
+  if (quests.length || state.fiefs?.length) {
+    const qb = h('div', { class: 'col', style: 'gap:4px;margin-bottom:8px' }, h('div', { class: 'col-title' }, 'Поручения'));
+    if (!quests.length) qb.append(h('div', { class: 'muted' }, 'Нет поручений.'));
+    for (const q of quests) {
+      qb.append(
+        h(
+          'div',
+          { class: 'item', style: 'padding:5px 8px;flex-direction:column;align-items:flex-start;gap:2px' },
+          h('div', {}, h('b', { class: canTurnIn(state, q) ? 'gold' : '' }, q.title), h('span', { class: 'muted' }, ` · ${q.giverName}, ${world.byId.get(q.from)?.name}`)),
+          h('div', { class: 'muted', style: 'font-size:12.5px' }, `${questProgress(state, q)} · осталось ${Math.max(0, Math.ceil(q.deadline - state.time))} дн. · награда ${q.reward} ¤`),
+        ),
+      );
+    }
+    if (state.fiefs?.length) qb.append(h('div', { class: 'col-title', style: 'margin-top:6px' }, 'Удел'), h('div', {}, `${state.fiefs.map((id) => world.byId.get(id)?.name).join(', ')} · доход ${fiefIncome(state)} ¤ в неделю`));
+    list.append(qb, h('div', { class: 'col-title' }, 'Летопись'));
+  }
   const items = state.war?.news ?? [];
   if (!items.length) list.append(h('div', { class: 'muted' }, 'Пока всё спокойно.'));
   for (const n of items) {

@@ -1233,3 +1233,7 @@ input.text:focus {
 .news-item.fade {
   opacity: 0;
 }
+
+.parch .gold {
+  color: #8a5a10;
+}

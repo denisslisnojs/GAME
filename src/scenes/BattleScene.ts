@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio/sfx';
 import { music } from '../audio/music';
-import { drawFar, drawGround, drawMid, drawSky, drawStake, drawWall, type BattleTerrain } from '../battle/background';
+import { drawArena, drawFar, drawGround, drawMid, drawSky, drawStake, drawWall, type BattleTerrain } from '../battle/background';
 import { lookKey, troopLook } from '../battle/looks';
 import { FIELD_W, FIELD_Y0, MID_Y, WALL_X, type Battle, type BattleEvent, type BUnit } from '../battle/sim';
 import type { FactionId } from '../data/factions';
@@ -19,6 +19,8 @@ export interface BattleSceneData {
   enemyColor: string;
   /** Осада: облик стены (культура крепости и цвета владельца). */
   wall?: { culture: string; color: string; color2: string };
+  /** Турнир: трибуны вместо холмов, без способностей. */
+  arena?: { colors: string[] };
   onFinish: (b: Battle) => void;
 }
 
@@ -97,7 +99,9 @@ export class BattleScene extends Phaser.Scene {
     const W = (FIELD_W + PAD * 2) / SCALE;
     this.addLayer(`bg_sky_${t}`, () => drawSky(t, W, 260), -PAD, -120, 0.1);
     this.addLayer(`bg_far_${t}`, () => drawFar(t, W, 90), -PAD, GROUND_Y - 180 + 10, 0.3);
-    this.addLayer(`bg_mid_${t}`, () => drawMid(t, W, 60), -PAD, GROUND_Y - 120 + 8, 0.6);
+    const arena = this.cfg.arena;
+    if (arena) this.addLayer(`bg_arena_${arena.colors.join('')}`, () => drawArena(W, 60, arena.colors), -PAD, GROUND_Y - 120 + 8, 0.6);
+    else this.addLayer(`bg_mid_${t}`, () => drawMid(t, W, 60), -PAD, GROUND_Y - 120 + 8, 0.6);
     this.addLayer(`bg_ground_${t}`, () => drawGround(t, W, (WORLD_H - GROUND_Y + 200) / SCALE), -PAD, GROUND_Y, 1);
     if (!this.textures.exists('stake')) this.textures.addCanvas('stake', drawStake());
 
@@ -121,6 +125,7 @@ export class BattleScene extends Phaser.Scene {
       enemyColor: this.cfg.enemyColor,
       heroFaction: this.cfg.heroFaction,
       heroPortrait: this.cfg.heroPortrait,
+      arena: !!this.cfg.arena,
       setSpeed: (s) => (this.speed = s),
       togglePause: () => (this.paused = !this.paused),
       isPaused: () => this.paused,

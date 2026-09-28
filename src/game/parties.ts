@@ -31,6 +31,8 @@ export interface MapParty {
   calmUntil: number;
   /** Для лордов: сведения о лорде. */
   lord?: LordInfo;
+  /** Отряд, за которым охотится поручение. */
+  questId?: number;
 }
 
 export interface LordInfo {
@@ -173,7 +175,7 @@ function nearCoast(cx: number, cy: number): boolean {
   return false;
 }
 
-function spawn(state: GameState, kind: PartyKind | null, faction: FactionId | 'outlaw', near: { cx: number; cy: number }, r: () => number): MapParty | null {
+export function spawn(state: GameState, kind: PartyKind | null, faction: FactionId | 'outlaw', near: { cx: number; cy: number }, r: () => number): MapParty | null {
   const c = goodSpawnCell(near.cx, near.cy, r, 12, state);
   if (!c) return null;
   const t = world.map.terrain[c.cy * GRID_W + c.cx];

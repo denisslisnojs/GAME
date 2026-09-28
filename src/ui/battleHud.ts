@@ -14,6 +14,7 @@ export interface BattleHudOpts {
   isPaused(): boolean;
   getSpeed(): number;
   autoFinish(): void;
+  arena?: boolean;
 }
 
 // ───────────── пиксельные иконки ─────────────
@@ -200,6 +201,7 @@ export class BattleHud {
     });
     ctrl.append(auto);
 
+    if (o.arena) abilBox.style.display = 'none';
     const bottom = h('div', { class: 'b-bottom' }, cardsBox, ordersBox, abilBox, ctrl);
     this.root = h('div', { class: 'passthrough battle-ui' }, top, bottom, this.bannerEl);
     uiRoot().append(this.root);
