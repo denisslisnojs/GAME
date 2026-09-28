@@ -15,6 +15,7 @@ import { companionDeed, companionsDaily, partySkill, trainingDaily } from '../ga
 import { pickEvent, type RoadEvent } from '../game/events';
 import { prisonersDaily } from '../game/prisoners';
 import { fiefDaily } from '../game/fief';
+import { applyCrown } from '../game/crown';
 import { openRoadEvent } from '../ui/events';
 import { isPlagued, plagueDaily } from '../game/plague';
 import { activeLords, alliesNear, capture, news, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeAttackers, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
@@ -216,6 +217,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.menuTween?.stop();
     this.menuTween = null;
     this.state = state;
+    applyCrown(state);
     initWar(state);
     onNews((text, kind) => {
       const color = { war: '#e07a6a', peace: '#7ad06a', capture: '#e8c04a', party: '#c8a0e8' }[kind as string];

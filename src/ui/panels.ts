@@ -9,6 +9,7 @@ import {
   dismiss,
   hire,
   hirePrice,
+  atWar,
   ownerOf,
   partySize,
   readyToUpgrade,
@@ -32,6 +33,7 @@ import { openTroopTree } from './troopTree';
 import { openTavern, skillLine } from './tavern';
 import { companionsAt, dismissCompanion, inParty, isWounded, mood } from '../game/companions';
 import { companionPortraitURL } from '../gfx/icons';
+import { declareWar, offerPeace } from '../game/crown';
 import { lordRansom, prisonerCap, prisonerCount, ransomPrice, recruitPrisoner, releaseLord } from '../game/prisoners';
 import { heroPortraitURL } from '../gfx/icons';
 
@@ -164,6 +166,8 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
       optF('Уйти', '', leave, 'primary'),
     );
   } else {
+    if (state.crown && s.type !== 'village' && rel === 'own' && !state.fiefs?.includes(s.id))
+      options.append(optF('Взять в свой домен', 'государю можно', () => { (state.fiefs ??= []).push(s.id); toast(`${s.name} теперь ваш домен`); ctx.commit(); close(); ctx.visit?.(s); }));
     const sg = state.war?.sieges[s.id];
     if (sg && s.type !== 'village') options.append(optF('Защищать стены', `осаждает ${FACTIONS[sg.attacker].short}`, () => { close(); ctx.defendSiege?.(s); }, 'danger'));
     if (state.fiefs?.includes(s.id)) options.append(optF('Управлять уделом', 'постройки, налоги, гарнизон', () => openFief(ctx, s), 'primary'));
@@ -329,7 +333,7 @@ export function openParty(ctx: GameCtx) {
         { class: 'item', style: 'border-color:#6a5a3a' },
         img(heroPortraitURL(state), 'px portrait'),
         h('div', { class: 'grow col', style: 'gap:2px' },
-          h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name gold' }, state.hero.name), h('span', { class: 'muted', style: 'font-size:12px' }, `вассал: ${f.rulerTitle.toLowerCase()} ${f.ruler}`)),
+          h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, h('span', { class: 'name gold' }, state.hero.name), h('span', { class: 'muted', style: 'font-size:12px' }, state.crown ? `${f.rulerTitle.toLowerCase()} державы «${f.short}»` : `вассал: ${f.rulerTitle.toLowerCase()} ${f.ruler}`), state.spouse ? h('span', { style: 'font-size:12px;color:#e8a0b8' }, `жена: ${state.spouse.name}`) : null),
           h('div', { class: 'sub' }, `Уровень ${state.hero.level} · Опыт ${state.hero.xp}${state.hero.points ? ` · свободных очков: ${state.hero.points}` : ''}`),
         ),
         btn('Снаряжение', () => openHero(ctx), 'small primary'),
@@ -487,6 +491,13 @@ function lordLine(state: GameState, id: FactionId) {
   );
 }
 
+/** Сила державы: войска лордов и гарнизоны. */
+function realmPower(state: GameState, f: FactionId): number {
+  let n = activeLords(state, f).reduce((k, l) => k + troopCount(l.troops), 0);
+  for (const s of world.settlements) if (s.type !== 'village' && state.settlements[s.id].owner === f) n += troopCount(state.war?.garrisons[s.id] ?? []);
+  return n;
+}
+
 export function openRealms(ctx: GameCtx) {
   const { state } = ctx;
   let close = () => {};
@@ -517,6 +528,15 @@ export function openRealms(ctx: GameCtx) {
           h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name', style: `color:${f.css}` }, f.name), id === state.hero.faction ? h('span', { class: 'gold', style: 'font-size:12px' }, 'ваша держава') : null),
           h('div', { class: 'sub' }, `${f.rulerTitle} ${f.ruler} · Городов: ${towns}, замков: ${castles}, деревень: ${villages}`),
           h('div', { class: 'sub', style: wars.length ? 'color:#e07a6a' : '' }, wars.length ? `Воюет с: ${wars.join(', ')}` : 'Ни с кем не воюет'),
+          state.crown && id !== state.hero.faction && !state.war?.eliminated.includes(id)
+            ? h(
+                'div',
+                { class: 'row', style: 'gap:6px;margin-top:2px' },
+                atWar(state, id, state.hero.faction)
+                  ? btn('Предложить мир', () => { const ok = offerPeace(state, id, (x) => realmPower(state, x)); toast(ok ? `${f.short} принимает мир` : `${f.short} отвергает мир`); ctx.commit(); close(); openRealms(ctx); }, 'small')
+                  : btn('Объявить войну', () => { declareWar(state, id); toast(`Война с державой «${f.short}»!`); ctx.commit(); close(); openRealms(ctx); }, 'small danger'),
+              )
+            : null,
           lordLine(state, id),
           lordList,
         ),

@@ -111,6 +111,12 @@ export interface GameState {
   captives?: CaptiveLord[];
   /** Постройки и налоги в уделах. */
   fiefState?: Record<string, FiefState>;
+  /** Сватовство. */
+  courtship?: { lordName: string; lady: string; visits: number; last: number; faction: FactionId };
+  /** Жена героя. */
+  spouse?: { name: string; lordName: string; faction: FactionId; since: number };
+  /** Герой носит корону своей державы. */
+  crown?: { since: number; oldRuler: string };
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {

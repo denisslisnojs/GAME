@@ -1,4 +1,6 @@
 import { FACTIONS } from '../data/factions';
+import { canPropose, claimCrown, courtship, crownCheck, GIFT_COST, ladyOf, VISITS_NEEDED, visitLady, WEDDING_COST, wed } from '../game/crown';
+import { atWar } from '../game/logic';
 import { BUILDINGS, TAX_INFO, fiefIncomeOf, fiefState, startBuilding, type Tax } from '../game/fief';
 import { ELDER_TALK, lordBio, REALM_LORE, WORLD_LORE } from '../data/lore';
 import { portraitURL } from '../gfx/icons';
@@ -160,6 +162,32 @@ export function openHost(ctx: GameCtx, s: Settlement) {
         }, '', following),
       );
     }
+    // Сватовство к дочери лорда
+    const lady = host.lord && host.present ? ladyOf(host.lord) : null;
+    if (lady && host.lord && !state.spouse && !atWar(state, host.faction, state.hero.faction)) {
+      const c = courtship(state, host.lord);
+      options.append(
+        opt(`Навестить ${lady}`, `дочь лорда · подарок ${GIFT_COST} ¤${c ? ` · визитов ${Math.min(c.visits, VISITS_NEEDED)}/${VISITS_NEEDED}` : ''}`, () => {
+          say(visitLady(state, host.lord!));
+          ctx.commit();
+          render();
+        }),
+      );
+      if (c && c.visits >= VISITS_NEEDED)
+        options.append(
+          opt(`Просить руки ${lady}`, `свадебный пир ${WEDDING_COST} ¤`, () => {
+            const chk = canPropose(state, host.lord!);
+            if (!chk.ok) {
+              say(`«${chk.reason}»`);
+              return;
+            }
+            say(wed(state, host.lord!));
+            sfxCoins();
+            ctx.commit();
+            render();
+          }, 'primary'),
+        );
+    }
     if (host.lord)
       options.append(
         opt('Расскажите о себе', '', () => {
@@ -175,7 +203,24 @@ export function openHost(ctx: GameCtx, s: Settlement) {
           say(h('p', { style: 'margin:0 0 6px' }, WORLD_LORE), items.length ? h('ul', { style: 'margin:0;padding-left:18px' }, ...items) : '');
         }),
       );
-      if (host.faction === state.hero.faction)
+      if (host.faction === state.hero.faction && !state.crown) {
+        const cc = crownCheck(state);
+        options.append(
+          opt('Потребовать корону', `поддержка лордов: ${cc.support} из ${cc.total}`, () => {
+            const chk = crownCheck(state);
+            if (!chk.ok) {
+              say(`Вы заводите речь о короне. ${host.name} смеётся: «${chk.reason}»`);
+              return;
+            }
+            claimCrown(state);
+            ctx.commit();
+            say(`Лорды державы один за другим преклоняют колено перед вами. ${host.name} медленно снимает корону и протягивает её вам: «Держава твоя. Не урони её.» Теперь вы сами объявляете войны и заключаете мир (окно «Державы») и можете брать крепости в свой домен.`);
+            toast('Вы коронованы!', 4000);
+            render();
+          }, cc.ok ? 'primary' : ''),
+        );
+      }
+      if (host.faction === state.hero.faction && !state.crown)
         options.append(
           opt('Просить удел', state.fiefs?.length ? `ваши владения: ${state.fiefs.map((id) => world.byId.get(id)?.name).join(', ')}` : 'владение и доход', () => {
             const c = fiefCandidate(state);

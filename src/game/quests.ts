@@ -341,7 +341,8 @@ export function questsDaily(state: GameState): string[] {
 export function fiefIncome(state: GameState): number {
   let sum = 0;
   for (const id of state.fiefs ?? []) sum += fiefIncomeOf(state, id, (v) => isLooted(state, v));
-  return sum;
+  // Жена ведёт хозяйство
+  return Math.round(sum * (state.spouse ? 1.15 : 1));
 }
 
 /** Что государь может пожаловать (или почему нет). */
