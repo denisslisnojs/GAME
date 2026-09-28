@@ -1,14 +1,15 @@
 import type { FactionId } from '../data/factions';
-import { heroTroop } from '../game/hero';
+import { heroLook } from '../game/hero';
+import { lookKey, troopLook } from '../battle/looks';
 import type { GameState } from '../game/state';
 import { TROOPS } from '../data/troops';
 import type { Settlement } from '../game/world';
 import { hash2 } from '../util/rng';
 import { Pix, hex, shade } from './pixel';
-import { drawUnitSheet, FRAME_H, FRAME_W, type UnitLook } from './units';
+import { drawGearIcon, drawUnitSheet, FRAME_H, FRAME_W, type UnitLook } from './units';
 import type { Item } from '../data/items';
 import { FACTIONS } from '../data/factions';
-import { drawCastle, drawEmblem, drawPortrait, drawTown, drawVillage } from './sprites';
+import { drawCastle, drawEmblem, drawTown, drawVillage } from './sprites';
 
 const cache = new Map<string, string>();
 
@@ -21,15 +22,39 @@ function memo(key: string, make: () => HTMLCanvasElement): string {
   return v;
 }
 
-export function portraitURL(troopId: string): string {
-  return memo(`p_${troopId}`, () => drawPortrait(TROOPS[troopId]));
+/** Погрудный портрет из кадра стойки новой фигуры: голова и плечи, 40×40. */
+function bust(look: UnitLook): HTMLCanvasElement {
+  const sheet = drawUnitSheet(look);
+  const S = 40;
+  const c = document.createElement('canvas');
+  c.width = S;
+  c.height = S;
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  // Верхняя точка фигуры над плечами (без древка копья и знамени): ищем голову по ширине силуэта
+  const data = sheet.getContext('2d')!.getImageData(0, 0, FRAME_W, FRAME_H).data;
+  const cx = look.mounted ? 50 : 52;
+  let top = 0;
+  for (let y = 0; y < FRAME_H; y++) {
+    let run = 0;
+    for (let x = cx - 8; x < cx + 8; x++) if (data[(y * FRAME_W + x) * 4 + 3]) run++;
+    if (run >= 5) {
+      top = y;
+      break;
+    }
+  }
+  ctx.drawImage(sheet, cx - S / 2, Math.max(0, top - 3), S, S, 0, 0, S, S);
+  return c;
 }
 
-/** Портрет героя в текущем снаряжении (не кэшируется: снаряжение меняется). */
+export function portraitURL(troopId: string): string {
+  return memo(`p_${troopId}`, () => bust(troopLook(TROOPS[troopId])));
+}
+
+/** Портрет героя в текущем снаряжении. */
 export function heroPortraitURL(state: GameState): string {
-  const t = heroTroop(state);
-  const key = `hp_${t.look.helmet}_${t.look.armor}_${t.look.weapon}_${t.look.shield}_${t.line}_${state.hero.faction}`;
-  return memo(key, () => drawPortrait(t));
+  const look = heroLook(state);
+  return memo(`hp_${lookKey(look)}`, () => bust(look));
 }
 
 export function emblemURL(f: FactionId): string {
@@ -125,7 +150,30 @@ export function vistaURL(s: Settlement, owner: FactionId): string {
   });
 }
 
-/** Иконка предмета: вырезка из спрайта манекена в этом предмете. */
+function frame0(L: UnitLook): Uint8ClampedArray {
+  return drawUnitSheet(L).getContext('2d')!.getImageData(0, 0, FRAME_W, FRAME_H).data;
+}
+
+/** Рамка пикселей, которыми фигура в предмете отличается от фигуры без него. */
+function diffBox(a: Uint8ClampedArray, b: Uint8ClampedArray): [number, number, number, number] | null {
+  let x0 = FRAME_W;
+  let y0 = FRAME_H;
+  let x1 = -1;
+  let y1 = -1;
+  for (let y = 0; y < FRAME_H; y++) {
+    for (let x = 0; x < FRAME_W; x++) {
+      const i = (y * FRAME_W + x) * 4;
+      if (a[i] === b[i] && a[i + 1] === b[i + 1] && a[i + 2] === b[i + 2] && a[i + 3] === b[i + 3]) continue;
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+    }
+  }
+  return x1 < 0 ? null : [x0, y0, x1, y1];
+}
+
+/** Иконка предмета: вырезка из спрайта манекена — ровно та часть, что меняет предмет. */
 export function itemIconURL(it: Item, faction: FactionId): string {
   return memo(`it_${it.id}_${faction}`, () => {
     const f = FACTIONS[faction];
@@ -144,55 +192,59 @@ export function itemIconURL(it: Item, faction: FactionId): string {
       body: 'cloth',
       tabard: false,
     };
-    let crop: [number, number, number, number] = [0, 0, FRAME_W, FRAME_H];
+    const base: UnitLook = { ...L };
+    let minSize = 16;
     switch (it.slot) {
       case 'head':
         L.helmet = it.helmet ?? 'hood';
         L.helmetMetal = it.metal;
-        crop = [12, 6, 20, 20];
+        minSize = 20;
         break;
       case 'body':
         L.body = it.body ?? 'cloth';
         L.armor = it.metal ?? (it.body === 'leather' ? '#8a6a45' : '#c8b890');
         L.tabard = it.tabard;
         L.tier = it.body === 'plate' ? 4 : 3;
-        crop = [11, 14, 24, 24];
+        base.cloth = '#000000';
+        base.cloth2 = '#000000';
+        minSize = 30;
         break;
       case 'hands':
         L.gauntlets = it.metal ?? '#7a5535';
-        L.weapon = 'sword';
-        crop = [16, 24, 18, 18];
+        L.weapon = base.weapon = 'sword';
+        minSize = 14;
         break;
       case 'legs':
         L.greaves = it.metal ?? '#5a3a22';
-        crop = [12, 30, 22, 22];
+        minSize = 30;
         break;
       case 'weapon':
         L.weapon = it.weapon ?? 'mace';
-        crop = [4, 0, 48, 48];
         break;
       case 'shield':
         L.shield = true;
-        crop = [14, 20, 22, 22];
         break;
       case 'horse':
         L.mounted = true;
         L.horseColor = it.horseColor;
         L.heavy = !!it.barding;
         L.armor = '#9aa0a8';
-        crop = [0, 4, FRAME_W, 48];
         break;
     }
+    if (it.slot === 'weapon' || it.slot === 'horse' || it.slot === 'hands') return drawGearIcon(L, it.slot, 40);
     const sheet = drawUnitSheet(L);
-    const size = 24;
+    const box = diffBox(frame0(L), frame0(base)) ?? [30, 20, 80, 100];
+    // Квадрат вокруг отличий с полями
+    const cx = (box[0] + box[2] + 1) / 2;
+    const cy = (box[1] + box[3] + 1) / 2;
+    const side = Math.max(minSize, box[2] - box[0] + 5, box[3] - box[1] + 5);
+    const size = 40;
     const c = document.createElement('canvas');
     c.width = size;
     c.height = size;
     const ctx = c.getContext('2d')!;
     ctx.imageSmoothingEnabled = false;
-    const [x, y, w, hh] = crop;
-    const k = Math.min(size / w, size / hh);
-    ctx.drawImage(sheet, x, y, w, hh, (size - w * k) / 2, (size - hh * k) / 2, w * k, hh * k);
+    ctx.drawImage(sheet, Math.round(cx - side / 2), Math.round(cy - side / 2), side, side, 0, 0, size, size);
     return c;
   });
 }

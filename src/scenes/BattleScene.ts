@@ -5,7 +5,7 @@ import { drawArena, drawFar, drawGround, drawMid, drawSky, drawStake, drawWall, 
 import { lookKey, troopLook } from '../battle/looks';
 import { FIELD_W, FIELD_Y0, MID_Y, WALL_X, type Battle, type BattleEvent, type BUnit } from '../battle/sim';
 import type { FactionId } from '../data/factions';
-import { drawUnitSheet, FRAME_H, FRAME_W, type UnitLook } from '../gfx/units';
+import { drawUnitSheet, FEET_Y, FRAME_H, FRAME_W, type UnitLook } from '../gfx/units';
 import { BattleHud } from '../ui/battleHud';
 import { resetHints } from '../ui/hints';
 
@@ -251,7 +251,7 @@ export class BattleScene extends Phaser.Scene {
     let s = this.sprites.get(u.uid);
     if (!s) {
       const key = this.ensureTexture(u);
-      s = this.add.sprite(u.x, u.y, key, 0).setOrigin(0.5, (FRAME_H - 2) / FRAME_H).setScale(SCALE);
+      s = this.add.sprite(u.x, u.y, key, 0).setOrigin(0.5, FEET_Y / FRAME_H); // кадры детальные, рисуются 1:1
       this.sprites.set(u.uid, s);
       if (u.isHero && u.side === this.battle.playerSide) {
         this.heroLabel = this.add

@@ -150,7 +150,7 @@ export function openHero(ctx: GameCtx) {
       h(
         'div',
         { class: 'hero-figure' },
-        img(heroFigureURL(heroLook(state)), 'px', 'width:168px;height:156px'),
+        img(heroFigureURL(heroLook(state)), 'px', 'width:224px;height:208px'),
       ),
       h('div', { class: 'row', style: 'justify-content:space-between' }, h('b', { class: 'gold' }, `Уровень ${hero.level}`), h('span', { class: 'muted' }, `${hero.xp} / ${need} опыта`)),
       h('div', { class: 'power' }, h('div', { style: `width:${Math.min(100, (hero.xp / need) * 100)}%;background:var(--gold)` })),

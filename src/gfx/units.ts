@@ -1,13 +1,22 @@
-// Боевые спрайты воинов (вид сбоку, лицом вправо), рисуются кодом по «облику» воина.
+// Боевые спрайты воинов (вид сбоку, лицом вправо). Детальные фигуры на «скелете»:
+// суставы задаются позой, руки ставятся обратной кинематикой, тело собирается из форм
+// и растеризуется со светотенью (см. figure.ts).
 // Кадры: 0 — стойка, 1..4 — шаг, 5..7 — атака, 8 — павший.
 
 import type { BodyKind } from '../data/items';
 import type { Helmet, Weapon } from '../data/troops';
-import { Pix, shade } from './pixel';
+import { lumOf, mix } from './color';
+import { cap, ell, poly, rasterize, rotateShapes, type Mat, type Pat, type Pt, type Shape } from './figure';
 
-export const FRAME_W = 56;
-export const FRAME_H = 52;
+/** Размер кадра в пикселях (рисуется в 1:1, без растяжения). */
+export const FRAME_W = 112;
+export const FRAME_H = 104;
+/** Где в кадре стоят ступни. */
+export const FEET_Y = 100;
 export const FRAMES = { idle: 0, walk: [1, 2, 3, 4], attack: [5, 6, 7], dead: 8 } as const;
+/** Пикселей на дизайн-единицу (рост пешего воина — 64 единицы). */
+const K = 1.08;
+const OX = 50;
 
 export type Culture = 'aurelia' | 'nordmark' | 'horde' | 'sultanate' | 'outlaw';
 
@@ -35,692 +44,675 @@ export interface UnitLook {
   horseColor?: string;
 }
 
-const SKIN: Record<Culture, string> = { aurelia: '#e8bf98', nordmark: '#f0c8a8', horde: '#d8a878', sultanate: '#c89068', outlaw: '#dcb08a' };
+const SKIN: Record<Culture, string> = { aurelia: '#e6bc96', nordmark: '#f0c8a8', horde: '#d8a878', sultanate: '#c89068', outlaw: '#dcb08a' };
 const HAIR: Record<Culture, string> = { aurelia: '#5a3a22', nordmark: '#c89a52', horde: '#1e1814', sultanate: '#221a14', outlaw: '#4a3220' };
-const PANTS: Record<Culture, string> = { aurelia: '#4a4a58', nordmark: '#5a4a38', horde: '#6a4a2c', sultanate: '#e2d8c0', outlaw: '#5a4a38' };
+const PANTS: Record<Culture, string> = { aurelia: '#4e4e5c', nordmark: '#5e4e3c', horde: '#6a4a2c', sultanate: '#e2d8c0', outlaw: '#5e4e3c' };
 const HORSES = ['#7a4a2a', '#8f5a30', '#2e2622', '#9a958c', '#5e3a22', '#c8c0b0'];
-const OUT = '#1c1612';
-const WOOD = '#7a5332';
-const WOOD_D = '#523620';
+const WOOD = '#8a5e36';
 const LEATHER = '#6b4a2e';
 const BOOTS = '#3a2a1e';
+const DARK = '#1a1410';
+const STEEL = '#c4ccd4';
 
-type Pose = { kind: 'idle' | 'walk' | 'attack'; frame: number };
+// ───────────────────────── геометрия ─────────────────────────
 
-// ───────────────────────── рисование линий ─────────────────────────
+const rad = (d: number) => (d * Math.PI) / 180;
+/** Вектор под углом от вертикали вниз (+ — вперёд). */
+const down = (a: number, len: number): Pt => [Math.sin(rad(a)) * len, Math.cos(rad(a)) * len];
+/** Направление по экранному углу (0 — вправо, −90 — вверх). */
+const dir = (a: number): Pt => [Math.cos(rad(a)), Math.sin(rad(a))];
+const add = (p: Pt, q: Pt, k = 1): Pt => [p[0] + q[0] * k, p[1] + q[1] * k];
 
-function line(P: Pix, x0: number, y0: number, x1: number, y1: number, c: string) {
-  const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    P.p(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t), c);
+/** Двухзвенная обратная кинематика: плечо S, цель T → локоть и кисть. */
+function ik(S: Pt, T: Pt, a: number, b: number): [Pt, Pt] {
+  let dx = T[0] - S[0];
+  let dy = T[1] - S[1];
+  let d = Math.hypot(dx, dy);
+  const maxd = a + b - 0.05;
+  if (d > maxd) {
+    T = [S[0] + (dx / d) * maxd, S[1] + (dy / d) * maxd];
+    d = maxd;
+    dx = T[0] - S[0];
+    dy = T[1] - S[1];
   }
+  d = Math.max(0.5, d);
+  const ang = Math.atan2(dy, dx);
+  const off = Math.acos(Math.max(-1, Math.min(1, (a * a + d * d - b * b) / (2 * a * d))));
+  const e1: Pt = [S[0] + Math.cos(ang + off) * a, S[1] + Math.sin(ang + off) * a];
+  const e2: Pt = [S[0] + Math.cos(ang - off) * a, S[1] + Math.sin(ang - off) * a];
+  // Руки над головой — локоть вперёд, иначе — вниз
+  const E = T[1] < S[1] - 4 ? (e1[0] > e2[0] ? e1 : e2) : e1[1] > e2[1] ? e1 : e2;
+  return [E, T];
 }
 
-/** Точка на луче от кисти под углом (0 — вправо, −90 — вверх). */
-function ray(hx: number, hy: number, ang: number, t: number): [number, number] {
-  const r = (ang * Math.PI) / 180;
-  return [Math.round(hx + Math.cos(r) * t), Math.round(hy + Math.sin(r) * t)];
+function transform(shapes: Shape[], ang: number, dx: number, dy: number): Shape[] {
+  const rot = ang ? rotateShapes(shapes, 0, 0, ang) : shapes;
+  return rot.map((s) => ({
+    ...s,
+    poly: s.poly?.map(([x, y]) => [x + dx, y + dy] as Pt),
+    ell: s.ell ? [s.ell[0] + dx, s.ell[1] + dy, s.ell[2], s.ell[3]] : undefined,
+    cap: s.cap ? [s.cap[0] + dx, s.cap[1] + dy, s.cap[2] + dx, s.cap[3] + dy, s.cap[4], s.cap[5]] : undefined,
+  }));
 }
 
-function seg(P: Pix, hx: number, hy: number, ang: number, t0: number, t1: number, c: string, perp = 0) {
-  const r = (ang * Math.PI) / 180;
-  const px = -Math.sin(r) * perp;
-  const py = Math.cos(r) * perp;
-  for (let t = t0; t <= t1; t += 0.5) {
-    P.p(Math.round(hx + Math.cos(r) * t + px), Math.round(hy + Math.sin(r) * t + py), c);
+// ───────────────────────── внешний вид ─────────────────────────
+
+interface Kit {
+  L: UnitLook;
+  skin: string;
+  hair: string;
+  beard: string | null;
+  kind: BodyKind;
+  metal: string;
+  helmMetal: string;
+  pants: string;
+  pantsMat: Mat;
+  boots: string;
+  bootsMat: Mat;
+  sleeve: string;
+  sleeveMat: Mat;
+  sleevePat: Pat;
+  forearm: string;
+  forearmMat: Mat;
+  hand: string;
+  handMat: Mat;
+  eastern: boolean;
+  tabard: boolean;
+}
+
+/** Светлый металл чуть притемняем: с бликами он иначе выглядит белым. */
+function toneMetal(c: string): string {
+  const n = parseInt(c.slice(1), 16);
+  const l = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return l > 0.58 ? mix(c, '#4a5460', Math.min(0.45, (l - 0.58) * 1.6)) : c;
+}
+
+function kitOf(L: UnitLook): Kit {
+  const eastern = L.culture === 'horde' || L.culture === 'sultanate';
+  const kind: BodyKind = L.body ?? (L.tier <= 1 ? 'cloth' : L.tier >= 4 || L.heavy ? (eastern ? 'lamellar' : 'plate') : 'mail');
+  const metalKind = kind === 'mail' || kind === 'scale' || kind === 'lamellar' || kind === 'plate';
+  const plate = kind === 'plate';
+  const beardy = L.culture === 'nordmark' || L.culture === 'outlaw' || (L.tier >= 3 && L.culture !== 'aurelia') || L.seed % 3 === 0;
+  const pants = L.greaves ?? (!L.body && L.tier >= 4 && L.culture !== 'sultanate' && !eastern ? L.armor : PANTS[L.culture]);
+  const legMetal = !!L.greaves ? L.greaves.startsWith('#5a3a') === false : !L.body && L.tier >= 4 && !eastern;
+  const sleeve = plate || kind === 'mail' || kind === 'scale' || kind === 'lamellar' ? L.armor : kind === 'brigandine' ? mix(L.cloth, '#1a1410', 0.2) : kind === 'leather' ? L.armor : L.body ? L.armor : L.tier <= 1 ? L.armor : L.cloth;
+  return {
+    L,
+    skin: SKIN[L.culture],
+    hair: HAIR[L.culture],
+    beard: beardy ? (L.culture === 'nordmark' ? '#b07a3a' : HAIR[L.culture]) : null,
+    kind,
+    metal: toneMetal(L.armor),
+    helmMetal: toneMetal(L.helmetMetal ?? (metalKind ? L.armor : '#a8b0b8')),
+    pants,
+    pantsMat: legMetal ? 'metal' : 'cloth',
+    boots: L.greaves ? mix(L.greaves, '#000000', 0.1) : legMetal ? mix(L.armor, '#000000', 0.12) : BOOTS,
+    bootsMat: legMetal || L.greaves ? 'metal' : 'leather',
+    sleeve,
+    sleeveMat: plate || kind === 'mail' || kind === 'scale' || kind === 'lamellar' ? 'metal' : kind === 'leather' ? 'leather' : 'cloth',
+    sleevePat: kind === 'mail' ? 'mail' : kind === 'scale' ? 'scale' : kind === 'lamellar' ? 'lamellar' : 'none',
+    forearm: L.tier <= 1 && !L.body ? SKIN[L.culture] : plate ? L.armor : sleeve,
+    forearmMat: L.tier <= 1 && !L.body ? 'skin' : plate ? 'metal' : kind === 'leather' ? 'leather' : kind === 'mail' || kind === 'scale' || kind === 'lamellar' ? 'metal' : 'cloth',
+    hand: L.gauntlets ?? (plate ? L.armor : L.tier >= 2 ? '#5a3e24' : SKIN[L.culture]),
+    handMat: L.gauntlets || plate ? 'metal' : L.tier >= 2 ? 'leather' : 'skin',
+    eastern,
+    tabard: (L.tabard ?? L.tier >= 2) && L.tier >= 2,
+  };
+}
+
+// ───────────────────────── голова и шлемы ─────────────────────────
+
+/** Голова в локальных координатах торса: центр (hx, hy). */
+function head(k: Kit, hx: number, hy: number): Shape[] {
+  const L = k.L;
+  const out: Shape[] = [];
+  const face = (): Shape[] => {
+    const f: Shape[] = [
+      ell(k.skin, 'skin', hx, hy, 4, 4.8),
+      poly(k.skin, 'skin', [[hx + 3.4, hy - 1.2], [hx + 5.5, hy + 1.8], [hx + 3.6, hy + 2.5]]),
+      ell(mix(k.skin, '#000000', 0.08), 'skin', hx - 2.1, hy + 0.5, 1, 1.4),
+    ];
+    if (k.beard) f.push(poly(k.beard, 'hair', [[hx - 2.8, hy + 1.2], [hx - 1, hy + 2.6], [hx + 3.8, hy + 2.8], [hx + 3.6, hy + 5], [hx + 1.4, hy + 6.4], [hx - 1.6, hy + 5.4]]));
+    f.push(
+      cap(DARK, 'dark', [hx + 2.2, hy - 0.8], [hx + 2.9, hy - 0.85], 0.95),
+      cap(mix(k.hair, '#000000', 0.2), 'hair', [hx + 1.6, hy - 2], [hx + 3.5, hy - 2.2], 0.75),
+      cap('#6a3a2a', 'dark', [hx + 2.3, hy + 3.6], [hx + 3.4, hy + 3.6], 0.5),
+    );
+    return f;
+  };
+  const m = k.helmMetal;
+  switch (L.helmet) {
+    case 'none':
+      out.push(...face(), poly(k.hair, 'hair', [[hx - 4.2, hy + 1.5], [hx - 3.8, hy - 3.2], [hx - 1, hy - 5.2], [hx + 2.8, hy - 4.8], [hx + 4.2, hy - 2.6], [hx + 1, hy - 3], [hx - 1.6, hy - 1.2], [hx - 2.4, hy + 1.8]]));
+      break;
+    case 'hood': {
+      out.push(poly(L.cloth, 'cloth', [[hx - 5, hy + 7], [hx - 5.6, hy - 1], [hx - 3.4, hy - 5.8], [hx + 0.8, hy - 6.6], [hx + 4.4, hy - 4], [hx + 4.8, hy + 0.2], [hx + 3, hy + 1], [hx + 1.6, hy + 7]]));
+      out.push(...face().map((s) => s), poly(L.cloth, 'cloth', [[hx - 5.2, hy - 1.5], [hx - 3.2, hy - 5.8], [hx + 0.6, hy - 6.6], [hx + 4.4, hy - 4], [hx + 3.6, hy - 2.6], [hx + 0.4, hy - 3.8], [hx - 1.8, hy - 2.4], [hx - 3, hy + 3], [hx - 5, hy + 3]]));
+      break;
+    }
+    case 'cap':
+    case 'fur': {
+      out.push(...face());
+      const fur = L.helmet === 'fur';
+      const c = fur ? '#6a4a30' : L.cloth;
+      out.push(poly(c, fur ? 'fur' : 'cloth', [[hx - 4.4, hy - 1.5], [hx - 3.6, hy - 5.4], [hx, hy - 7], [hx + 3.8, hy - 5.2], [hx + 4.6, hy - 1.5]]));
+      out.push(poly(fur ? '#8a6a48' : mix(c, '#000000', 0.2), fur ? 'fur' : 'cloth', [[hx - 4.8, hy - 0.5], [hx + 4.8, hy - 0.5], [hx + 4.8, hy - 2.4], [hx - 4.8, hy - 2.4]]));
+      break;
+    }
+    case 'kettle':
+      out.push(...face());
+      out.push(poly(m, 'metal', [[hx - 4.6, hy - 1.8], [hx + 4.6, hy - 1.8], [hx + 3.4, hy - 6], [hx, hy - 7.2], [hx - 3.4, hy - 6]]));
+      out.push(ell(m, 'metal', hx, hy - 1.7, 7.4, 1.4));
+      break;
+    case 'nasal':
+      out.push(poly(mix(m, '#000000', 0.1), 'metal', [[hx - 4.8, hy - 1], [hx - 5.2, hy + 7], [hx - 1, hy + 7]], 'mail'));
+      out.push(...face());
+      out.push(poly(m, 'metal', [[hx - 4.6, hy - 1.2], [hx + 4.6, hy - 1.2], [hx + 2.4, hy - 6], [hx - 0.2, hy - 8.6], [hx - 3, hy - 6]]));
+      out.push(cap(m, 'metal', [hx + 4, hy - 1.4], [hx + 4.4, hy + 2.2], 1.1));
+      break;
+    case 'bascinet':
+      out.push(poly(mix(m, '#000000', 0.08), 'metal', [[hx - 5, hy - 1], [hx - 6, hy + 8], [hx + 2, hy + 8.5], [hx + 4, hy + 4.8], [hx + 1.4, hy + 5.2], [hx - 2.6, hy + 2]], 'mail'));
+      out.push(...face());
+      out.push(poly(m, 'metal', [[hx - 4.8, hy + 1.2], [hx - 4.8, hy - 3], [hx - 2.4, hy - 7.6], [hx - 0.6, hy - 9.4], [hx + 3, hy - 5.4], [hx + 4.4, hy - 1.6], [hx + 1.2, hy - 1.8], [hx - 1.6, hy + 1.2]]));
+      break;
+    case 'great':
+      out.push(poly(m, 'metal', [[hx - 4.8, hy - 6.2], [hx + 5, hy - 6.2], [hx + 5.4, hy + 6], [hx - 4.8, hy + 5.4]]));
+      out.push(cap(DARK, 'dark', [hx + 1, hy - 1.2], [hx + 5.3, hy - 1.2], 0.9));
+      out.push(cap(L.hero ? '#e2b43c' : mix(m, '#000000', 0.3), L.hero ? 'gold' : 'metal', [hx + 3.4, hy - 6], [hx + 3.4, hy + 5.8], 0.8));
+      out.push(ell(DARK, 'dark', hx + 4.2, hy + 2.8, 0.35, 0.35), ell(DARK, 'dark', hx + 4.2, hy + 4, 0.35, 0.35));
+      if (L.hero) out.push(cap(L.cloth2, 'cloth', [hx - 1, hy - 6.2], [hx - 4, hy - 10], 2.4, 1.2));
+      break;
+    case 'turban':
+      out.push(...face());
+      out.push(ell('#ece6d6', 'cloth', hx - 0.4, hy - 3.2, 5.2, 3.4, 'quilt'));
+      out.push(cap(L.cloth2, 'cloth', [hx - 5.2, hy - 2], [hx + 4.8, hy - 3], 1));
+      out.push(cap(m, 'metal', [hx - 0.4, hy - 6.4], [hx - 0.2, hy - 8.8], 1.2, 0.5));
+      break;
+    case 'spired':
+      out.push(poly(L.tier >= 3 ? m : '#6b4a2e', L.tier >= 3 ? 'metal' : 'leather', [[hx - 5.2, hy - 2], [hx - 6, hy + 6], [hx - 1.5, hy + 6.4], [hx - 2, hy]], 'lamellar'));
+      out.push(...face());
+      out.push(poly(m, 'metal', [[hx - 4.8, hy - 1.4], [hx + 4.6, hy - 1.4], [hx + 3.6, hy - 5.2], [hx, hy - 7], [hx - 3.6, hy - 5.2]]));
+      out.push(cap(m, 'metal', [hx - 0.1, hy - 6.6], [hx - 0.1, hy - 11], 1.4, 0.5));
+      out.push(cap(L.cloth2 === '#2a2320' ? '#a83a2a' : L.cloth2, 'hair', [hx - 0.2, hy - 10.4], [hx - 3.4, hy - 8.4], 1.4, 0.6));
+      out.push(cap(mix(m, '#000000', 0.25), 'metal', [hx - 4.8, hy - 1.6], [hx + 4.6, hy - 1.6], 0.8));
+      break;
+    case 'sallet':
+      out.push(...face());
+      out.push(poly(m, 'metal', [[hx - 8, hy + 2.2], [hx - 5.2, hy - 3.6], [hx - 1.4, hy - 6.4], [hx + 3, hy - 5.6], [hx + 4.8, hy - 1.8], [hx + 4.8, hy - 0.2], [hx - 3, hy - 0.8], [hx - 5, hy + 1.4]]));
+      out.push(cap(DARK, 'dark', [hx + 1.4, hy - 1.2], [hx + 4.8, hy - 1], 0.7));
+      out.push(poly(m, 'metal', [[hx - 1, hy + 1.6], [hx + 4.6, hy + 1.2], [hx + 4.4, hy + 5.4], [hx + 0.8, hy + 7], [hx - 2.4, hy + 6]]));
+      break;
+    case 'armet':
+      out.push(ell(m, 'metal', hx - 0.2, hy - 0.4, 5, 5.8));
+      out.push(poly(mix(m, '#ffffff', 0.12), 'metal', [[hx + 0.6, hy - 3], [hx + 4.6, hy - 1.8], [hx + 6.6, hy + 1], [hx + 4.4, hy + 4.4], [hx + 0.8, hy + 5]]));
+      out.push(cap(DARK, 'dark', [hx + 1.4, hy - 0.6], [hx + 5.2, hy - 0.2], 0.7));
+      out.push(ell(m, 'metal', hx - 3.8, hy + 4.4, 1.4, 1.4));
+      if (L.hero) out.push(cap(L.cloth2, 'cloth', [hx - 1.5, hy - 5.8], [hx - 5, hy - 9.4], 2.2, 1));
+      break;
   }
+  return out;
 }
 
 // ───────────────────────── оружие ─────────────────────────
 
-function isPolearm(w: Weapon) {
-  return w === 'spear' || w === 'pitchfork' || w === 'halberd' || w === 'glaive' || w === 'lance';
-}
-
-function drawWeapon(P: Pix, w: Weapon, hx: number, hy: number, ang: number, L: UnitLook) {
-  const steel = '#dfe4ea';
-  const steelD = '#8f969e';
-  switch (w) {
+/** Оружие от кисти H под экранным углом a. */
+function weapon(k: Kit, H: Pt, a: number, extra: { pull?: number; arrow?: boolean; loaded?: boolean } = {}): Shape[] {
+  const L = k.L;
+  const d = dir(a);
+  const n: Pt = [-d[1], d[0]]; // перпендикуляр
+  const at = (t: number, s = 0): Pt => [H[0] + d[0] * t + n[0] * s, H[1] + d[1] * t + n[1] * s];
+  const out: Shape[] = [];
+  switch (L.weapon) {
     case 'sword':
     case 'sabre': {
-      seg(P, hx, hy, ang, -3, 0, LEATHER);
-      P.p(...ray(hx, hy, ang, -3), '#c8a040');
-      seg(P, hx, hy, ang, 1, 1, '#c8a040', -2);
-      seg(P, hx, hy, ang, 1, 1, '#c8a040', 2);
-      seg(P, hx, hy, ang, 1, 1, '#c8a040');
-      const curve = w === 'sabre';
-      const r = (ang * Math.PI) / 180;
-      for (let t = 2; t <= 13; t += 0.5) {
-        const bend = curve ? ((t - 2) * (t - 2)) / 40 : 0;
-        const x = hx + Math.cos(r) * t - Math.sin(r) * bend;
-        const y = hy + Math.sin(r) * t + Math.cos(r) * bend;
-        P.p(Math.round(x), Math.round(y), t > 12 ? steelD : steel);
+      out.push(cap(LEATHER, 'leather', at(-2.6), at(1), 1.5));
+      out.push(ell('#c8a040', 'gold', ...at(-3.2), 1.2, 1.2));
+      out.push(cap('#c8a040', 'gold', at(1.3, -2.8), at(1.3, 2.8), 1.1));
+      if (L.weapon === 'sword') out.push(cap(STEEL, 'metal', at(2), at(17), 1.9, 0.9));
+      else {
+        const pts = [0, 1, 2, 3].map((i) => at(2 + i * 4.8, (i * i) * 0.45));
+        for (let i = 0; i < 3; i++) out.push(cap(STEEL, 'metal', pts[i], pts[i + 1], 2 - i * 0.3, 1.7 - i * 0.35));
       }
       break;
     }
-    case 'axe': {
-      seg(P, hx, hy, ang, -3, 13, WOOD);
-      for (let t = 10; t <= 13; t++) for (let k = 1; k <= 3; k++) P.p(...ray2(hx, hy, ang, t, -k), k === 3 ? steel : steelD);
+    case 'axe':
+      out.push(cap(WOOD, 'wood', at(-4), at(16), 1.5));
+      out.push(poly('#9aa2aa', 'metal', [at(11.5, 0), at(11, -4.5), at(13, -6.6), at(17, -5.6), at(15.6, 0.2)]));
       break;
-    }
-    case 'mace': {
-      seg(P, hx, hy, ang, -2, 10, WOOD);
-      for (let t = 10; t <= 12; t++) for (let k = -1; k <= 1; k++) P.p(...ray2(hx, hy, ang, t, k), k === -1 ? steel : steelD);
+    case 'mace':
+      out.push(cap(WOOD, 'wood', at(-3), at(11), 1.5));
+      out.push(ell('#9aa2aa', 'metal', ...at(12.5), 2.6, 2.6));
+      for (const s of [-1, 1]) out.push(cap('#b8c0c8', 'metal', at(11, s * 2.2), at(14, s * 2.2), 1));
       break;
-    }
     case 'spear':
-    case 'pitchfork': {
-      seg(P, hx, hy, ang, -9, 18, WOOD);
-      if (w === 'spear') {
-        seg(P, hx, hy, ang, 19, 23, steel);
-        P.p(...ray2(hx, hy, ang, 19, 1), steelD);
-        P.p(...ray2(hx, hy, ang, 19, -1), steelD);
-      } else {
-        seg(P, hx, hy, ang, 18, 18, steelD, -2);
-        seg(P, hx, hy, ang, 18, 18, steelD, 2);
-        for (const k of [-2, 0, 2]) seg(P, hx, hy, ang, 19, 22, '#9aa0a8', k);
+    case 'pitchfork':
+      out.push(cap(WOOD, 'wood', at(-14), at(26), 1.3));
+      if (L.weapon === 'spear') out.push(poly(STEEL, 'metal', [at(25.5, 0), at(27.5, -1.5), at(32, 0), at(27.5, 1.5)]));
+      else {
+        out.push(cap('#8f969e', 'metal', at(25, -2.5), at(25, 2.5), 0.9));
+        for (const s of [-2.2, 0, 2.2]) out.push(cap('#9aa0a8', 'metal', at(25, s), at(30, s), 0.8));
+      }
+      break;
+    case 'halberd':
+      out.push(cap(WOOD, 'wood', at(-14), at(28), 1.4));
+      out.push(cap(STEEL, 'metal', at(27.5), at(32), 1.2, 0.4));
+      out.push(poly(STEEL, 'metal', [at(20.5, 0.4), at(19.5, -5), at(22, -6.5), at(25, -5), at(25.5, 0.4)]));
+      out.push(poly('#9aa2aa', 'metal', [at(22, 0.4), at(23, 3.6), at(24.5, 0.4)]));
+      break;
+    case 'glaive':
+      out.push(cap(WOOD, 'wood', at(-14), at(22), 1.4));
+      out.push(poly(STEEL, 'metal', [at(21, -1), at(24, -2.6), at(31, -1.6), at(34, 0.4), at(21, 1)]));
+      break;
+    case 'lance':
+      out.push(cap(L.cloth, 'cloth', at(-9), at(33), 2.4, 1.3));
+      out.push(cap(L.cloth2, 'cloth', at(6), at(12), 2.2, 2), cap(L.cloth2, 'cloth', at(20), at(26), 1.8, 1.6));
+      out.push(cap('#9aa2aa', 'metal', at(1.2), at(4.5), 5, 1.6));
+      out.push(cap(STEEL, 'metal', at(33), at(37), 1.3, 0.3));
+      break;
+    case 'bow': {
+      // Лук вертикально в кисти H, тетива натянута к кисти другой руки
+      const composite = L.culture === 'horde' || L.culture === 'sultanate';
+      const half = composite ? 10 : 12;
+      const pull = extra.pull ?? 0;
+      const pts: Pt[] = [];
+      for (let i = 0; i <= 8; i++) {
+        const t = (i / 8) * 2 - 1;
+        let bend = (1 - t * t) * 3.2;
+        if (composite && Math.abs(t) > 0.72) bend -= (Math.abs(t) - 0.72) * 8;
+        pts.push([H[0] + bend, H[1] + t * half]);
+      }
+      for (let i = 0; i < 8; i++) out.push(cap(composite ? '#5a3a22' : WOOD, 'wood', pts[i], pts[i + 1], 1.5, 1.5));
+      const sx = H[0] - pull;
+      out.push(cap('#e8e0c8', 'string', pts[0], [sx, H[1]], 0.45), cap('#e8e0c8', 'string', [sx, H[1]], pts[8], 0.45));
+      if (extra.arrow) {
+        out.push(cap('#b89a6a', 'wood', [sx, H[1]], [H[0] + 8, H[1]], 0.7));
+        out.push(poly(STEEL, 'metal', [[H[0] + 8, H[1] - 0.9], [H[0] + 10.5, H[1]], [H[0] + 8, H[1] + 0.9]]));
+        out.push(poly('#e8e2d0', 'cloth', [[sx, H[1] - 1.4], [sx + 2.5, H[1]], [sx, H[1] + 1.4]]));
       }
       break;
     }
-    case 'halberd': {
-      seg(P, hx, hy, ang, -9, 20, WOOD);
-      seg(P, hx, hy, ang, 21, 24, steel);
-      for (let t = 15; t <= 18; t++) for (let k = 1; k <= 3; k++) P.p(...ray2(hx, hy, ang, t, -k), k === 3 ? steel : steelD);
-      P.p(...ray2(hx, hy, ang, 16, 2), steelD);
-      break;
-    }
-    case 'glaive': {
-      seg(P, hx, hy, ang, -9, 16, WOOD);
-      for (let t = 17; t <= 24; t++) {
-        P.p(...ray2(hx, hy, ang, t, 0), steel);
-        if (t < 23) P.p(...ray2(hx, hy, ang, t, -1), steelD);
-      }
-      break;
-    }
-    case 'lance': {
-      const r = (ang * Math.PI) / 180;
-      for (let t = -6; t <= 24; t += 0.5) {
-        const stripe = Math.floor((t + 6) / 3) % 2 === 0;
-        P.p(Math.round(hx + Math.cos(r) * t), Math.round(hy + Math.sin(r) * t), stripe ? L.cloth : L.cloth2);
-      }
-      seg(P, hx, hy, ang, 25, 28, steel);
-      seg(P, hx, hy, ang, 1, 2, steelD, -2);
-      seg(P, hx, hy, ang, 1, 2, steelD, 2);
-      break;
-    }
-    case 'bow':
     case 'crossbow':
+      out.push(cap(WOOD, 'wood', at(-6), at(7), 2.2, 1.8));
+      out.push(cap('#5a5f66', 'metal', at(6.5, -6), at(7.5, 0), 1.1), cap('#5a5f66', 'metal', at(7.5, 0), at(6.5, 6), 1.1));
+      out.push(cap('#e8e0c8', 'string', at(6.5, -6), at(extra.loaded ? 1 : 5.5, 0), 0.4), cap('#e8e0c8', 'string', at(extra.loaded ? 1 : 5.5, 0), at(6.5, 6), 0.4));
+      if (extra.loaded) out.push(cap('#b89a6a', 'wood', at(1, -0.8), at(9, -0.8), 0.8));
       break;
   }
-}
-
-function ray2(hx: number, hy: number, ang: number, t: number, perp: number): [number, number] {
-  const r = (ang * Math.PI) / 180;
-  return [Math.round(hx + Math.cos(r) * t - Math.sin(r) * perp), Math.round(hy + Math.sin(r) * t + Math.cos(r) * perp)];
-}
-
-/** Лук: pull — насколько натянута тетива (0..4), arrow — стрела на тетиве. */
-function drawBow(P: Pix, hx: number, hy: number, pull: number, arrow: boolean, composite: boolean) {
-  const half = 8;
-  for (let t = -half; t <= half; t++) {
-    const k = t / half;
-    let bend = Math.round((1 - k * k) * 3);
-    if (composite && Math.abs(k) > 0.75) bend -= 1; // рекурсивные концы
-    P.p(hx + bend, hy + t, Math.abs(t) > 6 ? WOOD_D : WOOD);
-  }
-  const sx = hx - pull;
-  line(P, hx, hy - half, sx, hy, '#e6ddc8');
-  line(P, sx, hy, hx, hy + half, '#e6ddc8');
-  if (arrow) {
-    line(P, sx, hy, hx + 7, hy, '#b89a6a');
-    P.p(hx + 8, hy, '#dfe4ea');
-    P.p(sx, hy - 1, '#e8e2d0');
-    P.p(sx + 1, hy - 1, '#e8e2d0');
-  }
-}
-
-function drawCrossbow(P: Pix, hx: number, hy: number, ang: number, loaded: boolean) {
-  seg(P, hx, hy, ang, -5, 6, WOOD);
-  seg(P, hx, hy, ang, -5, 0, WOOD_D, 1);
-  for (let k = -4; k <= 4; k++) P.p(...ray2(hx, hy, ang, 6 - Math.abs(k) * 0.4, k), '#5a5f66');
-  if (loaded) seg(P, hx, hy, ang, 0, 8, '#b89a6a', -1);
+  return out;
 }
 
 // ───────────────────────── щиты ─────────────────────────
 
-function drawShield(P: Pix, L: UnitLook, x: number, y: number) {
+function shield(k: Kit, C: Pt): Shape[] {
+  const L = k.L;
+  const [x, y] = C;
   const c = L.cloth;
-  const cD = shade(c, -0.35);
-  const cL = shade(c, 0.2);
   const e = L.cloth2;
-  if (L.culture === 'aurelia' && L.weapon === 'crossbow') {
-    // Павеза
-    for (let r = 0; r < 15; r++) for (let dx = 0; dx < 7; dx++) {
-      if (r === 0 && (dx === 0 || dx === 6)) continue;
-      P.p(x + dx, y - 3 + r, dx === 0 ? cL : dx === 6 ? cD : c);
-    }
-    P.rect(x + 3, y, 1, 9, e);
-    P.rect(x + 1, y + 3, 5, 1, e);
-    return;
-  }
-  if (L.culture === 'aurelia' || L.culture === 'outlaw') {
-    // Геральдический «треугольный» щит
-    const widths = [6, 6, 6, 6, 6, 6, 5, 4, 2];
-    widths.forEach((w, r) => {
-      const x0 = x + Math.floor((6 - w) / 2);
-      for (let dx = 0; dx < w; dx++) P.p(x0 + dx, y + r, dx === 0 ? cL : dx === w - 1 ? cD : c);
-    });
-    if (L.culture === 'aurelia') {
-      P.p(x + 2, y + 2, e);
-      P.p(x + 3, y + 2, e);
-      P.p(x + 2, y + 3, e);
-      P.p(x + 3, y + 3, e);
-      P.p(x + 1, y + 2, e);
-      P.p(x + 4, y + 2, e);
-      P.p(x + 2, y + 5, e);
-      P.p(x + 3, y + 5, e);
-    } else {
-      P.rect(x + 1, y + 3, 4, 1, cD);
-    }
-    return;
-  }
-  // Круглые щиты
-  const R = 4;
-  for (let dy = -R; dy <= R; dy++) {
-    for (let dx = -R; dx <= R; dx++) {
-      const d = dx * dx + dy * dy;
-      if (d > R * R + 1) continue;
-      let col = c;
-      if (L.culture === 'nordmark') col = Math.floor((dx + 10) / 2) % 2 ? c : e;
-      if (L.culture === 'horde') col = d > 9 ? '#5a3a22' : LEATHER;
-      if (L.culture === 'sultanate') col = d > 10 ? e : c;
-      if (d > R * R - 3) col = shade(col, -0.35);
-      else if (dx < 0 && dy < 0) col = shade(col, 0.15);
-      P.p(x + 3 + dx, y + 4 + dy, col);
-    }
-  }
-  P.p(x + 3, y + 4, '#c8a040');
-  P.p(x + 2, y + 3, '#e8d080');
-}
-
-// ───────────────────────── тело ─────────────────────────
-
-function drawLegs(P: Pix, L: UnitLook, fx: number, b: number, front: number, back: number) {
-  const pants = L.greaves ?? (L.body ? PANTS[L.culture] : L.tier >= 4 && L.culture !== 'sultanate' ? L.armor : PANTS[L.culture]);
-  const pantsD = shade(pants, -0.3);
-  const boots = L.greaves ? shade(L.greaves, -0.1) : !L.body && L.tier >= 4 && L.culture === 'aurelia' ? shade(L.armor, -0.1) : BOOTS;
-  // дальняя нога
-  const bx = fx - 2 + back;
-  P.rect(bx - 1, 40 - b, 3, 7 + b, pantsD);
-  P.rect(bx - 1, 47, 4, 3, shade(boots, -0.3));
-  // ближняя нога
-  const nx = fx + 1 + front;
-  P.rect(nx - 1, 40 - b, 3, 7 + b, pants);
-  P.p(nx - 1, 41 - b, shade(pants, 0.15));
-  P.rect(nx - 1, 47, 4, 3, boots);
-  P.p(nx + 2, 49, boots);
-}
-
-/** Торс, голова и шлем. ty — верх торса. */
-function drawUpper(P: Pix, L: UnitLook, fx: number, ty: number) {
-  const skin = SKIN[L.culture];
-  const hair = HAIR[L.culture];
-  const metal = L.armor;
-  const metalL = shade(metal, 0.35);
-  const metalD = shade(metal, -0.35);
-  const cloth = L.cloth;
-  const clothD = shade(cloth, -0.3);
-  const clothL = shade(cloth, 0.2);
-  const eastern = L.culture === 'horde' || L.culture === 'sultanate';
-  // Тип доспеха: явный (герой) или по уровню воина
-  const kind: BodyKind = L.body ?? (L.tier <= 1 ? 'cloth' : L.tier >= 4 || L.heavy ? (eastern ? 'lamellar' : 'plate') : 'mail');
-  const plate = kind === 'plate';
-
-  // Торс
-  const soft = kind === 'cloth' || kind === 'leather';
-  const bodyBase = kind === 'brigandine' ? shade(cloth, -0.15) : soft ? L.armor : metal;
-  P.rect(fx - 4, ty, 8, 12, bodyBase);
-  for (let y = ty; y < ty + 12; y++) {
-    for (let x = fx - 4; x < fx + 4; x++) {
-      const r = y - ty;
-      if (kind === 'mail' && (x + y) % 2 === 0) P.p(x, y, metalD);
-      if (kind === 'lamellar' && r % 2 === 0 && x % 2 === 0) P.p(x, y, metalD);
-      if (kind === 'scale' && ((r % 2 === 0 && x % 2 === 0) || (r % 2 === 1 && x % 2 === 1))) P.p(x, y, r % 2 ? metalL : metalD);
-      if (kind === 'cloth' && L.body && r % 3 === 2) P.p(x, y, shade(bodyBase, -0.18)); // стёжка
-      if (kind === 'leather' && r % 4 === 3 && x % 2 === 0) P.p(x, y, shade(bodyBase, -0.3));
-      if (kind === 'brigandine' && r % 3 === 1 && (x - fx) % 3 === 0) P.p(x, y, '#e8c04a'); // заклёпки
-    }
-  }
-  P.vline(fx - 4, ty, ty + 11, soft ? shade(bodyBase, 0.2) : metalL);
-  P.vline(fx + 3, ty, ty + 11, soft ? shade(bodyBase, -0.3) : metalD);
-  if (plate) {
-    // кираса с рёбрами и бликом
-    P.rect(fx - 3, ty + 1, 6, 7, metalL);
-    P.hline(fx - 3, fx + 2, ty + 8, metalD);
-    P.vline(fx, ty + 1, ty + 7, metal);
-    P.p(fx - 2, ty + 2, '#ffffff');
-    P.p(fx - 2, ty + 3, '#ffffff');
-    // набедренные пластины
-    P.rect(fx - 4, ty + 10, 8, 3, metal);
-    P.hline(fx - 4, fx + 3, ty + 12, metalD);
-  }
-
-  // Табард / кафтан
-  const wantsTabard = L.tabard ?? L.tier >= 2;
-  if (wantsTabard && L.tier >= 2) {
-    if (eastern) {
-      P.rect(fx - 4, ty + 6, 8, 9, cloth); // полы кафтана
-      P.vline(fx + 3, ty + 6, ty + 14, clothD);
-      P.vline(fx - 4, ty + 6, ty + 14, clothL);
-      P.vline(fx, ty + 6, ty + 14, clothD);
-    } else if (!(plate && L.tier >= 4 && !L.hero && L.weapon === 'halberd')) {
-      P.rect(fx - 3, ty + 1, 6, 13, cloth);
-      P.vline(fx - 3, ty + 1, ty + 13, clothL);
-      P.vline(fx + 2, ty + 1, ty + 13, clothD);
-      P.p(fx - 1, ty + 4, L.cloth2);
-      P.p(fx, ty + 4, L.cloth2);
-      P.p(fx - 1, ty + 5, L.cloth2);
-      P.p(fx, ty + 5, L.cloth2);
-      P.p(fx - 2, ty + 4, L.cloth2);
-      P.p(fx + 1, ty + 4, L.cloth2);
-      if (L.hero) {
-        P.hline(fx - 3, fx + 2, ty + 13, '#e8c04a');
-        P.vline(fx - 3, ty + 1, ty + 13, '#e8c04a');
-      }
-    }
-  } else if (!L.body) {
-    // рубаха крестьянина с поясом-верёвкой
-    P.rect(fx - 4, ty + 9, 8, 4, L.armor);
-  }
-  P.hline(fx - 4, fx + 3, ty + 10, LEATHER);
-  P.p(fx + 1, ty + 10, '#c8a040');
-  // Наплечник
-  if (kind === 'plate' || kind === 'brigandine' || (!L.body && L.tier >= 3)) {
-    P.rect(fx - 1, ty, 4, 3, metalL);
-    P.hline(fx - 1, fx + 2, ty + 2, metalD);
-  }
-
-  // Шея и голова
-  P.rect(fx - 1, ty - 2, 3, 2, shade(skin, -0.2));
-  const hx0 = fx - 3;
-  const hy0 = ty - 10;
-  P.rect(hx0, hy0, 7, 8, skin);
-  P.vline(hx0, hy0 + 1, hy0 + 6, hair);
-  P.vline(hx0 + 1, hy0, hy0 + 2, hair);
-  P.hline(hx0 + 1, hx0 + 5, hy0, hair);
-  P.p(hx0 + 7, hy0 + 4, skin); // нос
-  P.p(hx0 + 5, hy0 + 3, '#2a1f18'); // глаз
-  P.p(hx0 + 4, hy0 + 2, shade(hair, -0.2)); // бровь
-  P.p(hx0 + 5, hy0 + 6, shade(skin, -0.3));
-  P.vline(hx0 + 6, hy0 + 1, hy0 + 7, shade(skin, -0.12));
-  const beard = L.culture === 'nordmark' || L.culture === 'outlaw' || (L.tier >= 3 && L.culture !== 'aurelia') || (L.seed % 3 === 0);
-  if (beard) {
-    const bc = L.culture === 'nordmark' ? '#b07a3a' : hair;
-    P.rect(hx0 + 2, hy0 + 6, 5, 2, bc);
-    P.p(hx0 + 3, hy0 + 8, bc);
-    P.p(hx0 + 4, hy0 + 8, bc);
-    P.p(hx0 + 5, hy0 + 5, bc);
-  }
-
-  drawHelmet(P, L, hx0, hy0);
-}
-
-function drawHelmet(P: Pix, L: UnitLook, x: number, y: number) {
-  const m = L.helmetMetal ?? L.armor;
-  const mL = shade(m, 0.35);
-  const mD = shade(m, -0.35);
-  const mail = '#8a8f96';
-  switch (L.helmet) {
-    case 'none':
-      break;
-    case 'hood': {
-      const c = L.tier <= 1 ? '#6a5a40' : shade(L.cloth, -0.25);
-      P.rect(x - 1, y - 2, 7, 3, c);
-      P.rect(x - 1, y, 2, 8, c);
-      P.rect(x - 1, y + 7, 6, 2, c);
-      P.p(x + 5, y - 1, c);
-      P.p(x - 2, y + 2, shade(c, -0.2));
-      break;
-    }
-    case 'cap':
-      P.rect(x, y - 2, 6, 3, '#7a5a3a');
-      P.hline(x - 1, x + 6, y, '#5a4028');
-      break;
-    case 'fur':
-      P.rect(x - 1, y - 3, 8, 4, '#6a4a2a');
-      P.hline(x - 1, x + 6, y, '#a0805a');
-      P.hline(x - 1, x + 6, y + 1, '#a0805a');
-      P.p(x + 2, y - 4, '#6a4a2a');
-      if (L.tier >= 3) P.p(x + 3, y - 5, L.cloth);
-      break;
-    case 'kettle':
-      P.rect(x + 1, y - 3, 5, 3, m);
-      P.hline(x + 2, x + 4, y - 4, m);
-      P.hline(x - 2, x + 8, y, mD);
-      P.hline(x - 1, x + 7, y - 1, m);
-      P.p(x + 2, y - 3, mL);
-      break;
-    case 'nasal':
-      P.rect(x, y - 3, 7, 4, m);
-      P.hline(x + 2, x + 4, y - 4, m);
-      P.p(x + 3, y - 5, m);
-      P.vline(x + 6, y + 1, y + 4, mD);
-      P.p(x + 1, y - 2, mL);
-      P.hline(x, x + 6, y + 1, mD);
-      break;
-    case 'bascinet':
-      P.rect(x - 1, y - 3, 8, 5, m);
-      P.hline(x + 1, x + 4, y - 4, m);
-      P.p(x + 2, y - 5, m);
-      P.rect(x - 1, y + 2, 3, 7, mail); // бармица
-      P.rect(x, y + 7, 6, 2, mail);
-      P.p(x + 1, y - 2, mL);
-      P.p(x, y - 1, mL);
-      break;
-    case 'great':
-      P.rect(x - 1, y - 2, 9, 11, m);
-      P.hline(x - 1, x + 7, y - 2, mD);
-      P.hline(x + 2, x + 7, y + 3, OUT); // смотровая щель
-      P.p(x + 6, y + 6, OUT);
-      P.p(x + 5, y + 7, OUT);
-      P.vline(x - 1, y - 1, y + 8, mL);
-      P.vline(x + 7, y - 1, y + 8, mD);
-      P.vline(x + 4, y - 1, y + 2, mL);
-      if (L.hero || L.tier >= 4) {
-        // намёт/плюмаж цвета державы
-        P.rect(x + 1, y - 5, 3, 3, L.cloth2);
-        P.p(x, y - 6, L.cloth2);
-        P.p(x - 1, y - 5, L.cloth2);
-      }
-      break;
-    case 'sallet':
-      // Салад: купол с длинным назатыльником и прорезью, бувигер закрывает подбородок
-      P.rect(x - 1, y - 3, 8, 5, m);
-      P.hline(x + 1, x + 5, y - 4, m);
-      P.rect(x - 4, y + 1, 4, 2, m);
-      P.p(x - 5, y + 2, mD);
-      P.hline(x + 2, x + 7, y + 1, OUT);
-      P.rect(x + 2, y + 4, 6, 4, m);
-      P.hline(x + 2, x + 7, y + 4, mL);
-      P.p(x, y - 2, mL);
-      P.p(x + 1, y - 3, mL);
-      break;
-    case 'armet':
-      // Армет: гладкий закрытый шлем с забралом
-      P.rect(x - 1, y - 3, 9, 11, m);
-      P.clear(x - 1, y - 3);
-      P.clear(x + 7, y - 3);
-      P.hline(x + 1, x + 6, y - 4, m);
-      P.hline(x + 2, x + 7, y + 2, OUT);
-      P.hline(x + 4, x + 7, y + 4, mD);
-      P.vline(x + 3, y - 3, y + 1, mL);
-      P.vline(x - 1, y - 1, y + 7, mL);
-      P.vline(x + 7, y, y + 7, mD);
-      P.rect(x + 1, y - 7, 3, 3, L.cloth2);
-      P.p(x, y - 8, L.cloth2);
-      break;
-    case 'turban':
-      P.rect(x - 1, y - 3, 8, 4, '#efe6d0');
-      P.hline(x - 1, x + 6, y - 1, '#cfc6b0');
-      P.hline(x, x + 5, y - 3, '#fffaf0');
-      P.p(x + 3, y - 4, '#efe6d0');
-      if (L.tier >= 2) P.p(x + 5, y - 2, L.cloth);
-      break;
-    case 'spired':
-      P.rect(x, y - 3, 7, 4, m);
-      P.rect(x + 2, y - 5, 3, 2, m);
-      P.vline(x + 3, y - 8, y - 6, mD);
-      P.p(x + 1, y - 2, mL);
-      P.p(x + 2, y - 4, mL);
-      if (L.culture === 'horde') {
-        P.rect(x - 1, y + 1, 2, 7, '#6a4a2a'); // меховые науши
-      } else {
-        P.rect(x - 1, y + 1, 2, 7, mail);
-      }
-      if (L.tier >= 4) P.p(x + 3, y - 9, L.cloth2);
-      break;
-  }
-  if (L.hero && L.helmet !== 'great') {
-    P.p(x + 2, y - 5, '#e8c04a');
-    P.p(x + 1, y - 6, '#e8c04a');
-    P.p(x, y - 7, '#e8c04a');
+  switch (L.culture) {
+    case 'aurelia':
+      return [
+        poly('#5a3e24', 'wood', [[x - 4.6, y - 7.2], [x + 4.8, y - 6.6], [x + 5, y + 1.8], [x + 0.2, y + 9.4], [x - 4.4, y + 2]]),
+        poly(c, 'cloth', [[x - 4, y - 6.5], [x + 4.2, y - 6], [x + 4.4, y + 1.6], [x + 0.2, y + 8.2], [x - 3.8, y + 1.8]]),
+        poly(e, 'gold', [[x - 0.6, y - 6.3], [x + 1, y - 6.2], [x + 1, y + 7], [x + 0.2, y + 8], [x - 0.6, y + 7]]),
+        poly(e, 'gold', [[x - 3.9, y - 2], [x + 4.3, y - 1.6], [x + 4.3, y], [x - 3.9, y - 0.4]]),
+      ];
+    case 'nordmark':
+      return [
+        ell('#6a4426', 'wood', x, y, 7.8, 8.6, 'plank'),
+        poly(c, 'cloth', [[x, y], [x, y - 8], [x + 5.6, y - 5.6], [x + 7.6, y]]),
+        poly(c, 'cloth', [[x, y], [x, y + 8], [x - 5.6, y + 5.6], [x - 7.6, y]]),
+        ell('#b0b6be', 'metal', x + 0.4, y - 0.2, 2, 2.2),
+      ];
+    case 'horde':
+      return [ell('#7a5230', 'leather', x, y, 5.2, 5.8), ell(e === '#2a2320' ? '#a83a2a' : e, 'cloth', x, y, 3.4, 3.8), ell('#b0b6be', 'metal', x + 0.3, y - 0.2, 1.4, 1.5)];
+    case 'sultanate':
+      return [ell('#c8a050', 'gold', x, y, 6.6, 7.4), ell(c, 'cloth', x, y, 5.6, 6.3), ell(e, 'cloth', x, y, 3.6, 4.1), ell('#c8a050', 'gold', x + 0.3, y - 0.2, 1.6, 1.8)];
+    default:
+      return [poly('#7a5a3a', 'wood', [[x - 4.4, y - 7], [x + 4.4, y - 7], [x + 4.4, y + 7], [x - 4.4, y + 7]], 'plank'), cap('#4a3220', 'leather', [x - 4.4, y - 3], [x + 4.4, y - 3], 1.2), cap('#4a3220', 'leather', [x - 4.4, y + 3], [x + 4.4, y + 3], 1.2)];
   }
 }
 
-// ───────────────────────── руки и позы ─────────────────────────
+// ───────────────────────── торс ─────────────────────────
+
+/** Торс в локальных координатах: таз (0, 0), плечи на y ≈ −18. */
+function torso(k: Kit): Shape[] {
+  const L = k.L;
+  const out: Shape[] = [];
+  const body: Pt[] = [[-5, -19.5], [5.6, -19], [7, -10], [6.2, -1], [-5.2, -1], [-6.2, -10]];
+  const skirt: Pt[] = [[-5.8, -3], [6.4, -3], [7.6, 7], [-6.8, 7]];
+  const pat: Pat = k.kind === 'mail' ? 'mail' : k.kind === 'scale' ? 'scale' : k.kind === 'lamellar' ? 'lamellar' : k.kind === 'brigandine' ? 'rivets' : k.kind === 'cloth' && L.body ? 'quilt' : 'none';
+  switch (k.kind) {
+    case 'cloth':
+      out.push(poly(L.armor, 'cloth', [...body.slice(0, 3), [7.2, 5.5], [-6.4, 5.5], body[5]], L.body ? 'quilt' : 'none'));
+      break;
+    case 'leather':
+      out.push(poly(mix(L.cloth, '#000000', 0.1), 'cloth', skirt));
+      out.push(poly(L.armor, 'leather', [...body.slice(0, 3), [6.8, 2], [-5.8, 2], body[5]], 'quilt'));
+      break;
+    case 'brigandine':
+      out.push(poly('#8a9098', 'metal', skirt, 'mail'));
+      out.push(poly(mix(L.cloth, '#000000', 0.18), 'cloth', body, 'rivets'));
+      break;
+    case 'plate':
+      out.push(poly(k.metal, 'metal', skirt, 'mail'));
+      out.push(poly(k.metal, 'metal', body));
+      for (let i = 0; i < 3; i++) out.push(poly(k.metal, 'metal', [[-5.4 - i * 0.3, -2 + i * 2.6], [6.4 + i * 0.3, -2 + i * 2.6], [6.8 + i * 0.3, 0.8 + i * 2.6], [-5.8 - i * 0.3, 0.8 + i * 2.6]]));
+      out.push(cap(mix(k.metal, '#ffffff', 0.5), 'metal', [4.6, -17], [5.8, -6], 0.9));
+      break;
+    default:
+      // кольчуга, чешуя, ламеллярь — рубаха до середины бедра
+      out.push(poly(k.metal, 'metal', [...body.slice(0, 3), [7.6, 7], [-6.8, 7], body[5]], pat));
+  }
+  // Табард (запад) или полы кафтана (восток)
+  if (k.tabard) {
+    if (k.eastern) {
+      out.push(poly(L.cloth, 'cloth', [[-5.8, -2], [6.6, -2], [8.2, 9], [0.6, 9.5], [-7.2, 9]]));
+      out.push(cap(L.cloth2 === '#2a2320' ? '#c8a050' : L.cloth2, 'cloth', [0.4, -1.5], [0.8, 9.2], 0.9));
+    } else if (!(k.kind === 'plate' && L.tier >= 4 && !L.hero && L.weapon === 'halberd')) {
+      out.push(poly(L.cloth, 'cloth', [[-4.2, -18.6], [5, -18.2], [6, -8], [6.8, 8], [-5.6, 8], [-5.2, -8]]));
+      out.push(poly(L.cloth2, 'gold', [[-0.6, -18.4], [1.6, -18.3], [1.9, 7.8], [-0.6, 7.8]]));
+      out.push(poly(L.cloth2, 'gold', [[-4.8, -13], [5.6, -12.6], [5.8, -10.8], [-4.9, -11.2]]));
+      if (L.hero) out.push(cap('#e2b43c', 'gold', [-5.6, 7.8], [6.8, 7.8], 1.1));
+    }
+  } else if (k.kind === 'cloth' && !L.body) {
+    out.push(cap('#7a6a4a', 'leather', [-6, -3], [6.6, -3], 1)); // пояс-верёвка
+  }
+  // Ремень с пряжкой
+  out.push(poly(k.eastern && k.tabard ? L.cloth2 === '#2a2320' ? '#6a4a2a' : L.cloth2 : '#3a2618', 'leather', [[-5.6, -4.2], [6.6, -4.2], [6.7, -2.3], [-5.7, -2.3]]));
+  out.push(ell('#c8a050', 'gold', 4.6, -3.2, 1, 0.9));
+  // Наплечник у лат и бригантины
+  if (k.kind === 'plate' || k.kind === 'brigandine') out.push(ell(mix(k.metal, '#ffffff', 0.08), 'metal', 0.6, -17.6, 4.6, 3.4));
+  if (L.hero && !k.tabard) out.push(cap('#e2b43c', 'gold', [-5.6, -4], [6.6, -4], 0.8));
+  return out;
+}
+
+function arm(k: Kit, S: Pt, T: Pt, far: boolean): { shapes: Shape[]; hand: Pt } {
+  const [E, Hd] = ik(S, T, 10.2, 9.4);
+  const dim = (c: string) => (far ? mix(c, '#000000', 0.12) : c);
+  const shapes: Shape[] = [
+    cap(dim(k.sleeve), k.sleeveMat, S, E, 4.4, 3.8, k.sleevePat),
+    cap(dim(k.forearm), k.forearmMat, E, Hd, 3.7, 3.1, k.forearmMat === 'metal' ? k.sleevePat : 'none'),
+  ];
+  if (k.kind === 'plate') shapes.push(ell(dim(mix(k.metal, '#ffffff', 0.1)), 'metal', E[0], E[1], 2.4, 2.2));
+  shapes.push(ell(dim(k.hand), k.handMat, Hd[0], Hd[1], 1.9, 1.8));
+  return { shapes, hand: Hd };
+}
+
+// ───────────────────────── позы ─────────────────────────
+
+type Cls = 'one' | 'pole' | 'chop' | 'spearShield' | 'bow' | 'crossbow' | 'lance';
 
 interface ArmPose {
-  hx: number;
-  hy: number;
-  ang: number;
-  bowPull?: number;
+  /** Кисть с оружием (дальняя рука) в локальных координатах торса. */
+  hw: Pt;
+  /** Кисть ближней руки; null — вторая рука на оружии (для двуручного). */
+  hs: Pt | null;
+  wa: number;
+  lean: number;
+  front: boolean;
+  pull?: number;
   arrow?: boolean;
   loaded?: boolean;
 }
 
-function armPose(L: UnitLook, fx: number, ty: number, pose: Pose): ArmPose {
-  const w = L.weapon;
-  const f = pose.kind === 'attack' ? pose.frame : -1;
-  if (w === 'bow') {
-    if (f === 0) return { hx: fx + 7, hy: ty + 2, ang: 0, bowPull: 5, arrow: true };
-    if (f === 1) return { hx: fx + 7, hy: ty + 2, ang: 0, bowPull: 0, arrow: false };
-    return { hx: fx + 5, hy: ty + 4, ang: 0, bowPull: 0, arrow: false };
+function clsOf(L: UnitLook): Cls {
+  switch (L.weapon) {
+    case 'bow':
+      return 'bow';
+    case 'crossbow':
+      return 'crossbow';
+    case 'lance':
+      return 'lance';
+    case 'halberd':
+    case 'glaive':
+      return 'chop';
+    case 'spear':
+    case 'pitchfork':
+      return L.shield ? 'spearShield' : 'pole';
+    default:
+      return 'one';
   }
-  if (w === 'crossbow') {
-    if (f === 0) return { hx: fx + 3, hy: ty + 2, ang: 0, loaded: true };
-    if (f === 1) return { hx: fx + 2, hy: ty + 2, ang: -8, loaded: false };
-    if (f === 2) return { hx: fx + 2, hy: ty + 6, ang: 55, loaded: false };
-    return { hx: fx + 3, hy: ty + 5, ang: 0, loaded: true };
-  }
-  if (w === 'lance') {
-    if (f === 0) return { hx: fx + 1, hy: ty + 4, ang: -12 };
-    if (f === 1) return { hx: fx + 5, hy: ty + 5, ang: 2 };
-    if (f === 2) return { hx: fx + 3, hy: ty + 4, ang: -6 };
-    return { hx: fx + 3, hy: ty + 5, ang: pose.kind === 'walk' ? -10 : -72 };
-  }
-  if (isPolearm(w)) {
-    if (f === 0) return { hx: fx - 1, hy: ty + 4, ang: -6 };
-    if (f === 1) return { hx: fx + 6, hy: ty + 4, ang: 0 };
-    if (f === 2) return { hx: fx + 3, hy: ty + 4, ang: -22 };
-    return { hx: fx + 3, hy: ty + 6, ang: pose.kind === 'walk' ? -35 : -78 };
-  }
-  // одноручное
-  if (f === 0) return { hx: fx, hy: ty - 3, ang: -130 };
-  if (f === 1) return { hx: fx + 6, hy: ty + 5, ang: 20 };
-  if (f === 2) return { hx: fx + 5, hy: ty + 3, ang: -25 };
-  return { hx: fx + 4, hy: ty + 8, ang: -58 };
 }
 
-function drawArm(P: Pix, L: UnitLook, sx: number, sy: number, hx: number, hy: number) {
-  const sleeve = L.body
-    ? L.body === 'cloth' || L.body === 'leather'
-      ? shade(L.armor, -0.1)
-      : L.body === 'brigandine'
-        ? shade(L.gauntlets ?? L.armor, -0.1)
-        : shade(L.armor, L.body === 'plate' ? 0.1 : -0.1)
-    : L.tier <= 1
-      ? L.armor
-      : L.tier >= 4 || L.heavy
-        ? shade(L.armor, 0.1)
-        : shade(L.armor, -0.1);
-  line(P, sx, sy, hx, hy, sleeve);
-  line(P, sx, sy + 1, hx, hy + 1, shade(sleeve, -0.25));
-  P.p(hx, hy, L.gauntlets ?? (L.body ? SKIN[L.culture] : L.tier >= 3 ? shade(L.armor, -0.2) : SKIN[L.culture]));
+/** frame: 0 стойка, 1..4 шаг, 5 замах/прицел, 6 удар/выстрел, 7 возврат. */
+function armPose(cls: Cls, frame: number, mounted: boolean): ArmPose {
+  const walk = frame >= 1 && frame <= 4;
+  const f = walk ? 0 : frame;
+  const sway = walk ? [0.6, 0, -0.6, 0][frame - 1] : 0;
+  const shieldHand: Pt = mounted ? [9, -9] : [7.5, -11];
+  switch (cls) {
+    case 'one':
+      return (
+        [
+          { hw: [8, -9 + sway] as Pt, hs: shieldHand, wa: -62, lean: 3, front: false },
+          null,
+          null,
+          null,
+          null,
+          { hw: [-3, -29] as Pt, hs: shieldHand, wa: -150, lean: -4, front: false },
+          { hw: [14, -16] as Pt, hs: shieldHand, wa: 12, lean: 10, front: true },
+          { hw: [11, -7] as Pt, hs: shieldHand, wa: 62, lean: 12, front: true },
+        ] as (ArmPose | null)[]
+      )[f]!;
+    case 'pole':
+      return ([
+        { hw: [-2, -7 + sway] as Pt, hs: null, wa: -64, lean: 2, front: false },
+        null, null, null, null,
+        { hw: [-7, -12] as Pt, hs: null, wa: -8, lean: -3, front: false },
+        { hw: [8, -13] as Pt, hs: null, wa: -3, lean: 10, front: true },
+        { hw: [4, -12] as Pt, hs: null, wa: -5, lean: 6, front: true },
+      ] as (ArmPose | null)[])[f]!;
+    case 'chop':
+      return ([
+        { hw: [-1, -8 + sway] as Pt, hs: null, wa: -76, lean: 2, front: false },
+        null, null, null, null,
+        { hw: [-4, -24] as Pt, hs: null, wa: -118, lean: -4, front: false },
+        { hw: [10, -14] as Pt, hs: null, wa: 24, lean: 11, front: true },
+        { hw: [8, -9] as Pt, hs: null, wa: 46, lean: 12, front: true },
+      ] as (ArmPose | null)[])[f]!;
+    case 'spearShield':
+      return ([
+        { hw: [3, -19 + sway] as Pt, hs: shieldHand, wa: -82, lean: 2, front: false },
+        null, null, null, null,
+        { hw: [-5, -25] as Pt, hs: shieldHand, wa: -8, lean: -3, front: false },
+        { hw: [12, -23] as Pt, hs: shieldHand, wa: 4, lean: 10, front: true },
+        { hw: [9, -21] as Pt, hs: shieldHand, wa: 8, lean: 7, front: true },
+      ] as (ArmPose | null)[])[f]!;
+    case 'lance':
+      return ([
+        { hw: [6, -12 + sway] as Pt, hs: shieldHand, wa: -80, lean: 2, front: false },
+        null, null, null, null,
+        { hw: [6, -13] as Pt, hs: shieldHand, wa: -34, lean: 4, front: false },
+        { hw: [8, -12] as Pt, hs: shieldHand, wa: -3, lean: 10, front: true },
+        { hw: [8, -12] as Pt, hs: shieldHand, wa: -3, lean: 8, front: true },
+      ] as (ArmPose | null)[])[f]!;
+    case 'bow':
+      // hs — кисть с луком (ближняя), hw — кисть на тетиве (дальняя)
+      return ([
+        { hw: [3, -11 + sway] as Pt, hs: [8, -10 + sway] as Pt, wa: 0, lean: 2, front: false, pull: 2, arrow: true },
+        null, null, null, null,
+        { hw: [3.5, -19.5] as Pt, hs: [13.5, -19.5] as Pt, wa: 0, lean: 0, front: false, pull: 9, arrow: true },
+        { hw: [-3, -18] as Pt, hs: [13.5, -19.5] as Pt, wa: 0, lean: -2, front: false, pull: 0, arrow: false },
+        { hw: [2, -15] as Pt, hs: [11, -16] as Pt, wa: 0, lean: 0, front: false, pull: 1, arrow: false },
+      ] as (ArmPose | null)[])[f]!;
+    case 'crossbow':
+      return ([
+        { hw: [4, -11 + sway] as Pt, hs: null, wa: -32, lean: 2, front: false, loaded: true },
+        null, null, null, null,
+        { hw: [5, -18.5] as Pt, hs: null, wa: 0, lean: 1, front: true, loaded: true },
+        { hw: [4, -19.5] as Pt, hs: null, wa: -9, lean: -3, front: true, loaded: false },
+        { hw: [6, -9] as Pt, hs: null, wa: 70, lean: 8, front: false, loaded: false },
+      ] as (ArmPose | null)[])[f]!;
+  }
 }
 
-function drawArmsAndWeapon(P: Pix, L: UnitLook, fx: number, ty: number, pose: Pose) {
-  const a = armPose(L, fx, ty, pose);
-  const shoulder: [number, number] = [fx + 1, ty + 2];
-  if (L.weapon === 'bow') {
-    drawArm(P, L, shoulder[0], shoulder[1], a.hx, a.hy);
-    drawBow(P, a.hx, a.hy, a.bowPull ?? 0, a.arrow ?? false, L.culture === 'horde' || L.culture === 'sultanate');
-    // вторая рука у тетивы
-    drawArm(P, L, shoulder[0] - 1, shoulder[1] + 1, a.hx - (a.bowPull ?? 0), a.hy);
-    return;
+/** Верх тела (торс, голова, руки, оружие, щит) в локальных координатах торса. */
+function upperBody(k: Kit, cls: Cls, frame: number, mounted: boolean): { shapes: Shape[]; lean: number; reinHand: Pt | null } {
+  const L = k.L;
+  const p = armPose(cls, frame, mounted);
+  const SF: Pt = [-0.2, -17.6]; // дальнее плечо
+  const SN: Pt = [0.8, -17.2]; // ближнее плечо
+  const out: Shape[] = [];
+  const pavise = L.culture === 'aurelia' && L.weapon === 'crossbow' && L.shield;
+  if (pavise) out.push(poly('#5a3e24', 'wood', [[-10, -21], [-3, -21], [-3, 2], [-10, 2]], 'plank'), poly(L.cloth, 'cloth', [[-9.4, -20.4], [-3.6, -20.4], [-3.6, 1.4], [-9.4, 1.4]]), cap(L.cloth2, 'gold', [-6.5, -20], [-6.5, 1], 1.4));
+  const far = arm(k, SF, p.hw, true);
+  let wShapes: Shape[] = [];
+  let nearT: Pt | null = p.hs;
+  if (cls === 'bow') {
+    const bowHand = p.hs!;
+    wShapes = weapon(k, bowHand, 0, { pull: bowHand[0] - p.hw[0], arrow: p.arrow });
+  } else {
+    wShapes = weapon(k, far.hand, p.wa, { loaded: p.loaded });
+    if (!p.hs) nearT = add(far.hand, dir(p.wa), cls === 'crossbow' ? 5 : 8);
   }
-  if (L.weapon === 'crossbow') {
-    drawCrossbow(P, a.hx, a.hy, a.ang, a.loaded ?? false);
-    drawArm(P, L, shoulder[0], shoulder[1], a.hx, a.hy);
-    drawArm(P, L, shoulder[0] - 1, shoulder[1] + 1, a.hx - 3, a.hy + 1);
-    return;
-  }
-  drawWeapon(P, L.weapon, a.hx, a.hy, a.ang, L);
-  drawArm(P, L, shoulder[0], shoulder[1], a.hx, a.hy);
-  if (isPolearm(L.weapon) && L.weapon !== 'lance' && !L.shield) {
-    // двуручный хват
-    const [bx, by] = ray(a.hx, a.hy, a.ang, -5);
-    drawArm(P, L, fx - 1, ty + 3, bx, by);
-  }
+  if (!p.front) out.push(...far.shapes, ...wShapes);
+  else out.push(...far.shapes);
+  out.push(...torso(k));
+  out.push(...head(k, 1.6, -24.6));
+  if (p.front) out.push(...wShapes);
+  const near = arm(k, SN, nearT ?? [3, -3], false);
+  out.push(...near.shapes);
+  if (L.shield && !pavise && cls !== 'bow' && cls !== 'crossbow' && (cls === 'one' || cls === 'spearShield' || cls === 'lance')) out.push(...shield(k, [near.hand[0] + 1.2, near.hand[1] - 0.5]));
+  return { shapes: out, lean: p.lean, reinHand: mounted && !L.shield && cls !== 'bow' ? near.hand : null };
+}
+
+// ───────────────────────── пеший ─────────────────────────
+
+const THIGH = 15;
+const SHIN = 14.2;
+
+function legShapes(k: Kit, hip: Pt, th: number, sh: number, far: boolean): Shape[] {
+  const knee = add(hip, down(th, THIGH));
+  const ankle = add(knee, down(sh, SHIN));
+  const dim = (c: string) => (far ? mix(c, '#000000', 0.14) : c);
+  const out: Shape[] = [cap(dim(k.pants), k.pantsMat, hip, knee, 6, 5), cap(dim(k.pants), k.pantsMat, knee, ankle, 5, 4.2)];
+  if (k.pantsMat === 'metal') out.push(ell(dim(mix(k.pants, '#ffffff', 0.12)), 'metal', knee[0], knee[1], 2.6, 2.5));
+  else if (k.L.tier >= 2) out.push(cap(dim(k.boots), k.bootsMat, add(ankle, [0, -5]), ankle, 4.6, 4.4));
+  const [ax, ay] = ankle;
+  out.push(poly(dim(k.boots), k.bootsMat, [[ax - 2.4, ay - 1.8], [ax + 2.2, ay - 1.8], [ax + 2.6, ay + 0.4], [ax + 5.6, ay + 1.6], [ax + 5.6, ay + 3], [ax - 2.6, ay + 3]]));
+  return out;
+}
+
+function footSoldier(k: Kit, frame: number): Shape[] {
+  const cls = clsOf(k.L);
+  // Углы ног: [бедро дальней, голень дальней, бедро ближней, голень ближней]
+  const legsByFrame: [number, number, number, number][] = [
+    [-9, -5, 12, 3],
+    [-18, -30, 18, 8],
+    [-5, -6, 5, -7],
+    [18, 8, -18, -30],
+    [5, -7, -5, -6],
+    [-10, -4, 14, 4],
+    [-16, -8, 22, 6],
+    [-14, -6, 18, 5],
+  ];
+  const [tb, sb, tf, sf] = legsByFrame[frame];
+  const legLen = (t: number, s: number) => Math.cos(rad(t)) * THIGH + Math.cos(rad(s)) * SHIN;
+  const hipY = -Math.max(legLen(tb, sb), legLen(tf, sf)) - 3;
+  const hip: Pt = [0, hipY];
+  const ub = upperBody(k, cls, frame, false);
+  return [
+    ...legShapes(k, [hip[0] - 1, hip[1]], tb, sb, true),
+    ...legShapes(k, [hip[0] + 1, hip[1]], tf, sf, false),
+    ...transform(ub.shapes, ub.lean, hip[0], hip[1]),
+  ];
 }
 
 // ───────────────────────── конь ─────────────────────────
 
-function drawHorse(P: Pix, L: UnitLook, gait: number, far: boolean) {
+function horseShapes(k: Kit, frame: number, rider: Shape[], reinHand: Pt | null, riderLeg: Shape[]): Shape[] {
+  const L = k.L;
   const base = L.horseColor ?? (L.culture === 'horde' ? ['#8a6a45', '#6a4a2a', '#9a958c'][L.seed % 3] : HORSES[L.seed % HORSES.length]);
-  const dark = shade(base, -0.3);
-  const light = shade(base, 0.18);
-  const mane = shade(base, -0.55);
-  // смещения копыт по кадрам: [ближняя передняя, дальняя передняя, ближняя задняя, дальняя задняя]
-  const G = [
-    [0, 0, 0, 0],
-    [5, -2, 3, -3],
-    [2, 1, -1, 1],
-    [-3, 4, -3, 3],
-    [1, -1, 2, -1],
-  ][gait];
-  const leg = (x: number, off: number, c: string) => {
-    // бедро/плечо шире, ниже — тонкая нога и копыто
-    P.rect(x - 1, 38, 4, 3, c);
-    line(P, x, 41, x + off, 48, c);
-    line(P, x + 1, 41, x + 1 + off, 48, c);
-    P.p(x + off, 49, OUT);
-    P.p(x + 1 + off, 49, OUT);
-    P.p(x + 2 + off, 49, OUT);
+  const mane = mix(base, '#000000', 0.55);
+  const farC = mix(base, '#000000', 0.18);
+  // Шаг: углы [бедро, голень] для ног: ближняя передняя, дальняя передняя, ближняя задняя, дальняя задняя
+  const gaits: [number, number][][] = [
+    [[4, 0], [-4, 0], [-3, 0], [4, 0]],
+    [[24, -6], [-14, -2], [-18, -2], [16, 30]],
+    [[8, 20], [2, 0], [-2, 0], [2, 10]],
+    [[-14, -2], [24, -6], [16, 30], [-18, -2]],
+    [[2, 0], [8, 20], [2, 10], [-2, 0]],
+  ];
+  const g = gaits[frame >= 1 && frame <= 4 ? frame : 0];
+  const bob = frame === 2 || frame === 4 ? -0.8 : 0;
+  const y0 = -26.5 + bob;
+  const leg = (x: number, [a, b]: [number, number], c: string, front: boolean): Shape[] => {
+    const top: Pt = [x, y0 + 4];
+    const knee = add(top, down(a, 9.5));
+    const hoof = add(knee, down(front ? b : b - 8, 10.5));
+    return [cap(c, 'horse', top, knee, 5.4, 3.6), cap(c, 'horse', knee, hoof, 3, 2.5), ell('#2a2018', 'dark', hoof[0] + 0.7, hoof[1] + 1, 2, 1.3)];
   };
-  if (far) {
-    leg(33, G[1], dark);
-    leg(16, G[3], dark);
-    return;
-  }
-  // хвост
-  line(P, 12, 31, 8, 37, mane);
-  line(P, 11, 32, 7, 39, mane);
-  line(P, 8, 37, 7, 43, mane);
-  P.p(6, 43, mane);
-  // корпус: округлая «бочка»
-  const rows: [number, number][] = [[17, 31], [14, 33], [13, 35], [12, 36], [12, 37], [12, 37], [12, 37], [13, 37], [13, 36], [14, 35], [16, 33], [19, 31]];
-  rows.forEach(([a, b], i) => {
-    const y = 29 + i;
-    for (let x = a; x <= b; x++) P.p(x, y, i < 2 ? light : i > 9 ? dark : x < a + 2 ? light : x > b - 2 ? dark : base);
-  });
-  // шея: широкая, наклонена вперёд
-  for (let y = 18; y <= 32; y++) {
-    const x0 = 31 + Math.round((32 - y) * 0.5);
-    const w = y < 22 ? 5 : 6;
-    for (let x = x0; x < x0 + w; x++) P.p(x, y, x === x0 + w - 1 ? dark : base);
-    P.p(x0, y, mane);
-    if (y % 2 === 0) P.p(x0 - 1, y, mane);
-  }
-  // голова: лоб, скула, морда вниз-вперёд
-  P.rect(37, 16, 5, 5, base);
-  P.rect(39, 20, 5, 3, base);
-  P.rect(41, 23, 5, 3, base);
-  P.hline(37, 41, 16, light);
-  P.p(46, 24, base);
-  P.hline(41, 45, 25, dark);
-  P.p(45, 24, OUT); // ноздря
-  P.p(40, 18, OUT); // глаз
-  P.p(37, 14, base);
-  P.p(38, 13, base);
-  P.p(38, 14, dark); // уши
-  P.p(36, 16, mane);
-  // ноги
-  leg(30, G[0], base);
-  leg(14, G[2], base);
-  // сбруя: седло, узда, повод
-  P.rect(20, 28, 9, 2, LEATHER);
-  P.p(28, 27, LEATHER);
-  line(P, 39, 21, 44, 23, '#3a2a1e');
-  line(P, 28, 30, 41, 22, '#3a2a1e');
+  const out: Shape[] = [];
+  out.push(...leg(11, g[1], farC, true), ...leg(-12, g[3], farC, false));
+  out.push(cap(mane, 'hair', [-18, y0 - 5], [-24, y0 + 10], 3.8, 1.6), cap(mane, 'hair', [-18, y0 - 5], [-22, y0 + 12], 2.6, 1.2));
+  out.push(ell(base, 'horse', 0, y0, 17, 9.5));
+  out.push(ell(base, 'horse', 11.5, y0 + 0.5, 8, 9), ell(base, 'horse', -11, y0 - 0.5, 9, 9.6));
+  out.push(...leg(12, g[0], base, true), ...leg(-11, g[2], base, false));
+  // Шея и голова
+  out.push(cap(base, 'horse', [13, y0 - 4], [21, y0 - 17], 10.5, 6.8));
+  out.push(cap(base, 'horse', [21.5, y0 - 19], [30.5, y0 - 10], 7.2, 4.4));
+  out.push(cap(base, 'horse', [20.4, y0 - 20.5], [20.8, y0 - 24.5], 1.8, 0.9));
+  out.push(ell(mix(base, '#000000', 0.28), 'horse', 30.4, y0 - 10.4, 2.6, 2.3));
+  out.push(ell(DARK, 'dark', 31.4, y0 - 10.8, 0.45, 0.45));
+  out.push(ell(DARK, 'dark', 24, y0 - 17, 0.7, 0.7));
+  out.push(cap(mane, 'hair', [12.5, y0 - 8], [20.4, y0 - 21.5], 3.2, 2.4));
+  out.push(cap('#3a2618', 'leather', [23, y0 - 19.5], [26.5, y0 - 12], 0.7), cap('#3a2618', 'leather', [26.5, y0 - 12], [31, y0 - 12.5], 0.7));
   if (L.heavy) {
-    // попона по форме корпуса с фигурным краем
-    const c = L.cloth;
-    const cD = shade(c, -0.3);
-    const cL = shade(c, 0.15);
-    rows.forEach(([a, b], i) => {
-      const y = 29 + i;
-      if (y < 30) return;
-      for (let x = a; x <= b; x++) P.p(x, y, x < a + 2 ? cL : x > b - 1 ? cD : c);
-    });
-    for (let y = 41; y <= 44; y++) {
-      for (let x = 13; x <= 36; x++) {
-        const scallop = (x - 13) % 4;
-        if (y === 44 && scallop !== 1 && scallop !== 2) continue;
-        P.p(x, y, y >= 43 ? cD : c);
-      }
+    // Попона по контуру коня, со складками и зубчатым краем; налобник
+    const hem: Pt[] = [];
+    for (let i = 0; i <= 9; i++) {
+      const x = 20 - i * 4.6;
+      hem.push([x, y0 + (i % 2 ? 12 : 10.2) - Math.max(0, x - 12) * 0.4]);
     }
-    // узор: цвет державы
-    for (let x = 15; x <= 34; x += 5) {
-      P.p(x, 33, L.cloth2);
-      P.p(x + 1, 33, L.cloth2);
-      P.p(x, 34, L.cloth2);
-      P.p(x + 1, 34, L.cloth2);
-      P.p(x + 2, 38, L.cloth2);
-    }
-    P.hline(13, 36, 42, L.cloth2);
-    // кринет на шее и шанфрон на голове
-    for (let y = 22; y <= 30; y++) {
-      const x0 = 31 + Math.round((32 - y) * 0.5);
-      P.hline(x0 + 1, x0 + 4, y, y % 3 === 0 ? cD : c);
-    }
-    P.rect(37, 15, 5, 4, shade(L.armor, 0.25));
-    P.rect(39, 19, 4, 3, shade(L.armor, 0.1));
-    P.p(40, 18, OUT);
-    P.p(39, 12, L.cloth2);
-    P.p(38, 11, L.cloth2);
+    out.push(poly(L.cloth, 'cloth', [[-21.5, y0 - 5], [-15, y0 - 9.6], [-2, y0 - 10.2], [9, y0 - 9.6], [16, y0 - 11], [21.5, y0 - 4], [22, y0 + 4], ...hem, [-22.5, y0 + 9]], 'plank'));
+    out.push(cap(L.cloth2, 'gold', [-22.5, y0 + 9.4], [15, y0 + 9.4], 1.2));
+    out.push(ell(L.cloth2, 'gold', -9, y0 + 0.5, 3.2, 3.4), ell(L.cloth2, 'gold', 10, y0 + 0.5, 3.2, 3.4));
+    out.push(poly(L.cloth, 'cloth', [[13, y0 - 6], [18.5, y0 - 13], [21.5, y0 - 18], [24, y0 - 15.5], [20.5, y0 - 7]], 'plank'));
+    out.push(poly('#9aa2aa', 'metal', [[20.5, y0 - 21], [24, y0 - 20.4], [30.4, y0 - 12.4], [28.4, y0 - 10.4], [21.4, y0 - 16.8]]));
+  } else {
+    out.push(poly(L.cloth2 === '#2a2320' ? '#8a3a2a' : L.cloth, 'cloth', [[-7, y0 - 10], [7.5, y0 - 9.8], [8.6, y0 + 1.5], [-8, y0 + 1.5]], 'quilt'));
+    out.push(cap(L.cloth2 === '#2a2320' ? '#c8a050' : L.cloth2, 'gold', [-8, y0 + 1.2], [8.6, y0 + 1.2], 0.9));
   }
+  // Седло
+  out.push(poly('#4e3220', 'leather', [[-7, y0 - 12.5], [-5, y0 - 9.6], [5.4, y0 - 9.6], [7.4, y0 - 13], [5.4, y0 - 11.4], [-4.8, y0 - 11.4]]));
+  // Всадник
+  out.push(...transform(rider, 0, 0, 0));
+  out.push(...riderLeg);
+  if (reinHand) out.push(cap('#3a2618', 'string', reinHand, [26, y0 - 13], 0.5));
+  return out;
 }
 
-// ───────────────────────── кадр целиком ─────────────────────────
+function mounted(k: Kit, frame: number): Shape[] {
+  const cls = clsOf(k.L);
+  const bob = frame === 2 || frame === 4 ? -0.8 : 0;
+  const hip: Pt = [-1, -38.8 + bob];
+  const ub = upperBody(k, cls, frame, true);
+  const rider = transform(ub.shapes, ub.lean, hip[0], hip[1]);
+  // Ближняя нога всадника вдоль бока коня, стопа в стремени
+  const knee = add(hip, down(62, 12.5));
+  const ankle = add(knee, down(-6, 11.5));
+  const legC = k.pants;
+  const riderLeg: Shape[] = [
+    cap(legC, k.pantsMat, hip, knee, 6, 5),
+    cap(legC, k.pantsMat, knee, ankle, 5, 4.2),
+    poly(k.boots, k.bootsMat, [[ankle[0] - 2.2, ankle[1] - 1.6], [ankle[0] + 2.2, ankle[1] - 1.6], [ankle[0] + 5, ankle[1] + 1.2], [ankle[0] + 5, ankle[1] + 2.6], [ankle[0] - 2.4, ankle[1] + 2.6]]),
+    cap('#8f969e', 'metal', [ankle[0] - 1.5, ankle[1] + 3], [ankle[0] + 4, ankle[1] + 3], 0.9),
+  ];
+  // Рука всадника перекрывается ногой: рисуем её после
+  return horseShapes(k, frame, rider, ub.reinHand, riderLeg);
+}
 
-function drawFrame(L: UnitLook, pose: Pose): HTMLCanvasElement {
-  const P = new Pix(FRAME_W, FRAME_H);
-  if (L.mounted) {
-    const gait = pose.kind === 'walk' ? pose.frame + 1 : 0;
-    drawHorse(P, L, gait, true);
-    drawHorse(P, L, gait, false);
-    const fx = 23;
-    const ty = 16 + (gait === 2 || gait === 4 ? 1 : 0);
-    // нога всадника вдоль бока
-    P.rect(fx - 1, ty + 12, 3, 6, PANTS[L.culture]);
-    P.rect(fx - 1, ty + 18, 4, 3, BOOTS);
-    drawUpper(P, L, fx, ty);
-    if (L.shield) drawShield(P, L, fx - 7, ty + 2);
-    drawArmsAndWeapon(P, L, fx, ty, pose);
-  } else {
-    const fx = 22;
-    let front = 0;
-    let back = 0;
-    let b = 0;
-    if (pose.kind === 'walk') {
-      [front, back] = ([[3, -3], [0, 0], [-3, 3], [0, 0]] as const)[pose.frame];
-      b = pose.frame % 2;
-    }
-    if (pose.kind === 'attack' && pose.frame === 1 && !['bow', 'crossbow'].includes(L.weapon)) {
-      front = 3;
-      back = -2;
-    }
-    drawLegs(P, L, fx, b, front, back);
-    const ty = 28 - b;
-    drawUpper(P, L, fx, ty);
-    const shieldFront = L.shield && L.weapon !== 'crossbow';
-    if (L.shield && !shieldFront) drawShield(P, L, fx - 9, ty + 2); // павеза за спиной
-    drawArmsAndWeapon(P, L, fx, ty, pose);
-    if (shieldFront) drawShield(P, L, fx + 2, ty + 3);
+// ───────────────────────── кадры ─────────────────────────
+
+function frameShapes(L: UnitLook, frame: number): Shape[] {
+  const k = kitOf(L);
+  if (frame === 8) {
+    // Павший: пеший облик в стойке, опрокинутый на спину
+    const standing = footSoldier(kitOf({ ...L, mounted: false }), 0);
+    const lying = rotateShapes(standing, 0, 0, -86);
+    return transform(lying, 0, 26, -6);
   }
-  P.outline(OUT);
-  return P.canvas;
+  return L.mounted ? mounted(k, frame) : footSoldier(k, frame);
 }
 
 /** Лист кадров: 9 кадров в ряд. */
@@ -729,27 +721,73 @@ export function drawUnitSheet(L: UnitLook): HTMLCanvasElement {
   sheet.width = FRAME_W * 9;
   sheet.height = FRAME_H;
   const ctx = sheet.getContext('2d')!;
-  ctx.imageSmoothingEnabled = false;
-  const poses: Pose[] = [
-    { kind: 'idle', frame: 0 },
-    { kind: 'walk', frame: 0 },
-    { kind: 'walk', frame: 1 },
-    { kind: 'walk', frame: 2 },
-    { kind: 'walk', frame: 3 },
-    { kind: 'attack', frame: 0 },
-    { kind: 'attack', frame: 1 },
-    { kind: 'attack', frame: 2 },
-  ];
-  poses.forEach((p, i) => ctx.drawImage(drawFrame(L, p), i * FRAME_W, 0));
-  // Павший: кадр стойки, повёрнутый на бок
-  const idle = drawFrame({ ...L, mounted: false }, { kind: 'idle', frame: 0 });
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(8 * FRAME_W, 0, FRAME_W, FRAME_H);
-  ctx.clip();
-  ctx.translate(8 * FRAME_W + FRAME_W / 2, FRAME_H);
-  ctx.rotate(Math.PI / 2);
-  ctx.drawImage(idle, -34, -24);
-  ctx.restore();
+  const img = ctx.createImageData(FRAME_W * 9, FRAME_H);
+  const dst = new Uint32Array(img.data.buffer);
+  for (let f = 0; f < 9; f++) {
+    const px = rasterize(frameShapes(L, f), FRAME_W, FRAME_H, K, OX, FEET_Y);
+    for (let y = 0; y < FRAME_H; y++) dst.set(px.subarray(y * FRAME_W, (y + 1) * FRAME_W), y * FRAME_W * 9 + f * FRAME_W);
+  }
+  ctx.putImageData(img, 0, 0);
   return sheet;
+}
+
+/** Границы набора форм в дизайн-единицах. */
+function bounds(shapes: Shape[]): [number, number, number, number] {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  const add = (x: number, y: number, r = 0) => {
+    x0 = Math.min(x0, x - r);
+    x1 = Math.max(x1, x + r);
+    y0 = Math.min(y0, y - r);
+    y1 = Math.max(y1, y + r);
+  };
+  for (const s of shapes) {
+    if (s.poly) for (const [x, y] of s.poly) add(x, y);
+    else if (s.ell) {
+      add(s.ell[0] - s.ell[2], s.ell[1] - s.ell[3]);
+      add(s.ell[0] + s.ell[2], s.ell[1] + s.ell[3]);
+    } else if (s.cap) {
+      const r = Math.max(s.cap[4], s.cap[5]) / 2;
+      add(s.cap[0], s.cap[1], r);
+      add(s.cap[2], s.cap[3], r);
+    }
+  }
+  return [x0, y0, x1, y1];
+}
+
+/** Отдельная иконка оружия или коня (без фигуры), вписанная в квадрат size×size. */
+export function drawGearIcon(L: UnitLook, what: 'weapon' | 'horse' | 'hands', size: number): HTMLCanvasElement {
+  const k = kitOf(L);
+  const cls = clsOf(L);
+  let shapes: Shape[];
+  if (what === 'horse') shapes = horseShapes(k, 0, [], null, []);
+  else if (what === 'weapon') shapes = weapon(k, [0, 0], cls === 'bow' || cls === 'crossbow' ? 0 : -45);
+  else {
+    // Пара перчаток: раструб, тыльная сторона, пальцы и большой палец
+    const g = L.gauntlets ?? '#7a5535';
+    const mat: Mat = lumOf(g) > 0.4 ? 'metal' : 'leather';
+    const glove = (dx: number, dy: number, c: string): Shape[] => {
+      const o = (x: number, y: number): Pt => [x + dx, y + dy];
+      return [
+        poly(c, mat, [o(-8, 9), o(-2.5, 3.5), o(1, 7), o(-3.5, 13)], mat === 'metal' ? 'plank' : undefined),
+        poly(c, mat, [o(-3, 3.5), o(1.5, -1.5), o(5, 2), o(0.8, 6.8)]),
+        cap(c, mat, o(2.6, 0.6), o(7.4, -4.4), 4.6, 3.6, mat === 'metal' ? 'lamellar' : undefined),
+        cap(c, mat, o(-1.4, 1.6), o(-1.2, -3), 2.3, 1.9),
+      ];
+    };
+    shapes = [...glove(5, -2, mix(g, '#000000', 0.2)), ...glove(0, 0, g)];
+  }
+  const [x0, y0, x1, y1] = bounds(shapes);
+  const kk = Math.min((size - 3) / (x1 - x0), (size - 3) / (y1 - y0));
+  const px = rasterize(shapes, size, size, kk, size / 2 - ((x0 + x1) / 2) * kk, size / 2 - ((y0 + y1) / 2) * kk);
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d')!;
+  const img = ctx.createImageData(size, size);
+  new Uint32Array(img.data.buffer).set(px);
+  ctx.putImageData(img, 0, 0);
+  return c;
 }

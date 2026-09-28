@@ -1203,8 +1203,8 @@ input.text:focus {
 
 @media (max-height: 480px) {
   .hero-figure img {
-    width: 112px !important;
-    height: 104px !important;
+    width: 168px !important;
+    height: 156px !important;
   }
 }
 
