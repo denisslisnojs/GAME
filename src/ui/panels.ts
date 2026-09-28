@@ -1,4 +1,4 @@
-import { FACTIONS } from '../data/factions';
+import { FACTIONS, type FactionId } from '../data/factions';
 import { GOODS, type GoodId } from '../data/goods';
 import { DAMAGE_NAME, TROOPS, type TroopDef } from '../data/troops';
 import { emblemURL, portraitURL, vistaURL } from '../gfx/icons';
@@ -18,6 +18,7 @@ import {
   upgrade,
 } from '../game/logic';
 import type { GameState } from '../game/state';
+import { activeLords, isLooted, siegeDefenders, troopCount } from '../game/war';
 import { world, type Settlement } from '../game/world';
 import { btn, h, img, openModal, panel, plural, sfxCoins, stars, toast } from './dom';
 import { openHero, openShop } from './heroUi';
@@ -27,9 +28,18 @@ export interface GameCtx {
   state: GameState;
   /** Сохранить и обновить HUD. */
   commit(): void;
+  /** Осада вражеской крепости. */
+  startSiege?(s: Settlement): void;
+  /** Разорение вражеской деревни. */
+  startRaid?(s: Settlement): void;
 }
 
 const TYPE_NAME = { town: 'Город', castle: 'Замок', village: 'Деревня' } as const;
+
+function siegeSize(state: GameState, s: Settlement): number {
+  const { garrison, lords } = siegeDefenders(state, s);
+  return troopCount(garrison) + lords.reduce((n, l) => n + troopCount(l.troops), 0);
+}
 
 function header(title: string, sub: string | HTMLElement | null, close: () => void, icon?: string) {
   return h(
@@ -83,6 +93,9 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
       h('span', { style: `color:${relColor}` }, relText),
       s.parent ? h('span', {}, `Приписана к: ${world.byId.get(s.parent)?.name}`) : null,
       s.villages.length ? h('span', {}, `Деревни: ${s.villages.map((v) => world.byId.get(v)?.name).join(', ')}`) : null,
+      s.type !== 'village' ? h('span', {}, `Гарнизон: ${troopCount(state.war?.garrisons[s.id] ?? [])}`) : null,
+      state.war?.sieges[s.id] ? h('span', { style: 'color:var(--red)' }, `В осаде: ${FACTIONS[state.war.sieges[s.id].attacker].short}`) : null,
+      isLooted(state, s.id) ? h('span', { style: 'color:var(--red)' }, 'Разорена') : null,
     ),
   );
 
@@ -106,7 +119,11 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
           ? 'Завидев ваше знамя, крестьяне попрятались. Староста кричит из-за плетня, чтобы вы убирались.'
           : 'Ворота заперты, на стенах лучники. Здесь вас встретят только стрелами.',
       ),
-      optF(s.type === 'village' ? 'Разорить деревню' : 'Начать осаду', 'этап 4', () => {}, '', true),
+      s.type === 'village'
+        ? isLooted(state, s.id)
+          ? optF('Разорить деревню', 'уже разорена', () => {}, '', true)
+          : optF('Разорить деревню', 'бой с ополчением, добыча', () => { close(); ctx.startRaid?.(s); })
+        : optF('Начать осаду', `гарнизон ≈ ${siegeSize(state, s)}`, () => { close(); ctx.startSiege?.(s); }, 'danger'),
       optF('Уйти', '', leave, 'primary'),
     );
   } else {
@@ -338,6 +355,22 @@ export function openParty(ctx: GameCtx) {
 
 // ───────────────────────── обзор держав ─────────────────────────
 
+function lordLine(state: GameState, id: FactionId) {
+  const all = (state.lords ?? []).filter((l) => l.faction === id);
+  const active = activeLords(state, id);
+  const men = active.reduce((n, l) => n + troopCount(l.troops), 0);
+  const sieges = Object.entries(state.war?.sieges ?? {}).filter(([, sg]) => sg.attacker === id).map(([sid]) => world.byId.get(sid)?.name);
+  const besieged = Object.keys(state.war?.sieges ?? {}).filter((sid) => state.settlements[sid].owner === id).map((sid) => world.byId.get(sid)?.name);
+  return h(
+    'div',
+    { class: 'sub' },
+    `Лорды: ${active.length} из ${all.length} в строю · войско ≈ ${men} ⚔`,
+    sieges.length ? h('span', { style: 'color:#e8c04a' }, ` · осаждает ${sieges.join(', ')}`) : null,
+    besieged.length ? h('span', { style: 'color:#e07a6a' }, ` · в осаде ${besieged.join(', ')}`) : null,
+    h('span', { class: 'muted' }, ' · нажмите — список'),
+  );
+}
+
 export function openRealms(ctx: GameCtx) {
   const { state } = ctx;
   let close = () => {};
@@ -349,6 +382,16 @@ export function openRealms(ctx: GameCtx) {
     const castles = owned.filter((s) => s.type === 'castle').length;
     const villages = owned.filter((s) => s.type === 'village').length;
     const wars = state.wars.filter(([a, b]) => a === id || b === id).map(([a, b]) => FACTIONS[a === id ? b : a].short);
+    const lordList = h('div', { class: 'col', style: 'display:none;gap:1px;margin-top:4px;font-size:12.5px' });
+    for (const l of (state.lords ?? []).filter((x) => x.faction === id)) {
+      const info = l.lord!;
+      const where = info.target ? world.byId.get(info.target)?.name : '';
+      const task = info.status === 'defeated'
+        ? `разбит, вернётся через ${Math.max(1, Math.ceil(info.recoverAt - state.time))} дн.`
+        : info.task === 'campaign' ? (state.war?.sieges[info.target!] ? `осаждает ${where}` : `идёт на ${where}`) : info.task === 'relieve' ? `спешит к ${where}` : 'в своих землях';
+      lordList.append(h('div', { class: 'row', style: 'gap:6px' }, h('span', { style: info.status === 'defeated' ? 'color:#8a8070;text-decoration:line-through' : '' }, l.name), h('span', { class: 'muted' }, `· ${info.status === 'active' ? troopCount(l.troops) + ' ⚔ · ' : ''}${task}`)));
+    }
+    if (state.war?.eliminated.includes(id)) lordList.append(h('div', { style: 'color:#e07a6a' }, 'Держава пала.'));
     body.append(
       h(
         'div',
@@ -358,9 +401,14 @@ export function openRealms(ctx: GameCtx) {
           h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name', style: `color:${f.css}` }, f.name), id === state.hero.faction ? h('span', { class: 'gold', style: 'font-size:12px' }, 'ваша держава') : null),
           h('div', { class: 'sub' }, `${f.rulerTitle} ${f.ruler} · Городов: ${towns}, замков: ${castles}, деревень: ${villages}`),
           h('div', { class: 'sub', style: wars.length ? 'color:#e07a6a' : '' }, wars.length ? `Воюет с: ${wars.join(', ')}` : 'Ни с кем не воюет'),
+          lordLine(state, id),
+          lordList,
         ),
       ),
     );
+    const item = body.lastElementChild as HTMLElement;
+    item.style.cursor = 'pointer';
+    item.onclick = () => (lordList.style.display = lordList.style.display === 'none' ? '' : 'none');
   }
   body.append(h('div', { class: 'muted', style: 'font-size:12px;padding:4px' }, 'Цель игры: ваша держава должна владеть всеми городами и замками.'));
   const content = panel('modal', header('Державы', null, () => close()), body);

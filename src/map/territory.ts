@@ -4,10 +4,15 @@ import { isWaterCell, world, type Settlement } from '../game/world';
 
 const MAX_REACH = 42;
 
-/** Владелец каждой клетки: индекс в FACTION_IDS или -1. */
-export function computeTerritory(ownerOf: (s: Settlement) => FactionId): Int8Array {
+let regions: Int16Array | null = null;
+let forts: Settlement[] = [];
+
+/** Область каждой крепости (индекс в forts или -1). Не зависит от владельцев — считается один раз. */
+function computeRegions(): Int16Array {
+  if (regions) return regions;
+  forts = world.settlements.filter((s) => s.type !== 'village');
   const N = GRID_W * GRID_H;
-  const owner = new Int8Array(N).fill(-1);
+  const region = new Int16Array(N).fill(-1);
   const dist = new Float32Array(N).fill(Infinity);
   // Простая очередь с приоритетом на массиве корзин (цены небольшие)
   const buckets: number[][] = [];
@@ -15,13 +20,12 @@ export function computeTerritory(ownerOf: (s: Settlement) => FactionId): Int8Arr
     const b = Math.floor(d * 4);
     (buckets[b] ??= []).push(i);
   };
-  for (const s of world.settlements) {
-    if (s.type === 'village') continue;
+  forts.forEach((s, k) => {
     const i = s.cy * GRID_W + s.cx;
     dist[i] = 0;
-    owner[i] = FACTION_IDS.indexOf(ownerOf(s));
+    region[i] = k;
     push(i, 0);
-  }
+  });
   const cost = world.map.cost;
   for (let b = 0; b < buckets.length; b++) {
     const list = buckets[b];
@@ -43,22 +47,66 @@ export function computeTerritory(ownerOf: (s: Settlement) => FactionId): Int8Arr
         const d = d0 + len * c;
         if (d < dist[ni] && d < MAX_REACH) {
           dist[ni] = d;
-          owner[ni] = owner[i];
+          region[ni] = region[i];
           push(ni, d);
         }
       }
     }
   }
+  regions = region;
+  return region;
+}
+
+/** Владелец каждой клетки: индекс в FACTION_IDS или -1. */
+export function computeTerritory(ownerOf: (s: Settlement) => FactionId): Int8Array {
+  const region = computeRegions();
+  const fortOwner = forts.map((s) => FACTION_IDS.indexOf(ownerOf(s)));
+  const owner = new Int8Array(region.length);
+  for (let i = 0; i < region.length; i++) owner[i] = region[i] < 0 ? -1 : fortOwner[region[i]];
   return owner;
 }
+
+const lastOwner = new WeakMap<HTMLCanvasElement, Int8Array>();
 
 /** Картинка ART_W × ART_H: заливка территорий и двухцветные границы. */
 export function drawTerritory(owner: Int8Array, canvas?: HTMLCanvasElement): HTMLCanvasElement {
   const cv = canvas ?? document.createElement('canvas');
-  cv.width = ART_W;
-  cv.height = ART_H;
+  // Перерисовываем только прямоугольник вокруг изменившихся клеток
+  let x0 = 0;
+  let y0 = 0;
+  let x1 = GRID_W - 1;
+  let y1 = GRID_H - 1;
+  const prev = canvas ? lastOwner.get(canvas) : undefined;
+  if (prev) {
+    x0 = GRID_W;
+    y0 = GRID_H;
+    x1 = -1;
+    y1 = -1;
+    for (let i = 0; i < owner.length; i++) {
+      if (owner[i] === prev[i]) continue;
+      const x = i % GRID_W;
+      const y = (i / GRID_W) | 0;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+    if (x1 < 0) return cv;
+    x0 = Math.max(0, x0 - 1);
+    y0 = Math.max(0, y0 - 1);
+    x1 = Math.min(GRID_W - 1, x1 + 1);
+    y1 = Math.min(GRID_H - 1, y1 + 1);
+  } else {
+    cv.width = ART_W;
+    cv.height = ART_H;
+  }
+  lastOwner.set(cv, owner.slice());
   const ctx = cv.getContext('2d')!;
-  const img = ctx.createImageData(ART_W, ART_H);
+  const RX = x0 * CELL;
+  const RY = y0 * CELL;
+  const RW = (x1 - x0 + 1) * CELL;
+  const RH = (y1 - y0 + 1) * CELL;
+  const img = ctx.createImageData(RW, RH);
   const px = new Uint32Array(img.data.buffer);
   const fill = FACTION_IDS.map((id) => rgba(FACTIONS[id].color, 40));
   const border = FACTION_IDS.map((id) => rgba(darken(FACTIONS[id].color), 215));
@@ -67,10 +115,10 @@ export function drawTerritory(owner: Int8Array, canvas?: HTMLCanvasElement): HTM
     const i = cy * GRID_W + cx;
     return isWaterCell(i) ? -2 : owner[i];
   };
-  for (let y = 0; y < ART_H; y++) {
+  for (let y = RY; y < RY + RH; y++) {
     const cy = (y / CELL) | 0;
     const ey = y % CELL;
-    for (let x = 0; x < ART_W; x++) {
+    for (let x = RX; x < RX + RW; x++) {
       const cx = (x / CELL) | 0;
       const o = landOwner(cx, cy);
       if (o < 0) continue;
@@ -80,10 +128,10 @@ export function drawTerritory(owner: Int8Array, canvas?: HTMLCanvasElement): HTM
       if (ex === CELL - 1) { const n = landOwner(cx + 1, cy); if (n !== -2 && n !== o) isBorder = true; }
       if (ey === 0) { const n = landOwner(cx, cy - 1); if (n !== -2 && n !== o) isBorder = true; }
       if (ey === CELL - 1) { const n = landOwner(cx, cy + 1); if (n !== -2 && n !== o) isBorder = true; }
-      px[y * ART_W + x] = isBorder ? border[o] : fill[o];
+      px[(y - RY) * RW + (x - RX)] = isBorder ? border[o] : fill[o];
     }
   }
-  ctx.putImageData(img, 0, 0);
+  ctx.putImageData(img, RX, RY);
   return cv;
 }
 

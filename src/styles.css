@@ -1207,3 +1207,29 @@ input.text:focus {
     height: 104px !important;
   }
 }
+
+.news-feed {
+  position: fixed;
+  top: 64px;
+  left: calc(8px + var(--safe-l));
+  width: min(420px, 46vw);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.news-item {
+  background: rgba(20, 18, 16, 0.78);
+  border-left: 4px solid #e8c04a;
+  padding: 4px 8px;
+  font-size: 12.5px;
+  line-height: 1.25;
+  animation: toast-in 0.25s ease-out;
+  transition: opacity 1s;
+}
+
+.news-item.fade {
+  opacity: 0;
+}

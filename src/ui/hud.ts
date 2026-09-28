@@ -12,6 +12,7 @@ export interface HudActions {
   openRealms(): void;
   openMenu(): void;
   openHero(): void;
+  openChronicle(): void;
 }
 
 export class Hud {
@@ -29,6 +30,7 @@ export class Hud {
   private heroImg = h('img', { class: 'px emblem', style: 'width:32px;height:32px' }) as HTMLImageElement;
   private speedBtns: HTMLButtonElement[] = [];
   private pauseBanner = h('div', { class: 'pause-banner' }, 'ПАУЗА');
+  private feed = h('div', { class: 'news-feed' });
   private night = h('div', { class: 'passthrough', style: 'position:fixed;inset:0;pointer-events:none;background:#10183a;opacity:0;transition:opacity 1s' });
 
   constructor(state: GameState, a: HudActions) {
@@ -60,11 +62,13 @@ export class Hud {
           { class: 'hud-group' },
           btn('◎', () => a.centerParty(), 'icon', false, 'К отряду'),
           this.partyBtn,
+          btn('Хроника', () => a.openChronicle()),
           btn('Державы', () => a.openRealms()),
           btn('☰', () => a.openMenu(), 'icon', false, 'Меню'),
         ),
       ),
       this.pauseBanner,
+      this.feed,
     );
     uiRoot().append(this.root);
   }
@@ -97,6 +101,15 @@ export class Hud {
       dark = Math.sin((x / 11) * Math.PI) * 0.32;
     }
     this.night.style.opacity = dark.toFixed(3);
+  }
+
+  /** Лента вестей под плашкой героя: последние 3, гаснут сами. */
+  news(text: string, color: string) {
+    const item = h('div', { class: 'news-item', style: `border-left-color:${color}` }, text);
+    this.feed.prepend(item);
+    while (this.feed.children.length > 3) this.feed.lastElementChild?.remove();
+    setTimeout(() => item.classList.add('fade'), 7000);
+    setTimeout(() => item.remove(), 8000);
   }
 
   setVisible(v: boolean) {

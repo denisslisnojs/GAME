@@ -4,6 +4,7 @@ import type { GoodId } from '../data/goods';
 import { START_KIT, type Slot } from '../data/items';
 import { cavRecruitOf, peasantOf } from '../data/troops';
 import type { MapParty } from './parties';
+import type { WarState } from './war';
 import { spawnPointNear, world, type Settlement } from './world';
 
 export interface TroopStack {
@@ -62,7 +63,10 @@ export interface GameState {
   parties?: MapParty[];
   nextPartyId?: number;
   /** Статистика побед и поражений. */
-  stats?: { won: number; lost: number; killed: number };
+  stats?: { won: number; lost: number; killed: number; captured?: number };
+  /** Лорды держав (этап 4). */
+  lords?: MapParty[];
+  war?: WarState;
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {

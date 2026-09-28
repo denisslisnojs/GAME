@@ -19,3 +19,18 @@ run('10 knights vs 20 spearmen(sult i3m)', army([['aurelia_c4m', 10]]), army([['
 run('15 horse archers vs 15 infantry t3', army([['horde_c3r', 15]]), army([['aurelia_i3m', 15]]));
 run('30 mixed vs 30 mixed', army([['aurelia_i3m', 12], ['aurelia_i3r', 10], ['aurelia_c3m', 8]]), army([['horde_i3m', 10], ['horde_i3r', 10], ['horde_c3r', 10]]));
 run('60 peasants vs 20 t3', army([['aurelia_i1', 60]]), army([['nordmark_i3m', 20]]));
+function runSiege(name: string, a: ArmyDef, b: ArmyDef, n = 20) {
+  let w0 = 0, t = 0, dead0 = 0, dead1 = 0;
+  for (let i = 0; i < n; i++) {
+    const bt = new Battle([a, b], 0, { siege: true });
+    bt.runToEnd();
+    if (bt.winner === 0) w0++;
+    t += bt.time;
+    dead0 += bt.units.filter(u => u.side === 0 && u.state === 'dead').length;
+    dead1 += bt.units.filter(u => u.side === 1 && u.state === 'dead').length;
+  }
+  console.log(('SIEGE ' + name).padEnd(42), 'win0', (w0 / n * 100).toFixed(0) + '%', 'time', (t / n).toFixed(0) + 's', 'dead', (dead0 / n).toFixed(1), '/', (dead1 / n).toFixed(1));
+}
+runSiege('30 mixed vs 30 mixed garrison', army([['aurelia_i3m', 12], ['aurelia_i3r', 10], ['aurelia_c3m', 8]]), army([['horde_i3m', 12], ['horde_i3r', 12], ['horde_i2', 6]], 120));
+runSiege('50 mixed vs 25 garrison', army([['aurelia_i3m', 20], ['aurelia_i3r', 15], ['aurelia_c3m', 15]]), army([['horde_i3m', 10], ['horde_i3r', 10], ['horde_i2', 5]], 120));
+runSiege('20 peasants vs 10 garrison', army([['aurelia_i1', 20]]), army([['horde_i2', 5], ['horde_i3r', 5]], 120));

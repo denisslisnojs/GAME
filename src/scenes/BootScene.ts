@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { FACTIONS, FACTION_IDS } from '../data/factions';
 import { hex } from '../gfx/pixel';
-import { allSettlementTextures, drawBandits, drawBoat, drawRider } from '../gfx/sprites';
+import { allSettlementTextures, drawBandits, drawBoat, drawCamp, drawLord, drawRider, drawSmoke } from '../gfx/sprites';
 import { buildWorld } from '../game/world';
 import { loadCachedMap, saveMapLater } from '../map/cache';
 import { generateMap } from '../map/terrain';
@@ -51,6 +51,8 @@ export class BootScene extends Phaser.Scene {
         this.textures.addCanvas(`boat_${id}${suffix}_0`, drawBoat(hex(f.color), hex(f.color2), 0));
         this.textures.addCanvas(`boat_${id}${suffix}_1`, drawBoat(hex(f.color), hex(f.color2), 1));
       }
+      this.textures.addCanvas(`lord_${id}_0`, drawLord(hex(f.color), hex(f.color2), 0));
+      this.textures.addCanvas(`lord_${id}_1`, drawLord(hex(f.color), hex(f.color2), 1));
     }
 
     for (const f of [0, 1] as const) {
@@ -58,6 +60,8 @@ export class BootScene extends Phaser.Scene {
       this.textures.addCanvas(`band_p_${f}`, drawBandits(f, '#2a3a5a'));
       this.textures.addCanvas(`band_d_${f}`, drawBandits(f, '#5a5a52'));
       this.textures.addCanvas(`raider_${f}`, drawRider('#7a5a32', '#3a2a1e', f, false, false, '#8a6a45'));
+      this.textures.addCanvas(`camp_${f}`, drawCamp(f));
+      this.textures.addCanvas(`smoke_${f}`, drawSmoke(f));
       this.textures.addCanvas(`desertr_${f}`, drawRider('#3a3028', '#e8dcc0', f, false, false, '#c8c0b0'));
     }
 

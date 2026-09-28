@@ -18,12 +18,15 @@ export const MID_Y = (FIELD_Y0 + FIELD_Y1) / 2;
 const Y_SCALE = 1.7;
 export const METER = 6; // пикселей поля на «метр» дальности стрельбы
 const MAX_ON_FIELD = 36;
+/** Осада: стена защитников (сторона 1) начинается здесь. */
+export const WALL_X = FIELD_W - 560;
 const SPEED_K = 44;
 
 export interface ArmyDef {
   name: string;
   culture: string;
-  troops: { id: string; count: number }[];
+  /** key — ключ стека для подсчёта потерь (по умолчанию id воина). */
+  troops: { id: string; count: number; key?: string }[];
   hero?: { name: string; level: number; def: TroopDef };
   formation: Formation;
   morale: number;
@@ -54,6 +57,8 @@ export interface BUnit {
   routed: boolean;
   deadT: number;
   ammo: number;
+  /** Стрелок на стене (осада). */
+  onWall: boolean;
 }
 
 export interface Projectile {
@@ -81,7 +86,7 @@ export interface Stake {
   hp: number;
 }
 
-export type EventKind = 'hit' | 'crit' | 'block' | 'dodge' | 'death' | 'shoot' | 'charge' | 'rout' | 'cry' | 'stakes' | 'smoke' | 'volley' | 'heroDown';
+export type EventKind = 'breach' | 'hit' | 'crit' | 'block' | 'dodge' | 'death' | 'shoot' | 'charge' | 'rout' | 'cry' | 'stakes' | 'smoke' | 'volley' | 'heroDown';
 export interface BattleEvent {
   kind: EventKind;
   x: number;
@@ -130,12 +135,18 @@ export class Battle {
   heroDown = false;
   private uid = 1;
   private aiCavDelay = 3;
+  /** Осадный бой: сторона 1 обороняет стену. */
+  readonly siege: boolean;
+  /** Пехота у ворот перебита — можно лезть на стены. */
+  breached = false;
   private attackers = new Map<number, number>();
 
   constructor(
     readonly armies: [ArmyDef, ArmyDef],
     readonly playerSide: Side = 0,
+    opts: { siege?: boolean } = {},
   ) {
+    this.siege = !!opts.siege;
     this.morale = [armies[0].morale, armies[1].morale];
     this.maxMorale = [armies[0].morale, armies[1].morale];
     this.orders = [
@@ -155,12 +166,44 @@ export class Battle {
       if (army.hero) all.push(this.make(side, army.hero.def, 'hero', true));
       for (const t of army.troops) {
         const def = TROOPS[t.id];
-        for (let i = 0; i < t.count; i++) all.push(this.make(side, def, t.id, false));
+        for (let i = 0; i < t.count; i++) all.push(this.make(side, def, t.key ?? t.id, false));
       }
       counts[side] = all.length;
-      this.deploy(side, all, army.formation);
+      if (this.siege && side === 1) this.deployDefenders(all);
+      else this.deploy(side, all, army.formation);
     }
     this.initialCount = counts;
+    if (this.siege) {
+      this.orders[1] = { hero: 'hold', inf: 'hold', ranged: 'hold', cav: 'hold' };
+      this.aiCavDelay = 0;
+    }
+  }
+
+  /** Осада: стрелки на стене, пехота и конница перед воротами, остальные — в резерве за стеной. */
+  private deployDefenders(all: BUnit[]) {
+    const ranged = all.filter((u) => u.troop.role === 'ranged');
+    const melee = all.filter((u) => u.troop.role !== 'ranged');
+    const wallN = Math.min(ranged.length, 14);
+    const gateN = Math.min(melee.length, MAX_ON_FIELD - wallN);
+    ranged.slice(0, wallN).forEach((u, i) => {
+      u.onWall = true;
+      u.ammo = 40;
+      u.x = WALL_X + 26 + (i % 7) * 30 + rand(-4, 4);
+      u.y = FIELD_Y0 + 6 + Math.floor(i / 7) * 14;
+      u.facing = -1;
+    });
+    const H = FIELD_Y1 - FIELD_Y0 - 16;
+    melee.slice(0, gateN).forEach((u, i) => {
+      const rows = 5;
+      u.x = WALL_X - 30 - Math.floor(i / rows) * 28 + rand(-5, 5);
+      u.y = FIELD_Y0 + 8 + (((i % rows) + 0.5) * H) / rows + rand(-4, 4);
+      u.facing = -1;
+    });
+    const onField = new Set([...ranged.slice(0, wallN), ...melee.slice(0, gateN)]);
+    for (const u of all) {
+      if (onField.has(u)) this.units.push(u);
+      else this.reserves[1].push(u);
+    }
   }
 
   private make(side: Side, troop: TroopDef, stackKey: string, isHero: boolean): BUnit {
@@ -189,6 +232,7 @@ export class Battle {
       routed: false,
       deadT: 0,
       ammo: troop.role === 'ranged' ? (troop.line === 'cavalry' ? 10 : 18) : 0,
+      onWall: false,
     };
   }
 
@@ -328,6 +372,14 @@ export class Battle {
       const their = this.active((1 - sd) as Side).length + this.reserves[1 - sd].length;
       if (my > 0 && their > my * 2) this.morale[sd] = Math.max(0, this.morale[sd] - 1.5 * dt);
     }
+    if (this.siege) {
+      // Ворота пали, когда перед стеной не осталось защитников
+      if (!this.breached && !this.units.some((u) => u.side === 1 && !u.onWall && u.state !== 'dead' && u.state !== 'fled') && !this.reserves[1].some((u) => u.troop.role !== 'ranged')) {
+        this.breached = true;
+        this.events.push({ kind: 'breach', x: WALL_X, y: MID_Y, side: 1 });
+      }
+      if (side === 1) return;
+    }
     // Стрелки ИИ идут вперёд, если противник держится далеко
     const mine = this.active(side);
     const enemy = this.active(this.playerSide);
@@ -342,6 +394,7 @@ export class Battle {
     let bestD = Infinity;
     for (const e of this.units) {
       if (e.side === u.side || e.state === 'dead' || e.state === 'fled') continue;
+      if (e.onWall && !this.breached && u.troop.role !== 'ranged') continue;
       let d = ed(e.x - u.x, e.y - u.y);
       if (u.group === 'cav' && e.troop.role === 'ranged') d *= 0.8; // конница охотится на стрелков
       // Не наваливаться всем на одного: занятые цели менее привлекательны
@@ -390,10 +443,11 @@ export class Battle {
       return;
     }
 
-    const reach = this.reach(u);
-    const inMelee = dist <= reach;
+    // На стену бьют с лестниц: по стрелку на стене достаточно подойти к её подножию
+    const reach = t.onWall || u.onWall ? this.reach(u) + 60 : this.reach(u);
+    const inMelee = t.onWall || u.onWall ? Math.abs(dx) <= reach : dist <= reach;
     const ranged = u.troop.role === 'ranged' && u.ammo > 0;
-    const rangePx = u.troop.range * METER;
+    const rangePx = u.troop.range * METER * (u.onWall ? 1.35 : 1);
 
     if (inMelee) {
       u.state = 'attack';
@@ -415,6 +469,10 @@ export class Battle {
       return;
     }
 
+    if (u.onWall) {
+      u.state = 'idle';
+      return;
+    }
     if (order === 'hold') {
       this.separate(u, dt, 0.6);
       u.state = 'idle';
@@ -447,7 +505,7 @@ export class Battle {
     let sy = 0;
     const cavU = u.troop.line === 'cavalry';
     for (const a of this.units) {
-      if (a === u || a.state === 'dead' || a.state === 'fled') continue;
+      if (a === u || a.state === 'dead' || a.state === 'fled' || a.onWall) continue;
       const R = cavU || a.troop.line === 'cavalry' ? 40 : 25;
       const dx = u.x - a.x;
       const dy = u.y - a.y;
@@ -465,11 +523,14 @@ export class Battle {
   }
 
   private separate(u: BUnit, dt: number, k: number) {
+    if (u.onWall) return;
     const [sx, sy] = this.separation(u);
     if (sx === 0 && sy === 0) return;
     const sp = u.troop.speed * SPEED_K * k;
     u.x += sx * sp * dt;
     u.y += (sy * sp * dt) / Y_SCALE;
+    if (this.siege && u.side === 1 && u.x > WALL_X - 22) u.x = WALL_X - 22;
+    if (this.siege && u.side === 0 && !this.breached && u.x > WALL_X - 16) u.x = WALL_X - 16;
     this.clampY(u);
   }
 
@@ -515,6 +576,8 @@ export class Battle {
     const stepY = (vy * speed * dt) / Y_SCALE;
     u.x += stepX;
     u.y += stepY;
+    if (this.siege && u.side === 0 && !this.breached && u.x > WALL_X - 16) u.x = WALL_X - 16;
+    if (this.siege && u.side === 1 && !u.onWall && u.x > WALL_X - 22) u.x = WALL_X - 22;
     this.clampY(u);
     if (Math.abs(vx) > 0.15) u.facing = vx > 0 ? 1 : -1;
     u.state = 'walk';
@@ -564,6 +627,8 @@ export class Battle {
     let hitChance = 0.88 - (dist / (u.troop.range * METER)) * 0.35;
     if (this.smoke && u.side !== this.playerSide && Math.abs(t.x - this.smoke.x) < 260) hitChance *= 0.35;
     if (this.smoke && u.side === this.playerSide && Math.abs(u.x - this.smoke.x) < 200) hitChance *= 0.6;
+    if (t.onWall) hitChance *= 0.55;
+    if (u.onWall) hitChance = Math.min(0.95, hitChance + 0.12);
     const willHit = Math.random() < hitChance;
     const dur = 0.25 + dist / 520;
     const lead = t.state === 'walk' ? t.facing * t.troop.speed * SPEED_K * dur : 0;
@@ -627,7 +692,8 @@ export class Battle {
     }
     if (this.buff[a.side] > 0) mult *= 1.2;
     const type: DamageType = a.troop.damageType;
-    const dmg = a.troop.damage * rand(0.85, 1.15) * mult * (1 - t.armor[type]);
+    let dmg = a.troop.damage * rand(0.85, 1.15) * mult * (1 - t.armor[type]);
+    if (this.siege && d.side === 1) dmg *= d.onWall ? 0.7 : 0.75; // укрепления
     this.damage(a, d, Math.max(1, Math.round(dmg)), crit ? 'crit' : 'hit');
   }
 
@@ -662,7 +728,7 @@ export class Battle {
       let free = MAX_ON_FIELD - onField;
       while (free-- > 0 && this.reserves[side].length) {
         const u = this.reserves[side].shift()!;
-        u.x = side === 0 ? -20 - Math.random() * 30 : FIELD_W + 20 + Math.random() * 30;
+        u.x = side === 0 ? -20 - Math.random() * 30 : this.siege ? WALL_X - 26 : FIELD_W + 20 + Math.random() * 30;
         u.y = rand(FIELD_Y0 + 6, FIELD_Y1 - 6);
         this.units.push(u);
       }
@@ -698,7 +764,7 @@ export class Battle {
   runToEnd(maxTime = 420) {
     const dt = 0.1;
     const ps = this.playerSide;
-    this.orders[ps] = { hero: 'attack', inf: 'attack', ranged: 'hold', cav: 'attack' };
+    this.orders[ps] = { hero: 'attack', inf: 'attack', ranged: 'attack', cav: 'attack' };
     let guard = 0;
     while (this.winner === null && this.time < maxTime && guard++ < maxTime * 12) {
       this.step(dt);

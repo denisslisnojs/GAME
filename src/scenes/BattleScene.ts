@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio/sfx';
 import { music } from '../audio/music';
-import { drawFar, drawGround, drawMid, drawSky, drawStake, type BattleTerrain } from '../battle/background';
+import { drawFar, drawGround, drawMid, drawSky, drawStake, drawWall, type BattleTerrain } from '../battle/background';
 import { lookKey, troopLook } from '../battle/looks';
-import { FIELD_W, MID_Y, type Battle, type BattleEvent, type BUnit } from '../battle/sim';
+import { FIELD_W, FIELD_Y0, MID_Y, WALL_X, type Battle, type BattleEvent, type BUnit } from '../battle/sim';
 import type { FactionId } from '../data/factions';
 import { drawUnitSheet, FRAME_H, FRAME_W, type UnitLook } from '../gfx/units';
 import { BattleHud } from '../ui/battleHud';
@@ -17,12 +17,16 @@ export interface BattleSceneData {
   heroPortrait?: string;
   enemyName: string;
   enemyColor: string;
+  /** Осада: облик стены (культура крепости и цвета владельца). */
+  wall?: { culture: string; color: string; color2: string };
   onFinish: (b: Battle) => void;
 }
 
 const WORLD_H = 640;
 const GROUND_Y = 400;
 const SCALE = 2;
+/** Высота боевого хода стены (мировая y ног стрелков на стене). */
+const WALL_TOP = 348;
 
 interface Particle {
   x: number;
@@ -55,6 +59,7 @@ export class BattleScene extends Phaser.Scene {
   private endTimer = -1;
   private finished = false;
   private dragging: { x: number } | null = null;
+  private ladders: Phaser.GameObjects.Graphics | null = null;
 
   constructor() {
     super('battle');
@@ -96,6 +101,12 @@ export class BattleScene extends Phaser.Scene {
     this.addLayer(`bg_ground_${t}`, () => drawGround(t, W, (WORLD_H - GROUND_Y + 200) / SCALE), -PAD, GROUND_Y, 1);
     if (!this.textures.exists('stake')) this.textures.addCanvas('stake', drawStake());
 
+    if (this.battle.siege && this.cfg.wall) {
+      const key = `wall_${this.cfg.wall.culture}_${this.cfg.wall.color}`;
+      if (!this.textures.exists(key)) this.textures.addCanvas(key, drawWall(this.cfg.wall.culture, this.cfg.wall.color, this.cfg.wall.color2));
+      this.add.image(WALL_X - 20, WALL_TOP - 48, key).setOrigin(0, 0).setScale(SCALE).setDepth(380);
+      this.ladders = this.add.graphics().setDepth(390);
+    }
     this.shadows = this.add.graphics().setDepth(1);
     this.fx = this.add.graphics().setDepth(5000);
     this.overlay = this.add.graphics().setDepth(6000);
@@ -285,7 +296,9 @@ export class BattleScene extends Phaser.Scene {
         continue;
       }
       s.setVisible(true);
-      s.setPosition(Math.round(u.x), Math.round(u.y));
+      const onTop = u.onWall || (b.siege && u.side === 0 && u.x > WALL_X - 8);
+      const ry = onTop ? WALL_TOP + (u.y - FIELD_Y0) * 0.12 : u.y;
+      s.setPosition(Math.round(u.x), Math.round(ry));
       s.setFlipX(u.facing < 0);
       s.setFrame(this.frameFor(u));
       if (u.state === 'dead') {
@@ -294,17 +307,19 @@ export class BattleScene extends Phaser.Scene {
         s.setAlpha(Math.max(0.55, 1 - u.deadT / 60));
         continue;
       }
-      s.setDepth(u.y);
+      s.setDepth(onTop ? 2000 + u.y : u.y);
       if (u.flash > 0) s.setTint(u.flash > 0.1 ? 0xff5a4a : 0xff9a8a);
       else s.clearTint();
       // тень
       const cav = u.troop.line === 'cavalry';
-      g.fillStyle(0x000000, 0.22);
-      g.fillEllipse(u.x, u.y + 1, cav ? 66 : 30, 8);
+      if (!onTop) {
+        g.fillStyle(0x000000, 0.22);
+        g.fillEllipse(u.x, u.y + 1, cav ? 66 : 30, 8);
+      }
       // полоска здоровья у раненых
       if (u.hp < u.maxHp) {
         const w = cav ? 30 : 22;
-        const top = u.y - (cav ? 108 : 86);
+        const top = ry - (cav ? 108 : 86);
         bars.fillStyle(0x140f0c, 0.8);
         bars.fillRect(u.x - w / 2 - 1, top - 1, w + 2, 5);
         bars.fillStyle(u.side === b.playerSide ? 0x5aa04a : 0xc24040, 1);
@@ -317,6 +332,24 @@ export class BattleScene extends Phaser.Scene {
     if (this.heroLabel) {
       const hero = b.units.find((u) => u.isHero && u.side === b.playerSide);
       this.heroLabel.setVisible(!!hero && hero.state !== 'dead' && hero.state !== 'fled');
+    }
+
+    // Лестницы после прорыва ворот
+    if (this.ladders) {
+      const l = this.ladders;
+      l.clear();
+      if (b.breached) {
+        for (const y of [440, 500, 560]) {
+          l.lineStyle(4, 0x5a3a22, 1);
+          l.lineBetween(WALL_X - 46, y, WALL_X - 4, WALL_TOP - 10);
+          l.lineBetween(WALL_X - 34, y, WALL_X + 8, WALL_TOP - 10);
+          l.lineStyle(3, 0x7a5332, 1);
+          for (let k = 1; k < 8; k++) {
+            const t = k / 8;
+            l.lineBetween(WALL_X - 46 + 42 * t, y + (WALL_TOP - 10 - y) * t, WALL_X - 34 + 42 * t, y + (WALL_TOP - 10 - y) * t);
+          }
+        }
+      }
     }
 
     // Колья
@@ -450,6 +483,10 @@ export class BattleScene extends Phaser.Scene {
           sfx.play('stakes');
           break;
         case 'smoke':
+          break;
+        case 'breach':
+          this.hud.banner('Ворота пали! На стены!');
+          sfx.play('horn');
           break;
       }
     }

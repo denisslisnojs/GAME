@@ -13,7 +13,7 @@ import { atWar, partySize } from './logic';
 import type { GameState } from './state';
 import { isWaterCell, world } from './world';
 
-export type PartyKind = 'bandits' | 'raiders' | 'desert' | 'pirates' | 'deserters' | 'patrol';
+export type PartyKind = 'bandits' | 'raiders' | 'desert' | 'pirates' | 'deserters' | 'patrol' | 'lord';
 
 export interface MapParty {
   id: number;
@@ -29,6 +29,21 @@ export interface MapParty {
   loot: Partial<Record<GoodId, number>>;
   /** До какого игрового времени отряд не нападает (после боя или бегства игрока). */
   calmUntil: number;
+  /** Для лордов: сведения о лорде. */
+  lord?: LordInfo;
+}
+
+export interface LordInfo {
+  name: string;
+  title: string;
+  rank: 1 | 2 | 3;
+  status: 'active' | 'defeated';
+  recoverAt: number;
+  task: 'idle' | 'campaign' | 'relieve';
+  target?: string;
+  home: string;
+  /** Не вступать в бой с другими лордами до этого времени. */
+  truceUntil?: number;
 }
 
 interface Runtime {
@@ -46,12 +61,13 @@ export const KIND_INFO: Record<PartyKind, { name: string; speed: number; about: 
   pirates: { name: 'Морские разбойники', speed: 14, about: 'Грабители с моря: высаживаются на берег и уходят с добычей.' },
   deserters: { name: 'Дезертиры', speed: 16, about: 'Сбежавшие из войска солдаты. Хорошо вооружены и отчаянны.' },
   patrol: { name: 'Разъезд', speed: 17, about: 'Вражеский отряд, охраняющий свои земли.' },
+  lord: { name: 'Лорд', speed: 16, about: 'Вельможа державы со своей дружиной. Разбитый, он бежит и вернётся с новой армией.' },
 };
 
 const runtime = new Map<number, Runtime>();
 let landCost: Float32Array | null = null;
 
-function getLandCost(): Float32Array {
+export function getLandCost(): Float32Array {
   if (landCost) return landCost;
   const c = new Float32Array(world.map.cost);
   for (let i = 0; i < c.length; i++) if (isWaterCell(i)) c[i] = Infinity;
@@ -218,7 +234,7 @@ export function dailySpawn(state: GameState) {
 
 // ───────────────────────── движение и ИИ ─────────────────────────
 
-function pathTo(p: MapParty, tx: number, ty: number): { x: number; y: number }[] {
+export function pathTo(p: MapParty, tx: number, ty: number): { x: number; y: number }[] {
   const s = worldToCell(p.x, p.y);
   const raw = findPath(getLandCost(), s.cx, s.cy, tx, ty, 25000);
   if (!raw) return [];
@@ -311,6 +327,32 @@ export function updateParties(state: GameState, dtDays: number, targetId: number
     if (!met && !calm && hostile && dNow < 1.3 && (mode === 'chase' || p.id === targetId)) met = p;
   }
   return met;
+}
+
+/** Движение отряда по его пути (для ИИ лордов). */
+export function advance(p: MapParty, dtDays: number, speedCells: number) {
+  const r = rt(p);
+  const c = worldToCell(p.x, p.y);
+  const cellCost = Math.min(3, getLandCost()[c.cy * GRID_W + c.cx] || 1);
+  let remaining = (speedCells * TILE * dtDays) / (isFinite(cellCost) ? cellCost : 1);
+  r.moving = remaining > 0 && r.path.length > 0;
+  while (remaining > 0 && r.path.length) {
+    const wp = r.path[0];
+    const dx = wp.x - p.x;
+    const dy = wp.y - p.y;
+    const d = Math.hypot(dx, dy);
+    if (Math.abs(dx) > 0.5) r.facing = dx < 0 ? -1 : 1;
+    if (d <= remaining) {
+      p.x = wp.x;
+      p.y = wp.y;
+      remaining -= d;
+      r.path.shift();
+    } else {
+      p.x += (dx / d) * remaining;
+      p.y += (dy / d) * remaining;
+      remaining = 0;
+    }
+  }
 }
 
 export function removeParty(state: GameState, id: number) {

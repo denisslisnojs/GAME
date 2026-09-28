@@ -10,9 +10,11 @@ const q = new URLSearchParams(location.search);
 const hero = { ...TROOPS.aurelia_c3m, id: 'hero', hp: 170, damage: 24 };
 const A = { name: 'Ульрих', culture: 'aurelia', troops: [{id:'aurelia_i3m',count:9},{id:'aurelia_i2',count:6},{id:'aurelia_i3r',count:8},{id:'aurelia_c3m',count:5}], hero: {name:'Ульрих', level:1, def: hero}, formation: 'classic', morale: 100 };
 const E = { name: q.get('e') === 'bandits' ? 'Разбойники' : 'Разъезд Орды', culture: 'horde', troops: q.get('e') === 'bandits' ? [{id:'outlaw_bandit',count:14},{id:'outlaw_archer',count:6},{id:'outlaw_leader',count:1}] : [{id:'horde_i3m',count:8},{id:'horde_i3r',count:8},{id:'horde_c3r',count:6},{id:'horde_c3m',count:4}], formation: 'classic', morale: 100 };
-const battle = new Battle([A, E]);
+const siege = q.get('siege') === '1';
+if (siege) { E.troops = [{id:'horde_i3m',count:10},{id:'horde_i3r',count:12},{id:'horde_i2',count:8}]; E.morale = 120; }
+const battle = new Battle([A, E], 0, { siege });
 window.__battle = battle;
 const game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', pixelArt: true, backgroundColor: '#14110f', scale: { mode: Phaser.Scale.RESIZE, width: innerWidth, height: innerHeight }, scene: [] });
-game.scene.add('battle', BattleScene, true, { battle, terrain: q.get('t') || 'grass', heroFaction: 'aurelia', enemyName: E.name, enemyColor: '#e0aa24', onFinish: (b) => { window.__finished = b.winner; } });
+game.scene.add('battle', BattleScene, true, { battle, terrain: q.get('t') || 'grass', heroFaction: 'aurelia', enemyName: E.name, enemyColor: '#e0aa24', wall: siege ? { culture: q.get('wc') || 'horde', color: '#e0aa24', color2: '#2a2320' } : undefined, onFinish: (b) => { window.__finished = b.winner; } });
 window.__game = game; setTimeout(() => window.__done = true, 800);
 </script></body></html>

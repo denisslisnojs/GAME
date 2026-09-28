@@ -671,3 +671,76 @@ export function drawEmblem(id: FactionId): HTMLCanvasElement {
   P.outline(OUT);
   return P.canvas;
 }
+
+/** Лорд на карте: всадник с высоким штандартом и оруженосцем. */
+export function drawLord(main: string, sec: string, frame: 0 | 1): HTMLCanvasElement {
+  const P = new Pix(34, 34);
+  const rider = drawRider(main, sec, frame, false);
+  // Оруженосец позади (меньше и темнее)
+  const squire = drawRider(shade(main, -0.25), sec, (frame ^ 1) as 0 | 1, false, false, '#6a4a2a');
+  P.ctx.globalAlpha = 0.95;
+  P.ctx.drawImage(squire, 0, 8, 20, 19);
+  P.ctx.globalAlpha = 1;
+  P.ctx.drawImage(rider, 7, 9);
+  // Штандарт: древко, раздвоенное полотнище, золотое навершие
+  const px = 10;
+  P.vline(px, 1, 22, '#3b2f25');
+  P.p(px, 0, '#e8c04a');
+  P.p(px - 1, 1, '#e8c04a');
+  P.p(px + 1, 1, '#e8c04a');
+  for (let y = 2; y < 10; y++) {
+    const len = y < 8 ? 12 : 12 - (y - 7) * 3;
+    for (let x = 1; x <= len; x++) {
+      const tail = x > 9 && y > 4 && y < 7;
+      if (tail) continue;
+      P.p(px + x, y, y === 5 || y === 6 ? sec : main);
+    }
+  }
+  P.p(px + 4, 4, sec);
+  P.p(px + 5, 3, sec);
+  P.p(px + 6, 4, sec);
+  P.outline(OUT);
+  return P.canvas;
+}
+
+/** Осадный лагерь: шатры и костёр, 2 кадра огня. */
+export function drawCamp(frame: 0 | 1): HTMLCanvasElement {
+  const P = new Pix(40, 22);
+  const tent = (x: number, y: number, w: number, c: string) => {
+    for (let r = 0; r < w; r++) P.hline(x + w - r, x + w + r, y + r, r === 0 ? shade(c, 0.2) : (r + x) % 3 === 0 ? shade(c, -0.15) : c);
+    P.vline(x + w, y + Math.floor(w / 2), y + w - 1, '#2a1f18');
+    P.vline(x + w, y - 3, y, '#3b2f25');
+    P.p(x + w + 1, y - 3, '#c24040');
+    P.p(x + w + 2, y - 3, '#c24040');
+    P.p(x + w + 1, y - 2, '#c24040');
+  };
+  tent(1, 6, 7, '#d8c8a0');
+  tent(20, 4, 8, '#c8b48a');
+  // костёр
+  const fx = 18;
+  const fy = 18;
+  P.rect(fx - 3, fy + 1, 7, 1, '#4a3520');
+  const flame = frame ? ['..y..', '.yoy.', 'yorOy', '.rOr.'] : ['.y...', '.oyy.', 'yrooy', '.rOr.'];
+  P.pattern(fx - 2, fy - 3, flame, { y: '#ffe07a', o: '#f0a030', r: '#d04a20', O: '#ffcf5a' });
+  // таран/лестница
+  for (let i = 0; i < 9; i++) P.p(30 + i, 17 - Math.floor(i / 2), '#7a5332');
+  for (let i = 0; i < 9; i += 2) P.p(30 + i, 16 - Math.floor(i / 2), '#5a3a22');
+  P.outline(OUT);
+  return P.canvas;
+}
+
+/** Разорённая деревня: дым и тлеющие угли. */
+export function drawSmoke(frame: 0 | 1): HTMLCanvasElement {
+  const P = new Pix(22, 26);
+  const puffs = frame ? [[8, 3, 4], [12, 8, 5], [9, 14, 4], [13, 19, 3]] : [[10, 2, 4], [9, 8, 5], [12, 14, 4], [10, 19, 3]];
+  for (const [cx, cy, r] of puffs) {
+    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+      if (x * x + y * y > r * r) continue;
+      P.p(cx + x, cy + y, x + y < -1 ? '#9a948c' : (x + y) % 3 === 0 ? '#5e5a55' : '#77726b');
+    }
+  }
+  P.p(9, 23, '#ff8a3a');
+  P.p(12, 24, '#ffd05a');
+  P.p(14, 23, '#d04a20');
+  return P.canvas;
+}

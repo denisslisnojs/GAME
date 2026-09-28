@@ -148,3 +148,66 @@ export function drawStake(): HTMLCanvasElement {
   P.outline('#1c1612');
   return P.canvas;
 }
+
+/** Крепостная стена для осадного боя (вид сбоку, защитники справа). 340×150 арт-пикселей. */
+export function drawWall(culture: string, banner: string, banner2: string): HTMLCanvasElement {
+  const W = 340;
+  const H = 150;
+  const P = new Pix(W, H);
+  const pal =
+    culture === 'nordmark'
+      ? { base: '#7a5a3a', light: '#9a7650', dark: '#4a3420', wood: true }
+      : culture === 'horde'
+        ? { base: '#b0925e', light: '#c8aa76', dark: '#7a6240', wood: false }
+        : culture === 'sultanate'
+          ? { base: '#cdb282', light: '#e2c998', dark: '#9a8058', wood: false }
+          : { base: '#8e8778', light: '#aaa392', dark: '#5e584e', wood: false };
+  const top = 24;
+  // Стена
+  for (let y = top; y < H; y++) {
+    for (let x = 30; x < W; x++) {
+      let c = pal.base;
+      if (pal.wood) {
+        const log = Math.floor((x - 30) / 6);
+        c = (x - 30) % 6 === 0 ? pal.dark : log % 2 ? pal.base : pal.light;
+        if (y % 17 === 0) c = pal.dark;
+      } else {
+        const row = Math.floor((y - top) / 6);
+        const off = row % 2 ? 5 : 0;
+        if ((y - top) % 6 === 0 || (x + off) % 10 === 0) c = pal.dark;
+        else if (hash2(x, y, 5) < 0.08) c = pal.light;
+      }
+      P.p(x, y, c);
+    }
+  }
+  // Зубцы и боевой ход
+  for (let x = 30; x < W; x += 8) P.rect(x, top - 6, 5, 6, pal.wood ? pal.light : pal.base);
+  P.hline(30, W - 1, top, pal.dark);
+  // Ворота
+  const gx = 56;
+  for (let y = 96; y < H; y++) {
+    const half = y < 106 ? Math.round(Math.sqrt(100 - (106 - y) * (106 - y))) + 10 : 20;
+    for (let x = gx + 20 - half; x < gx + 20 + half; x++) P.p(x, y, (x - gx) % 5 === 0 || (y - 96) % 7 === 0 ? '#3a3028' : '#1a1410');
+  }
+  // Башня у края
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < 34; x++) {
+      let c = pal.base;
+      if (x === 0 || x === 33) c = pal.dark;
+      else if (x < 5) c = pal.light;
+      else if ((y % 8 === 0 || (x + (Math.floor(y / 8) % 2) * 4) % 9 === 0) && !pal.wood) c = pal.dark;
+      if (pal.wood && x % 6 === 0) c = pal.dark;
+      P.p(x, y + 6, c);
+    }
+  }
+  for (let x = 0; x < 34; x += 7) P.rect(x, 0, 4, 6, pal.base);
+  for (const y of [30, 60, 90]) P.rect(15, y, 3, 8, '#1a1410');
+  // Знамя владельца
+  P.vline(17, -10, 0, '#3b2f25');
+  P.rect(40, top + 6, 10, 26, banner);
+  P.rect(42, top + 10, 6, 4, banner2);
+  P.rect(200, top + 6, 10, 26, banner);
+  P.rect(202, top + 10, 6, 4, banner2);
+  P.outline('#1c1612');
+  return P.canvas;
+}

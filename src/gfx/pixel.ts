@@ -1,7 +1,7 @@
 /** Маленький холст для рисования пиксель-арта по точкам. */
 export class Pix {
   readonly canvas: HTMLCanvasElement;
-  private readonly ctx: CanvasRenderingContext2D;
+  readonly ctx: CanvasRenderingContext2D;
 
   constructor(
     readonly w: number,
