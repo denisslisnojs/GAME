@@ -14,6 +14,8 @@ export interface BattleHudOpts {
   isPaused(): boolean;
   getSpeed(): number;
   autoFinish(): void;
+  /** Приблизить (k>1) или отдалить (k<1) камеру. */
+  zoom(k: number): void;
   arena?: boolean;
 }
 
@@ -192,6 +194,15 @@ export class BattleHud {
       });
       this.speedBtns.push(sb);
       ctrl.append(sb);
+    }
+    for (const [label, k, hint] of [['−', 0.85, 'Отдалить камеру'], ['+', 1.18, 'Приблизить камеру']] as [string, number, string][]) {
+      const zb = h('button', { class: 'btn b-small', title: hint }, label) as HTMLButtonElement;
+      zb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sfxClick();
+        o.zoom(k);
+      });
+      ctrl.append(zb);
     }
     const auto = h('button', { class: 'btn b-small', title: 'Досчитать бой мгновенно' }, 'Автобой') as HTMLButtonElement;
     auto.addEventListener('click', (e) => {

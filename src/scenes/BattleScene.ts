@@ -62,6 +62,9 @@ export class BattleScene extends Phaser.Scene {
   private speed = 1;
   private paused = false;
   private dragUntil = 0;
+  /** Множитель масштаба камеры: >1 ближе, <1 дальше. Подбирается по размеру боя. */
+  private zoomMul = 1;
+  private pinch: { d: number; z: number } | null = null;
   private endTimer = -1;
   private finished = false;
   private dragging: { x: number } | null = null;
@@ -84,6 +87,20 @@ export class BattleScene extends Phaser.Scene {
     this.paused = false;
     this.endTimer = -1;
     this.finished = false;
+    this.pinch = null;
+    // Большие сражения (50+ воинов) — камера заранее дальше; приблизить можно вручную
+    const total = data.battle.armies.reduce((n, a) => n + a.troops.reduce((m, t) => m + t.count, 0) + (a.hero ? 1 : 0), 0);
+    this.zoomMul = total < 50 ? 1 : total < 90 ? 0.8 : 0.68;
+  }
+
+  /** Сменить масштаб, сохранив центр кадра. */
+  private setZoom(mul: number) {
+    const cam = this.cameras.main;
+    const cx = cam.scrollX + cam.width / 2;
+    this.zoomMul = Phaser.Math.Clamp(mul, 0.5, 1.8);
+    this.fitCamera();
+    cam.scrollX = cx - cam.width / 2;
+    this.clampScrollX();
   }
 
   create() {
@@ -143,6 +160,7 @@ export class BattleScene extends Phaser.Scene {
       togglePause: () => (this.paused = !this.paused),
       isPaused: () => this.paused,
       getSpeed: () => this.speed,
+      zoom: (k: number) => this.setZoom(this.zoomMul * k),
       autoFinish: () => {
         this.battle.runToEnd();
         this.endTimer = 0.1;
@@ -167,10 +185,11 @@ export class BattleScene extends Phaser.Scene {
     const bottom = h < 500 ? 104 : 116;
     const WY0 = 250;
     const WY1 = 578;
-    const z = Math.max(0.35, (h - top - bottom) / (WY1 - WY0));
+    const z = Math.max(0.2, ((h - top - bottom) / (WY1 - WY0)) * this.zoomMul);
     cam.setZoom(z);
     const screenC = (top + h - bottom) / 2;
-    const worldC = (WY0 + WY1) / 2;
+    // При приближении смещаем центр к рядам воинов, чтобы не смотреть в небо
+    const worldC = (WY0 + WY1) / 2 + Math.max(0, this.zoomMul - 1) * 110;
     cam.scrollY = worldC - h / 2 - (screenC - h / 2) / z;
   }
 
@@ -238,20 +257,41 @@ export class BattleScene extends Phaser.Scene {
   // ───────────────────────── ввод ─────────────────────────
 
   private setupInput() {
+    this.input.addPointer(1);
+    const two = () => {
+      const a = this.input.pointer1;
+      const b = this.input.pointer2;
+      return a?.isDown && b?.isDown ? Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)) : 0;
+    };
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       this.dragging = { x: p.x };
       music.unlock();
+      const d = two();
+      if (d) this.pinch = { d, z: this.zoomMul };
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (this.pinch) {
+        const d = two();
+        if (d) this.setZoom(this.pinch.z * (d / this.pinch.d));
+        else this.pinch = null;
+        return;
+      }
       if (!this.dragging || !p.isDown) return;
       const cam = this.cameras.main;
       cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
       this.dragUntil = this.time.now + 4000;
     });
-    this.input.on('pointerup', () => (this.dragging = null));
-    this.input.on('wheel', (_p: unknown, _o: unknown, dx: number, dy: number) => {
-      this.cameras.main.scrollX += (dx || dy) * 0.8;
-      this.dragUntil = this.time.now + 4000;
+    this.input.on('pointerup', () => {
+      this.dragging = null;
+      if (!two()) this.pinch = null;
+    });
+    // Колесо — масштаб, горизонтальная прокрутка или Shift+колесо — сдвиг поля
+    this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, dx: number, dy: number) => {
+      const ev = p.event as WheelEvent;
+      if (Math.abs(dx) > Math.abs(dy) || ev?.shiftKey) {
+        this.cameras.main.scrollX += (dx || dy) * 0.8;
+        this.dragUntil = this.time.now + 4000;
+      } else this.setZoom(this.zoomMul * (dy > 0 ? 0.9 : 1.1));
     });
     this.input.keyboard?.on('keydown-SPACE', () => (this.paused = !this.paused));
   }
