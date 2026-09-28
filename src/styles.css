@@ -1452,26 +1452,30 @@ input.text:focus {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 124px;
+  bottom: 130px;
   height: 0;
   pointer-events: none;
 }
 
 @media (max-height: 500px) {
   #ui .passthrough > .pad {
-    bottom: 112px;
+    bottom: 118px;
   }
 }
 
 .joy {
   position: absolute;
-  left: calc(18px + var(--safe-l));
+  left: calc(14px + var(--safe-l));
   bottom: 0;
-  width: 112px;
-  height: 112px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(232, 192, 74, 0.1), rgba(20, 18, 16, 0.45));
-  border: 2px solid rgba(232, 192, 74, 0.55);
+  background: rgba(20, 21, 23, 0.55);
+  border: 2px solid #0e0f10;
+  box-shadow:
+    inset 0 0 0 2px #45494e,
+    inset 0 0 0 4px rgba(232, 192, 74, 0.35),
+    0 2px 0 rgba(0, 0, 0, 0.4);
   pointer-events: auto;
   touch-action: none;
   display: flex;
@@ -1480,21 +1484,25 @@ input.text:focus {
 }
 
 .joy-knob {
-  width: 46px;
-  height: 46px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #f0d27a, #a8842a);
-  border: 2px solid #1a1410;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(180deg, #5b4c38, #43372a);
+  border: 2px solid #0e0c0a;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.35),
+    inset 0 0 0 5px rgba(232, 192, 74, 0.25),
+    0 2px 0 rgba(0, 0, 0, 0.4);
   pointer-events: none;
 }
 
 .pad-btns {
   position: absolute;
-  right: calc(18px + var(--safe-r));
+  right: calc(14px + var(--safe-r));
   bottom: 0;
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: flex-end;
   pointer-events: none;
 }
@@ -1502,27 +1510,40 @@ input.text:focus {
 .pad-btn {
   pointer-events: auto;
   touch-action: none;
-  border-radius: 50%;
-  width: 76px;
-  height: 76px;
+  width: 52px;
+  height: 52px;
   min-height: 0;
   padding: 0;
-  font-size: 15px;
-  opacity: 0.9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.92;
+}
+
+.pad-btn img {
+  width: 32px;
+  height: 32px;
+  pointer-events: none;
 }
 
 .pad-btn.atk {
-  width: 88px;
-  height: 88px;
-  background: linear-gradient(180deg, #b84a3a, #7a2a20);
+  width: 60px;
+  height: 60px;
+}
+
+.pad-btn.atk img {
+  width: 38px;
+  height: 38px;
 }
 
 .pad-btn.blk {
-  background: linear-gradient(180deg, #4a6a9a, #2a4066);
-  margin-bottom: 30px;
+  margin-bottom: 22px;
 }
 
 .pad-btn.down {
-  filter: brightness(1.35);
-  transform: scale(0.94);
+  filter: brightness(1.3);
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 0 rgba(0, 0, 0, 0.35),
+    inset 0 0 0 2px rgba(232, 192, 74, 0.7);
 }

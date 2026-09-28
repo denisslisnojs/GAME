@@ -292,8 +292,8 @@ export class BattleHud {
     });
     joy.addEventListener('pointerup', release);
     joy.addEventListener('pointercancel', release);
-    const hold = (label: string, cls: string, down: () => void, up: () => void) => {
-      const el = h('button', { class: `btn pad-btn ${cls}` }, label) as HTMLButtonElement;
+    const hold = (iconSrc: string, cls: string, title: string, down: () => void, up: () => void) => {
+      const el = h('button', { class: `btn pad-btn ${cls}`, title }, h('img', { class: 'px', src: iconSrc, alt: title, draggable: 'false' })) as HTMLButtonElement;
       el.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         el.setPointerCapture(e.pointerId);
@@ -308,11 +308,11 @@ export class BattleHud {
       el.addEventListener('pointercancel', off);
       return el;
     };
-    const atk = hold('Удар', 'atk', () => {
+    const atk = hold(ICONS.attack(), 'atk', 'Удар (J)', () => {
       c.attack = true;
       c.tap = true;
     }, () => (c.attack = false));
-    const blk = hold('Блок', 'blk', () => (c.block = true), () => (c.block = false));
+    const blk = hold(ICONS.hold(), 'blk', 'Блок (K)', () => (c.block = true), () => (c.block = false));
     return h('div', { class: 'pad' }, joy, h('div', { class: 'pad-btns' }, blk, atk));
   }
 
