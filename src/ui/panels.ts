@@ -24,7 +24,7 @@ import { activeLords, isLooted, siegeDefenders, troopCount } from '../game/war';
 import { tourneyReady } from '../game/tournament';
 import { isPlagued } from '../game/plague';
 import { canTurnIn, hostOf, offerQuest, questsOf } from '../game/quests';
-import { openHost } from './nobles';
+import { openFief, openHost } from './nobles';
 import { world, type Settlement } from '../game/world';
 import { btn, h, img, openModal, panel, plural, sfxCoins, stars, toast } from './dom';
 import { openHero, openShop } from './heroUi';
@@ -157,6 +157,7 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
       optF('Уйти', '', leave, 'primary'),
     );
   } else {
+    if (state.fiefs?.includes(s.id)) options.append(optF('Управлять уделом', 'гарнизон и доход', () => openFief(ctx, s), 'primary'));
     const recruitLabel = s.type === 'village' ? 'Нанять крестьян' : s.type === 'castle' ? 'Нанять всадников' : 'Нанять войска';
     options.append(optF(recruitLabel, '', () => openRecruit(ctx, s)));
     if (s.type !== 'castle') options.append(optF(s.type === 'town' ? 'Рынок' : 'Торговать с крестьянами', '', () => openMarket(ctx, s)));

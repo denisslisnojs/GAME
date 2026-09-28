@@ -21,6 +21,8 @@ export interface BattleSceneData {
   wall?: { culture: string; color: string; color2: string };
   /** Турнир: трибуны вместо холмов, без способностей. */
   arena?: { colors: string[] };
+  /** Погода: дождь или снег поверх поля. */
+  weather?: 'rain' | 'snow';
   onFinish: (b: Battle) => void;
 }
 
@@ -49,6 +51,8 @@ export class BattleScene extends Phaser.Scene {
   private shadows!: Phaser.GameObjects.Graphics;
   private overlay!: Phaser.GameObjects.Graphics;
   private fx!: Phaser.GameObjects.Graphics;
+  private weatherG: Phaser.GameObjects.Graphics | null = null;
+  private drops: { x: number; y: number; v: number; s: number }[] = [];
   private stakeImgs: Phaser.GameObjects.Image[] = [];
   private heroLabel: Phaser.GameObjects.Text | null = null;
   private floats: { t: Phaser.GameObjects.Text; life: number }[] = [];
@@ -116,6 +120,13 @@ export class BattleScene extends Phaser.Scene {
     this.shadows = this.add.graphics().setDepth(1);
     this.fx = this.add.graphics().setDepth(5000);
     this.overlay = this.add.graphics().setDepth(6000);
+    this.weatherG = null;
+    this.drops = [];
+    if (this.cfg.weather) {
+      this.weatherG = this.add.graphics().setDepth(5500).setScrollFactor(0);
+      const n = this.cfg.weather === 'rain' ? 160 : 170;
+      for (let i = 0; i < n; i++) this.drops.push({ x: Math.random(), y: Math.random(), v: 0.8 + Math.random() * 0.5, s: Math.random() });
+    }
 
     for (const u of this.battle.units) this.ensureSprite(u);
     for (const side of [0, 1] as const) for (const u of this.battle.reserves[side]) this.ensureTexture(u);
@@ -292,7 +303,45 @@ export class BattleScene extends Phaser.Scene {
     cam.scrollX += (targetScroll - cam.scrollX) * Math.min(1, dt * 1.8);
   }
 
+  /** Дождь или снег в экранных координатах. */
+  private drawWeather(dt: number) {
+    const g = this.weatherG;
+    if (!g) return;
+    g.clear();
+    const cam = this.cameras.main;
+    const W = cam.width;
+    const H = cam.height;
+    // Слой не прокручивается, но масштаб камеры к нему применяется: пересчитываем экранные координаты
+    const z = cam.zoom;
+    const sx = (X: number) => (X - W / 2) / z + W / 2;
+    const sy = (Y: number) => (Y - H / 2) / z + H / 2;
+    const rain = this.cfg.weather === 'rain';
+    if (rain) {
+      g.fillStyle(0x1a2438, 0.16);
+      g.fillRect(sx(0), sy(0), W / z, H / z);
+      g.lineStyle(1.5 / z, 0xb8cce8, 0.55);
+    } else g.fillStyle(0xffffff, 0.9);
+    for (const d of this.drops) {
+      d.y += dt * (rain ? 1.6 : 0.12) * d.v;
+      d.x += dt * (rain ? -0.25 : Math.sin((d.y + d.s) * 9) * 0.04);
+      if (d.y > 1) {
+        d.y -= 1;
+        d.x = Math.random();
+      }
+      if (d.x < 0) d.x += 1;
+      if (d.x > 1) d.x -= 1;
+      const x = sx(d.x * W);
+      const y = sy(d.y * H);
+      if (rain) g.lineBetween(x, y, x - 4 / z, y + 14 / z);
+      else {
+        const r = (d.s > 0.6 ? 4 : 2.5) / z;
+        g.fillRect(x, y, r, r);
+      }
+    }
+  }
+
   private render(dtReal: number, dt: number) {
+    this.drawWeather(dtReal);
     const b = this.battle;
     const g = this.shadows;
     g.clear();

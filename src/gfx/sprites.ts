@@ -820,3 +820,19 @@ export function drawCaravan(main: string, sec: string, frame: 0 | 1): HTMLCanvas
   c.drawImage(P.canvas, 0, 0);
   return out;
 }
+
+/** Корона над уделом игрока. */
+export function drawCrown(): HTMLCanvasElement {
+  const P = new Pix(13, 9);
+  P.pattern(0, 0, [
+    'y.....y.....y',
+    'yy...yyy...yy',
+    'yyy.yyryy.yyy',
+    'yyyyyyyyyyyyy',
+    'yyyyyyyyyyyyy',
+    'YbYYYbYYYbYYY',
+    'YYYYYYYYYYYYY',
+  ], { y: '#ffd24a', Y: '#c8962a', r: '#c24040', b: '#3a6cc4' });
+  P.outline('#1c1612');
+  return P.canvas;
+}

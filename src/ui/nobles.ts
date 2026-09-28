@@ -1,6 +1,7 @@
 import { FACTIONS } from '../data/factions';
 import { ELDER_TALK, lordBio, REALM_LORE, WORLD_LORE } from '../data/lore';
 import { portraitURL } from '../gfx/icons';
+import { TROOPS } from '../data/troops';
 import {
   abandonQuest,
   acceptQuest,
@@ -202,5 +203,50 @@ export function openHost(ctx: GameCtx, s: Settlement) {
       options,
     ),
   );
+  close = openModal(content);
+}
+
+// ───────────────────────── удел ─────────────────────────
+
+/** Управление уделом: доход и обмен воинами с гарнизоном. */
+export function openFief(ctx: GameCtx, s: Settlement) {
+  const { state } = ctx;
+  let close = () => {};
+  const body = h('div', { class: 'body col' });
+  const render = () => {
+    const gar = (state.war!.garrisons[s.id] ??= []);
+    const mine = h('div', { class: 'army-list' });
+    const theirs = h('div', { class: 'army-list' });
+    const move = (from: { id: string; count: number }[], to: { id: string; count: number; xp?: number }[], id: string, n: number) => {
+      const a = from.find((t) => t.id === id);
+      if (!a) return;
+      const k = Math.min(n, a.count);
+      a.count -= k;
+      const b = to.find((t) => t.id === id);
+      if (b) b.count += k;
+      else to.push(to === state.party.troops ? { id, count: k, xp: 0 } : { id, count: k });
+      for (const list of [from, to]) for (let i = list.length - 1; i >= 0; i--) if (list[i].count <= 0) list.splice(i, 1);
+      ctx.commit();
+      render();
+    };
+    for (const t of [...state.party.troops].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier))
+      mine.append(h('div', { class: 'row' }, img(portraitURL(t.id)), h('span', { class: 'grow' }, `${TROOPS[t.id].name} ×${t.count}`), btn('→1', () => move(state.party.troops, gar, t.id, 1), 'small'), btn('→все', () => move(state.party.troops, gar, t.id, t.count), 'small')));
+    for (const t of [...gar].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier))
+      theirs.append(h('div', { class: 'row' }, btn('1←', () => move(gar, state.party.troops, t.id, 1), 'small'), btn('все←', () => move(gar, state.party.troops, t.id, t.count), 'small'), img(portraitURL(t.id)), h('span', { class: 'grow' }, `${TROOPS[t.id].name} ×${t.count}`)));
+    if (!state.party.troops.length) mine.append(h('div', { class: 'muted' }, 'Отряд пуст'));
+    if (!gar.length) theirs.append(h('div', { class: 'muted' }, 'Гарнизона нет — крепость беззащитна!'));
+    const count = (l: { count: number }[]) => l.reduce((n, t) => n + t.count, 0);
+    body.replaceChildren(
+      h('div', { class: 'parch', style: 'font-size:13.5px' }, `Ваш удел приносит ${fiefIncome(state)} ¤ в неделю (со всех владений). Сильный гарнизон отобьёт вражеский штурм; потерянный удел не вернётся сам.`),
+      h(
+        'div',
+        { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px' },
+        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Ваш отряд · ${count(state.party.troops)}`), mine),
+        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Гарнизон · ${count(gar)}`), theirs),
+      ),
+    );
+  };
+  render();
+  const content = panel('modal wide', h('div', { class: 'head' }, h('div', {}, h('h2', { class: 'title' }, `Удел: ${s.name}`), h('div', { class: 'muted', style: 'font-size:13px' }, s.type === 'town' ? 'Город' : 'Замок')), btn('✕', () => close(), 'small close')), body);
   close = openModal(content);
 }

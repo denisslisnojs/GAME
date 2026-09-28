@@ -785,6 +785,16 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     return best;
   }
 
+  /** Погода боя: в снегах часто метель, в пустыне сухо, в остальных местах иногда дождь. */
+  private battleWeather(t: BattleTerrain | null): 'rain' | 'snow' | undefined {
+    if (!t || t === 'desert') return undefined;
+    const month = Math.floor(((this.state.time / 30.4) + 2) % 12); // 0 — январь
+    const winter = month === 11 || month <= 1;
+    if (t === 'snow') return Math.random() < 0.6 ? 'snow' : undefined;
+    if (winter && t !== 'steppe' && t !== 'dry') return Math.random() < 0.35 ? 'snow' : undefined;
+    return Math.random() < 0.18 ? 'rain' : undefined;
+  }
+
   private battleTerrain(): BattleTerrain {
     const { cx, cy } = worldToCell(this.party.x, this.party.y);
     const t = world.map.terrain[cy * GRID_W + cx];
@@ -866,6 +876,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       enemyColor: view.enemyColor,
       wall: view.wall,
       arena: view.arena,
+      weather: this.battleWeather(view.arena ? null : this.battleTerrain()),
       onFinish: (b: Battle) => {
         this.scene.stop('battle');
         this.scene.wake();
@@ -1019,6 +1030,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const want = new Map<string, string>();
     for (const id of Object.keys(w.sieges)) want.set(`siege:${id}`, `camp_${this.warMarkFrame}`);
     for (const [id, until] of Object.entries(w.looted)) if (until > this.state.time) want.set(`loot:${id}`, `smoke_${this.warMarkFrame}`);
+    for (const id of this.state.fiefs ?? []) want.set(`fief:${id}`, 'crown');
     for (const [id, until] of Object.entries(this.state.plague?.infected ?? {})) if (until > this.state.time) want.set(`plague:${id}`, `plague_${this.warMarkFrame}`);
     for (const [k, m] of this.warMarks) {
       if (!want.has(k)) {
@@ -1032,6 +1044,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         const s = world.byId.get(k.split(':')[1])!;
         m = k.startsWith('siege')
           ? this.add.sprite(s.x - TILE * 3.2, s.y + TILE * 1.6, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.7).setDepth(s.y + TILE)
+          : k.startsWith('fief')
+            ? this.add.sprite(s.x, s.y - TILE * 4.2, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.8).setDepth(s.y + 4)
           : k.startsWith('plague')
             ? this.add.sprite(s.x + TILE * 2.2, s.y - TILE * 2.2, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.8).setDepth(s.y + 3).setAlpha(0.9)
             : this.add.sprite(s.x, s.y - TILE * 0.2, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.9).setDepth(s.y + 2).setAlpha(0.85);
