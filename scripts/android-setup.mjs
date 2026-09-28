@@ -161,3 +161,35 @@ if (existsSync(bgXml)) {
   writeFileSync(bgXml, '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#2A2320</color>\n</resources>\n');
 }
 console.log('Иконки обновлены');
+
+// ── Версия и постоянная подпись ──
+// Номер версии растёт с каждой сборкой CI, а подпись одним и тем же ключом
+// позволяет ставить новую версию поверх старой без удаления (сохранения остаются).
+const gradlePath = 'android/app/build.gradle';
+let gradle = readFileSync(gradlePath, 'utf8');
+const pkgVersion = JSON.parse(readFileSync('package.json', 'utf8')).version;
+const build = Number(process.env.GITHUB_RUN_NUMBER ?? 1);
+const [maj, min] = pkgVersion.split('.').map(Number);
+gradle = gradle
+  .replace(/versionCode \d+/, `versionCode ${maj * 100000 + min * 1000 + build}`)
+  .replace(/versionName "[^"]*"/, `versionName "${pkgVersion.split('.').slice(0, 2).join('.')}.${build}"`);
+if (!gradle.includes('warfare-debug.keystore')) {
+  gradle = gradle.replace(
+    /\n    buildTypes \{/,
+    `
+    signingConfigs {
+        debug {
+            storeFile file('../../scripts/warfare-debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }`,
+  );
+}
+writeFileSync(gradlePath, gradle);
+console.log(`Версия ${pkgVersion.split('.').slice(0, 2).join('.')}.${build}, подпись: scripts/warfare-debug.keystore`);
