@@ -252,7 +252,8 @@ function bleed(lists: Troops[], frac: number) {
  */
 function fight(state: GameState, att: Side, def: Side, siege: boolean): boolean {
   const sA = sideTroops(att).reduce((n, l) => n + strength(l), 0) * (0.85 + Math.random() * 0.3);
-  const sD = sideTroops(def).reduce((n, l) => n + strength(l), 0) * (siege ? 1.45 : 1) * (0.85 + Math.random() * 0.3);
+  const walls = def.garrison && state.fiefState?.[def.garrison.id]?.built.includes('walls') ? 1.3 : 1;
+  const sD = sideTroops(def).reduce((n, l) => n + strength(l), 0) * (siege ? 1.45 * walls : 1) * (0.85 + Math.random() * 0.3);
   const pA = Math.pow(sA, 1.7) / (Math.pow(sA, 1.7) + Math.pow(sD, 1.7) || 1);
   const attWon = Math.random() < pA;
   const [win, lose, sw, sl] = attWon ? [att, def, sA, sD] : [def, att, sD, sA];
@@ -366,7 +367,10 @@ export function warDaily(state: GameState) {
       news(state, `Осаждавшие ушли: ${placeName(s)} свободен.`, 'battle');
       continue;
     }
-    if (state.time - sg.since < 1.5) continue;
+    // Владения героя держатся дольше: есть время прийти на выручку
+    const mine = state.fiefs?.includes(sid);
+    const hold = mine ? (state.fiefState?.[sid]?.built.includes('walls') ? 5 : 3) : 1.5;
+    if (state.time - sg.since < hold) continue;
     const defenders = activeLords(state, owner).filter((l) => distCells(l, s) < 6);
     const garrison = { id: sid, troops: w.garrisons[sid] ?? [] };
     const won = fight(state, { lords: attackers, faction: sg.attacker }, { lords: defenders, garrison, faction: owner }, true);
@@ -511,6 +515,7 @@ export function warUpdate(state: GameState, dtDays: number, targetId: number | n
         r.path = [];
         if (info.task === 'campaign' && !w.sieges[s.id] && atWar(state, f, state.settlements[s.id].owner)) {
           w.sieges[s.id] = { attacker: f, since: state.time };
+          if (state.fiefs?.includes(s.id)) news(state, `Враг осадил ваш удел ${s.name}! Гарнизон продержится несколько дней — спешите на выручку.`, 'war');
           news(state, `${l.name} осаждает ${placeName(s)}.`, state.settlements[s.id].owner === state.hero.faction ? 'war' : 'battle');
         }
       }
@@ -568,6 +573,13 @@ export function withAllies(army: ArmyDef, allies: MapParty[]): ArmyDef {
 }
 
 /** Состав обороняющихся для осады игроком: гарнизон и лорды рядом. */
+/** Лорды, осаждающие крепость. */
+export function siegeAttackers(state: GameState, s: Settlement): MapParty[] {
+  const sg = state.war?.sieges[s.id];
+  if (!sg) return [];
+  return activeLords(state, sg.attacker).filter((l) => distCells(l, s) < 6);
+}
+
 export function siegeDefenders(state: GameState, s: Settlement): { garrison: Troops; lords: MapParty[] } {
   const owner = state.settlements[s.id].owner;
   return { garrison: state.war?.garrisons[s.id] ?? [], lords: activeLords(state, owner).filter((l) => distCells(l, s) < 5) };

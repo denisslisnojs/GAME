@@ -43,6 +43,8 @@ export interface GameCtx {
   startSiege?(s: Settlement): void;
   /** Разорение вражеской деревни. */
   startRaid?(s: Settlement): void;
+  /** Оборона своей осаждённой крепости. */
+  defendSiege?(s: Settlement): void;
   /** Открыть окно с паузой игры, пока оно открыто. */
   modal?(open: () => void): void;
   /** Запустить бой (сцена или автобой) и вернуть результат. */
@@ -162,7 +164,9 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
       optF('Уйти', '', leave, 'primary'),
     );
   } else {
-    if (state.fiefs?.includes(s.id)) options.append(optF('Управлять уделом', 'гарнизон и доход', () => openFief(ctx, s), 'primary'));
+    const sg = state.war?.sieges[s.id];
+    if (sg && s.type !== 'village') options.append(optF('Защищать стены', `осаждает ${FACTIONS[sg.attacker].short}`, () => { close(); ctx.defendSiege?.(s); }, 'danger'));
+    if (state.fiefs?.includes(s.id)) options.append(optF('Управлять уделом', 'постройки, налоги, гарнизон', () => openFief(ctx, s), 'primary'));
     const recruitLabel = s.type === 'village' ? 'Нанять крестьян' : s.type === 'castle' ? 'Нанять всадников' : 'Нанять войска';
     options.append(optF(recruitLabel, '', () => openRecruit(ctx, s)));
     if (s.type !== 'castle') options.append(optF(s.type === 'town' ? 'Рынок' : 'Торговать с крестьянами', '', () => openMarket(ctx, s)));

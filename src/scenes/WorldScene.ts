@@ -9,14 +9,15 @@ import { enemyArmy, playerArmy } from '../battle/setup';
 import { Battle, type Formation } from '../battle/sim';
 import type { BattleTerrain } from '../battle/background';
 import { prewarmBattleTerrain } from './BattleScene';
-import { applyBattle, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
+import { applyBattle, applyDefense, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
 import { questsDaily } from '../game/quests';
 import { companionDeed, companionsDaily, partySkill, trainingDaily } from '../game/companions';
 import { pickEvent, type RoadEvent } from '../game/events';
 import { prisonersDaily } from '../game/prisoners';
+import { fiefDaily } from '../game/fief';
 import { openRoadEvent } from '../ui/events';
 import { isPlagued, plagueDaily } from '../game/plague';
-import { activeLords, alliesNear, capture, news, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
+import { activeLords, alliesNear, capture, news, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeAttackers, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
 import { hasSave, loadGame, newGame, saveGame, type GameState } from '../game/state';
 import { heroLook } from '../game/hero';
@@ -629,6 +630,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         for (const msg of plagueDaily(this.state)) this.hud?.news(msg, '#9ab87a');
         for (const msg of companionsDaily(this.state)) news(this.state, msg, 'party');
         for (const msg of prisonersDaily(this.state)) news(this.state, msg, 'party');
+        for (const msg of fiefDaily(this.state)) this.hud?.news(msg, '#e8c04a');
         trainingDaily(this.state, partySkill(this.state, 'training'));
         this.commit();
       }
@@ -982,6 +984,59 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.runBattle(battle, auto, { enemyName: s.name, enemyColor: f.css, wall: { culture: s.culture, color: f.css, color2: f.css2 } }, (b) => {
       const res = applySiege(this.state, b, s, garrison, lords, allies);
       this.afterBattle(res, `Гарнизон ${s.name}`);
+    });
+  }
+
+  /** GameCtx: выйти на стены своей осаждённой крепости. */
+  defendSiege(s: Settlement) {
+    prewarmBattleTerrain(this.textures, [this.battleTerrain()]);
+    const attackers = siegeAttackers(this.state, s);
+    const sg = this.state.war?.sieges[s.id];
+    if (!sg || !attackers.length) {
+      toast('Осаждающие уже ушли', 2500);
+      return;
+    }
+    const enemy = FACTIONS[sg.attacker];
+    const n = attackers.reduce((k, l) => k + troopCount(l.troops), 0);
+    const gar = troopCount(this.state.war!.garrisons[s.id] ?? []);
+    this.modal(() => {
+      let close = () => {};
+      const content = panel(
+        'modal narrow',
+        h('div', { class: 'head' }, h('h2', { class: 'title' }, `Оборона: ${s.name}`), btn('✕', () => close(), 'small close')),
+        h(
+          'div',
+          { class: 'body col' },
+          h('div', { class: 'parch', style: 'font-size:13.5px;line-height:1.4' }, `Под стенами стоит войско державы «${enemy.short}»: ${attackers.map((l) => l.name).join(', ')} — около ${n} воинов. Гарнизон (${gar}) встанет на стены вместе с вашим отрядом. Лучники бьют со стены, пехота держит ворота.`),
+          h(
+            'div',
+            { class: 'options' },
+            btn('На стены!', () => { close(); this.defend(s, false); }, 'primary'),
+            btn('Автобой', () => { close(); this.defend(s, true); }),
+            btn('Не сейчас', () => close(), 'ghost'),
+          ),
+        ),
+      );
+      close = openModal(content);
+    });
+  }
+
+  private defend(s: Settlement, auto: boolean) {
+    const sg = this.state.war?.sieges[s.id];
+    const attackers = siegeAttackers(this.state, s);
+    if (!sg || !attackers.length) return;
+    const f = FACTIONS[sg.attacker];
+    const owner = FACTIONS[this.state.settlements[s.id].owner];
+    const name = `Осаждающие: ${f.short}`;
+    const att = enemyArmy(name, sg.attacker, mergeTroops(attackers.map((l) => l.troops)));
+    att.morale = 105;
+    const me = playerArmy(this.state, 'classic');
+    me.troops = [...me.troops, ...(this.state.war!.garrisons[s.id] ?? []).map((t) => ({ id: t.id, count: t.count, key: `G|${t.id}` }))];
+    me.morale += 10; // за стенами дух крепче
+    const battle = new Battle([att, me], 1, { siege: true });
+    this.runBattle(battle, auto, { enemyName: name, enemyColor: f.css, wall: { culture: s.culture, color: owner.css, color2: owner.css2 } }, (b) => {
+      const res = applyDefense(this.state, b, s, attackers);
+      this.afterBattle(res, name);
     });
   }
 

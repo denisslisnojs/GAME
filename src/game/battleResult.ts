@@ -54,7 +54,7 @@ interface EnemyInfo {
 }
 
 /** Общая часть: наши потери и опыт, потери врага, трофеи или отступление. */
-function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies: MapParty[] = []): AppliedResult {
+function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies: MapParty[] = [], garrisonId?: string): AppliedResult {
   const won = battle.winner === battle.playerSide;
   const ours = battle.summary(battle.playerSide);
   const theirs = battle.summary(battle.playerSide === 0 ? 1 : 0);
@@ -69,6 +69,14 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies
       const [a, tid] = id.split('|');
       const t = allies[+a.slice(1)]?.troops.find((x) => x.id === tid);
       if (t) t.count = Math.max(0, t.count - s.dead);
+      continue;
+    }
+    if (id.startsWith('G|') && garrisonId) {
+      // Потери гарнизона, защищавшего стены вместе с героем
+      const g = (state.war!.garrisons[garrisonId] ??= []);
+      const t = g.find((x) => x.id === id.slice(2));
+      if (t) t.count = Math.max(0, t.count - s.dead);
+      state.war!.garrisons[garrisonId] = g.filter((x) => x.count > 0);
       continue;
     }
     let killed = 0;
@@ -244,6 +252,30 @@ export function applySiege(state: GameState, battle: Battle, s: Settlement, garr
     res.headline = `${s.name} взят! Крепость отходит государю — ${FACTIONS[state.hero.faction].rulerTitle.toLowerCase()} ${FACTIONS[state.hero.faction].ruler}.`;
   } else {
     news(state, `Гарнизон отбил штурм: ${placeName(s)} устоял. ${state.hero.name} отступает.`, 'player');
+  }
+  return res;
+}
+
+/** Оборона своей (или союзной) крепости от осаждающих лордов. */
+export function applyDefense(state: GameState, battle: Battle, s: Settlement, attackers: MapParty[]): AppliedResult {
+  const sg = state.war!.sieges[s.id];
+  const attacker = sg?.attacker ?? (attackers[0]?.faction as FactionId);
+  const res = applyOutcome(state, battle, { lists: attackers.map((l) => l.troops), gold: 250, loot: {}, itemChance: 0.6, itemCap: 4, culture: attacker, bonusGoods: true }, [], s.id);
+  if (res.won) {
+    delete state.war!.sieges[s.id];
+    for (const l of attackers)
+      if (l.lord?.status === 'active') {
+        defeatLord(state, l, 'player');
+        maybeCaptureLord(state, l);
+      }
+    const ruler = (state.lords ?? []).find((l) => l.faction === state.hero.faction && l.lord!.rank === 3);
+    if (ruler) addRelation(state, `lord:${ruler.lord!.name}`, 6);
+    news(state, `${state.hero.name} отстоял ${placeName(s)}: осада снята!`, 'player');
+    res.headline = `Осада снята! ${s.name} устоял, враг бежит.`;
+    deed(res, state, 'lord');
+  } else {
+    capture(state, s, attacker, false);
+    res.headline = `${s.name} пал. Крепость в руках врага.`;
   }
   return res;
 }

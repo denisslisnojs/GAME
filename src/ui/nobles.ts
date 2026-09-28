@@ -1,4 +1,5 @@
 import { FACTIONS } from '../data/factions';
+import { BUILDINGS, TAX_INFO, fiefIncomeOf, fiefState, startBuilding, type Tax } from '../game/fief';
 import { ELDER_TALK, lordBio, REALM_LORE, WORLD_LORE } from '../data/lore';
 import { portraitURL } from '../gfx/icons';
 import { TROOPS } from '../data/troops';
@@ -23,6 +24,7 @@ import {
 import { tourneyReady } from '../game/tournament';
 import { world, type Settlement } from '../game/world';
 import { btn, h, img, openModal, panel, sfxCoins, toast } from './dom';
+import { isLooted } from '../game/war';
 import type { GameCtx } from './panels';
 
 const TASK_WORD = { idle: 'объезжает свои земли', campaign: 'в походе', relieve: 'спешит на помощь осаждённым', follow: 'идёт в походе с вами' } as const;
@@ -257,8 +259,36 @@ export function openFief(ctx: GameCtx, s: Settlement) {
     if (!state.party.troops.length) mine.append(h('div', { class: 'muted' }, 'Отряд пуст'));
     if (!gar.length) theirs.append(h('div', { class: 'muted' }, 'Гарнизона нет — крепость беззащитна!'));
     const count = (l: { count: number }[]) => l.reduce((n, t) => n + t.count, 0);
+    const fs = fiefState(state, s.id);
+    const builds = h('div', { class: 'list' });
+    for (const b of BUILDINGS) {
+      const done = fs.built.includes(b.id);
+      const now = fs.building?.id === b.id;
+      builds.append(
+        h(
+          'div',
+          { class: 'item' },
+          h('div', { class: 'grow col', style: 'gap:1px' }, h('span', { class: 'name', style: done ? 'color:#7ad06a' : '' }, `${done ? '✔ ' : ''}${b.name}`), h('div', { class: 'sub' }, b.desc)),
+          done
+            ? h('span', { class: 'muted small' }, 'построено')
+            : now
+              ? h('span', { class: 'gold small' }, `строится, ещё ${Math.max(1, Math.ceil(fs.building!.done - state.time))} дн.`)
+              : btn(`${b.cost} ¤ · ${b.days} дн.`, () => { if (startBuilding(state, s.id, b.id)) { sfxCoins(); toast(`Начато строительство: ${b.name}`); ctx.commit(); } else toast(fs.building ? 'Сначала закончите начатую стройку' : 'Не хватает денег'); render(); }, 'small', !!fs.building || state.gold < b.cost),
+        ),
+      );
+    }
+    const taxRow = h(
+      'div',
+      { class: 'row', style: 'gap:4px;flex-wrap:wrap;align-items:center' },
+      h('span', { class: 'muted' }, 'Налоги:'),
+      ...(Object.keys(TAX_INFO) as Tax[]).map((t) => btn(TAX_INFO[t].name, () => { fs.tax = t; ctx.commit(); render(); }, `small${fs.tax === t ? ' primary' : ''}`)),
+      h('span', { class: 'muted small' }, TAX_INFO[fs.tax].hint),
+    );
     body.replaceChildren(
-      h('div', { class: 'parch', style: 'font-size:13.5px' }, `Ваш удел приносит ${fiefIncome(state)} ¤ в неделю (со всех владений). Сильный гарнизон отобьёт вражеский штурм; потерянный удел не вернётся сам.`),
+      h('div', { class: 'parch', style: 'font-size:13.5px' }, `${s.name} приносит ${fiefIncomeOf(state, s.id, (v) => isLooted(state, v))} ¤ в неделю, все ваши владения — ${fiefIncome(state)} ¤. Сильный гарнизон отобьёт штурм, а если враг осадит крепость — спешите на выручку и защищайте стены сами.`),
+      taxRow,
+      h('div', { class: 'col-title' }, 'Постройки'),
+      builds,
       h(
         'div',
         { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px' },

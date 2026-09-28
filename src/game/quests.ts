@@ -1,6 +1,7 @@
 // Знать и поручения: кто принимает героя в поселении, какие дела поручает,
 // отношения с лордами и старостами, пожалование удела.
 
+import { fiefIncomeOf } from './fief';
 import { FACTIONS, type FactionId } from '../data/factions';
 import { GOODS, type GoodId } from '../data/goods';
 import { TROOPS } from '../data/troops';
@@ -339,11 +340,7 @@ export function questsDaily(state: GameState): string[] {
 
 export function fiefIncome(state: GameState): number {
   let sum = 0;
-  for (const id of state.fiefs ?? []) {
-    const s = world.byId.get(id)!;
-    sum += s.type === 'town' ? 220 : 120;
-    sum += s.villages.filter((v) => state.settlements[v].owner === state.hero.faction && !isLooted(state, v)).length * 30;
-  }
+  for (const id of state.fiefs ?? []) sum += fiefIncomeOf(state, id, (v) => isLooted(state, v));
   return sum;
 }
 

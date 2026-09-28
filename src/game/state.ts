@@ -11,6 +11,7 @@ import type { PlagueState } from './plague';
 import { initCompanions, type CompanionState } from './companions';
 import type { SkillId } from '../data/skills';
 import type { CaptiveLord } from './prisoners';
+import type { FiefState } from './fief';
 
 export interface TroopStack {
   id: string;
@@ -108,6 +109,8 @@ export interface GameState {
   prisoners?: TroopStack[];
   /** Пленённые лорды. */
   captives?: CaptiveLord[];
+  /** Постройки и налоги в уделах. */
+  fiefState?: Record<string, FiefState>;
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {
