@@ -3,6 +3,7 @@ import { FACTIONS, type FactionId } from '../data/factions';
 import { emblemURL, portraitURL } from '../gfx/icons';
 import { Pix } from '../gfx/pixel';
 import { h, sfxClick, uiRoot } from './dom';
+import { tr } from '../i18n';
 
 export interface BattleHudOpts {
   enemyName: string;
@@ -76,21 +77,21 @@ const ICONS: Record<string, () => string> = {
 };
 
 const ABILITIES: { id: Ability; name: string; hint: string }[] = [
-  { id: 'volley', name: 'Залп', hint: 'Все стрелки стреляют разом, урон +30%' },
-  { id: 'stakes', name: 'Колья', hint: 'Колья перед строем ранят и останавливают конницу' },
-  { id: 'cry', name: 'Клич', hint: 'Боевой дух +20, урон +20% на 10 с, враг дрогнет' },
-  { id: 'smoke', name: 'Дым', hint: 'Завеса: вражеские стрелки почти не попадают' },
+  { id: 'volley', name: tr('Залп'), hint: tr('Все стрелки стреляют разом, урон +30%') },
+  { id: 'stakes', name: tr('Колья'), hint: tr('Колья перед строем ранят и останавливают конницу') },
+  { id: 'cry', name: tr('Клич'), hint: tr('Боевой дух +20, урон +20% на 10 с, враг дрогнет') },
+  { id: 'smoke', name: tr('Дым'), hint: tr('Завеса: вражеские стрелки почти не попадают') },
 ];
 
 const GROUPS: { id: Group | 'all'; name: string }[] = [
-  { id: 'all', name: 'Все' },
-  { id: 'hero', name: 'Герой' },
-  { id: 'inf', name: 'Пехота' },
-  { id: 'ranged', name: 'Стрелки' },
-  { id: 'cav', name: 'Конница' },
+  { id: 'all', name: tr('Все') },
+  { id: 'hero', name: tr('Герой') },
+  { id: 'inf', name: tr('Пехота') },
+  { id: 'ranged', name: tr('Стрелки') },
+  { id: 'cav', name: tr('Конница') },
 ];
 
-const ORDER_NAME: Record<Order, string> = { attack: 'В атаку', hold: 'Стоять', retreat: 'Отступить' };
+const ORDER_NAME: Record<Order, string> = { attack: tr('В атаку'), hold: tr('Стоять'), retreat: tr('Отступить') };
 
 export class BattleHud {
   private root: HTMLElement;
@@ -128,7 +129,7 @@ export class BattleHud {
         'div',
         { class: 'b-morale' },
         h('div', { class: 'track' }, this.moraleL, this.moraleR, h('div', { class: 'mid' })),
-        h('div', { class: 'labels' }, h('span', {}, 'Боевой дух'), h('span', {}, 'Боевой дух')),
+        h('div', { class: 'labels' }, h('span', {}, tr('Боевой дух')), h('span', {}, tr('Боевой дух'))),
       ),
       h('div', { class: 'b-side r' }, h('div', { class: 'col', style: 'gap:0;align-items:flex-end' }, h('b', { style: `color:${o.enemyColor}` }, o.enemyName), this.countR)),
     );
@@ -148,7 +149,7 @@ export class BattleHud {
         { class: 'b-card', onclick: () => this.select(g.id) },
         h('img', { class: 'px face', src: rep ? portraitURL(rep) : g.id === 'hero' ? o.heroPortrait ?? portraitURL(`${o.heroFaction}_c3m`) : o.heroEmblem ?? emblemURL(o.heroFaction) }),
         badge,
-        h('div', { class: 'lbl' }, g.id === 'hero' && this.totals.hero > 1 ? 'Свита' : g.name),
+        h('div', { class: 'lbl' }, g.id === 'hero' && this.totals.hero > 1 ? tr('Свита') : g.name),
         count,
         bar,
       );
@@ -200,7 +201,7 @@ export class BattleHud {
       this.speedBtns.push(sb);
       ctrl.append(sb);
     }
-    for (const [label, k, hint] of [['−', 0.85, 'Отдалить камеру'], ['+', 1.18, 'Приблизить камеру']] as [string, number, string][]) {
+    for (const [label, k, hint] of [['−', 0.85, tr('Отдалить камеру')], ['+', 1.18, tr('Приблизить камеру')]] as [string, number, string][]) {
       const zb = h('button', { class: 'btn b-small', title: hint }, label) as HTMLButtonElement;
       zb.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -209,7 +210,7 @@ export class BattleHud {
       });
       ctrl.append(zb);
     }
-    const auto = h('button', { class: 'btn b-small', title: 'Досчитать бой мгновенно' }, 'Автобой') as HTMLButtonElement;
+    const auto = h('button', { class: 'btn b-small', title: tr('Досчитать бой мгновенно') }, tr('Автобой')) as HTMLButtonElement;
     auto.addEventListener('click', (e) => {
       e.stopPropagation();
       sfxClick();
@@ -221,7 +222,7 @@ export class BattleHud {
     const bottom = h('div', { class: 'b-bottom' }, cardsBox, ordersBox, abilBox, ctrl);
     const extra: HTMLElement[] = [];
     if (b.units.some((u) => u.isHero && u.side === ps)) {
-      this.ctlBtn = h('button', { class: 'btn b-ctl', title: 'Управлять героем самому: движение, удар, блок (WASD, J, K)' }, '⚔ Управлять героем') as HTMLButtonElement;
+      this.ctlBtn = h('button', { class: 'btn b-ctl', title: tr('Управлять героем самому: движение, удар, блок (WASD, J, K)') }, tr('⚔ Управлять героем')) as HTMLButtonElement;
       this.ctlBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         sfxClick();
@@ -255,7 +256,7 @@ export class BattleHud {
     } catch {
       /* хранилище недоступно */
     }
-    this.banner(on ? 'Герой под вашим началом!' : 'Герой снова в строю');
+    this.banner(on ? tr('Герой под вашим началом!') : tr('Герой снова в строю'));
     this.update();
   }
 
@@ -310,11 +311,11 @@ export class BattleHud {
       el.addEventListener('pointercancel', off);
       return el;
     };
-    const atk = hold(ICONS.attack(), 'atk', 'Удар (J)', () => {
+    const atk = hold(ICONS.attack(), 'atk', tr('Удар (J)'), () => {
       c.attack = true;
       c.tap = true;
     }, () => (c.attack = false));
-    const blk = hold(ICONS.hold(), 'blk', 'Блок (K)', () => (c.block = true), () => (c.block = false));
+    const blk = hold(ICONS.hold(), 'blk', tr('Блок (K)'), () => (c.block = true), () => (c.block = false));
     return h('div', { class: 'pad' }, joy, h('div', { class: 'pad-btns' }, blk, atk));
   }
 
@@ -328,7 +329,7 @@ export class BattleHud {
     const ps = this.b.playerSide;
     const groups: Group[] = this.selected === 'all' ? ['hero', 'inf', 'ranged', 'cav'] : [this.selected];
     for (const g of groups) this.b.setOrder(ps, g, o);
-    this.banner(`${this.selected === 'all' ? 'Все' : GROUPS.find((x) => x.id === this.selected)!.name}: ${ORDER_NAME[o].toLowerCase()}!`);
+    this.banner(`${this.selected === 'all' ? tr('Все') : GROUPS.find((x) => x.id === this.selected)!.name}: ${ORDER_NAME[o].toLowerCase()}!`);
     this.update();
   }
 
@@ -372,7 +373,7 @@ export class BattleHud {
       if (!alive && b.heroCtl.on) b.heroCtl.on = false;
       this.ctlBtn.style.display = alive ? '' : 'none';
       this.ctlBtn.classList.toggle('active', b.heroCtl.on);
-      this.ctlBtn.textContent = b.heroCtl.on ? '✋ Отдать приказам' : '⚔ Управлять героем';
+      this.ctlBtn.textContent = b.heroCtl.on ? tr('✋ Отдать приказам') : tr('⚔ Управлять героем');
       this.pad.style.display = b.heroCtl.on ? '' : 'none';
     }
     this.pauseBtn.textContent = this.o.isPaused() ? '▶' : '❚❚';

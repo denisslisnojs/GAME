@@ -7,6 +7,7 @@ import { addTroops, partySize } from './logic';
 import type { MapParty } from './parties';
 import type { GameState, TroopStack } from './state';
 import { news } from './war';
+import { tr } from '../i18n';
 
 export interface CaptiveLord {
   /** id отряда лорда (MapParty.id). */
@@ -59,7 +60,7 @@ export function maybeCaptureLord(state: GameState, l: MapParty): boolean {
   (state.captives ??= []).push({ id: l.id, name: l.name, faction: l.faction as FactionId, rank: l.lord.rank, since: state.time, lordName: l.lord.name });
   l.lord.recoverAt = 1e9; // сидит у нас, пока не выкупят или не отпустим
   if (state.stats) state.stats.lordsCaptured = (state.stats.lordsCaptured ?? 0) + 1;
-  news(state, `${state.hero.name} взял в плен: ${l.name}.`, 'player');
+  news(state, tr`${state.hero.name} взял в плен: ${l.name}.`, 'player');
   return true;
 }
 
@@ -85,7 +86,7 @@ export function ransomLord(state: GameState, c: CaptiveLord): number {
   const g = lordRansom(c);
   state.gold += g;
   releaseLordParty(state, c, 6);
-  news(state, `Держава «${FACTIONS[c.faction].short}» выкупила ${c.name} за ${g} ¤.`, 'player');
+  news(state, tr`Держава «${FACTIONS[c.faction].short}» выкупила ${c.name} за ${g} ¤.`, 'player');
   return g;
 }
 
@@ -95,7 +96,7 @@ export function releaseLord(state: GameState, c: CaptiveLord) {
   const rel = (state.relations ??= {});
   const key = `lord:${c.lordName}`;
   rel[key] = Math.min(100, (rel[key] ?? 0) + 15);
-  news(state, `${state.hero.name} великодушно отпустил ${c.name} без выкупа.`, 'player');
+  news(state, tr`${state.hero.name} великодушно отпустил ${c.name} без выкупа.`, 'player');
 }
 
 /** Продать пленных торговцу выкупом. */
@@ -135,7 +136,7 @@ export function prisonersDaily(state: GameState): string[] {
     fled += k;
   }
   state.prisoners = list.filter((p) => p.count > 0);
-  return fled ? [`Ночью сбежали пленные: ${fled}.`] : [];
+  return fled ? [tr`Ночью сбежали пленные: ${fled}.`] : [];
 }
 
 /** Поражение: пленные разбегаются, а героя могут пленить. Возвращает дни плена (0 — ушёл). */
@@ -144,6 +145,6 @@ export function onDefeat(state: GameState): number {
   if (Math.random() > 0.35) return 0;
   const days = 2 + Math.floor(Math.random() * 4);
   state.time += days;
-  news(state, `${state.hero.name} попал в плен и лишь через ${days} дн. сумел бежать.`, 'player');
+  news(state, tr`${state.hero.name} попал в плен и лишь через ${days} дн. сумел бежать.`, 'player');
   return days;
 }

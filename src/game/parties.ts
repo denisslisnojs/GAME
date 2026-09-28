@@ -12,6 +12,7 @@ import { mulberry32 } from '../util/rng';
 import { atWar, partySize } from './logic';
 import type { GameState } from './state';
 import { isWaterCell, world } from './world';
+import { tr } from '../i18n';
 
 export type PartyKind = 'bandits' | 'raiders' | 'desert' | 'pirates' | 'deserters' | 'patrol' | 'lord' | 'caravan';
 
@@ -61,14 +62,14 @@ interface Runtime {
 }
 
 export const KIND_INFO: Record<PartyKind, { name: string; speed: number; about: string }> = {
-  bandits: { name: 'Разбойники', speed: 15, about: 'Шайка лесных грабителей. Промышляют на дорогах, нападают на слабых.' },
-  raiders: { name: 'Степные налётчики', speed: 21, about: 'Конные грабители степи. Быстры, стреляют на скаку и не любят честного боя.' },
-  desert: { name: 'Пустынные разбойники', speed: 20, about: 'Всадники пустыни, живущие грабежом караванов.' },
-  pirates: { name: 'Морские разбойники', speed: 14, about: 'Грабители с моря: высаживаются на берег и уходят с добычей.' },
-  deserters: { name: 'Дезертиры', speed: 16, about: 'Сбежавшие из войска солдаты. Хорошо вооружены и отчаянны.' },
-  patrol: { name: 'Разъезд', speed: 17, about: 'Вражеский отряд, охраняющий свои земли.' },
-  caravan: { name: 'Караван', speed: 13, about: 'Торговый обоз державы под охраной. Вражеский караван можно разграбить — товары и золото достанутся вам.' },
-  lord: { name: 'Лорд', speed: 16, about: 'Вельможа державы со своей дружиной. Разбитый, он бежит и вернётся с новой армией.' },
+  bandits: { name: tr('Разбойники'), speed: 15, about: tr('Шайка лесных грабителей. Промышляют на дорогах, нападают на слабых.') },
+  raiders: { name: tr('Степные налётчики'), speed: 21, about: tr('Конные грабители степи. Быстры, стреляют на скаку и не любят честного боя.') },
+  desert: { name: tr('Пустынные разбойники'), speed: 20, about: tr('Всадники пустыни, живущие грабежом караванов.') },
+  pirates: { name: tr('Морские разбойники'), speed: 14, about: tr('Грабители с моря: высаживаются на берег и уходят с добычей.') },
+  deserters: { name: tr('Дезертиры'), speed: 16, about: tr('Сбежавшие из войска солдаты. Хорошо вооружены и отчаянны.') },
+  patrol: { name: tr('Разъезд'), speed: 17, about: tr('Вражеский отряд, охраняющий свои земли.') },
+  caravan: { name: tr('Караван'), speed: 13, about: tr('Торговый обоз державы под охраной. Вражеский караван можно разграбить — товары и золото достанутся вам.') },
+  lord: { name: tr('Лорд'), speed: 16, about: tr('Вельможа державы со своей дружиной. Разбитый, он бежит и вернётся с новой армией.') },
 };
 
 const runtime = new Map<number, Runtime>();
@@ -210,7 +211,7 @@ export function spawn(state: GameState, kind: PartyKind | null, faction: Faction
   const id = (state.nextPartyId = (state.nextPartyId ?? 1) + 1);
   let fac: FactionId | 'outlaw' = faction;
   if (k === 'deserters') fac = FACTION_IDS[Math.floor(r() * 4)];
-  const name = k === 'caravan' ? `Караван: ${FACTIONS[fac as FactionId].short}` : k === 'patrol' ? `Разъезд: ${FACTIONS[fac as FactionId].short}` : k === 'deserters' ? `Дезертиры (${FACTIONS[fac as FactionId].short})` : KIND_INFO[k].name;
+  const name = k === 'caravan' ? tr`Караван: ${FACTIONS[fac as FactionId].short}` : k === 'patrol' ? tr`Разъезд: ${FACTIONS[fac as FactionId].short}` : k === 'deserters' ? tr`Дезертиры (${FACTIONS[fac as FactionId].short})` : KIND_INFO[k].name;
   const p: MapParty = {
     id,
     kind: k,

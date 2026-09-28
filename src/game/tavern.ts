@@ -5,6 +5,7 @@ import { TROOPS } from '../data/troops';
 import { addTroops } from './logic';
 import type { GameState } from './state';
 import { world, type Settlement } from './world';
+import { tr } from '../i18n';
 
 /** Какие наёмники водятся в тавернах разных держав. */
 const MERC_POOL: Record<string, string[]> = {
@@ -53,7 +54,7 @@ export function companionRumors(state: GameState, s: Settlement): string[] {
     const town = world.byId.get(cs.where);
     const def = COMPANION_BY_ID[cs.id];
     if (!town || !def) continue;
-    out.push(`Говорят, в таверне города ${town.name} сидит ${def.name} (${def.title}) и ищет службы.`);
+    out.push(tr`Говорят, в таверне города ${town.name} сидит ${def.name} (${def.title}) и ищет службы.`);
   }
   return out;
 }

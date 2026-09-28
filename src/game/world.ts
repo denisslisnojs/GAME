@@ -5,6 +5,7 @@ import { BASE_SETTLEMENTS, VILLAGE_NAMES, type SettlementDef } from '../data/set
 import { cellCenterWorld, geoToCell } from '../map/geo';
 import { T, type MapData } from '../map/terrain';
 import { mulberry32 } from '../util/rng';
+import { tr } from '../i18n';
 
 export interface Settlement extends SettlementDef {
   cx: number;
@@ -151,7 +152,7 @@ export function buildWorld(map: MapData) {
         y: p.y,
         goods: produce,
         villages: [],
-        about: `Деревня, приписанная к ${parent.type === 'town' ? 'городу' : 'замку'} ${parent.name}.`,
+        about: tr`Деревня, приписанная к ${parent.type === 'town' ? tr('городу') : tr('замку')} ${parent.name}.`,
       });
       parent.villages.push(id);
     }

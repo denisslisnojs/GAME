@@ -12,11 +12,12 @@ import { canTurnIn, fiefIncome, questProgress } from '../game/quests';
 import { mergeTroops } from '../game/war';
 import { FACTIONS } from '../data/factions';
 import { btn, h, img, openModal, panel, plural } from './dom';
+import { lc, tr } from '../i18n';
 
 const FORMATIONS: { id: Formation; name: string; hint: string }[] = [
-  { id: 'classic', name: 'Классика', hint: 'Пехота впереди, стрелки за ней, конница сзади' },
-  { id: 'archers_front', name: 'Стрелки вперёд', hint: 'Стрелки открывают бой, пехота прикрывает' },
-  { id: 'cav_charge', name: 'Конный удар', hint: 'Конница первой врезается во врага' },
+  { id: 'classic', name: tr('Классика'), hint: tr('Пехота впереди, стрелки за ней, конница сзади') },
+  { id: 'archers_front', name: tr('Стрелки вперёд'), hint: tr('Стрелки открывают бой, пехота прикрывает') },
+  { id: 'cav_charge', name: tr('Конный удар'), hint: tr('Конница первой врезается во врага') },
 ];
 
 let lastFormation: Formation = 'classic';
@@ -31,10 +32,10 @@ export interface DuelMods {
 
 function armyList(troops: { id: string; count: number }[], heroName?: string, heroFaction?: string, heroPortrait?: string) {
   const box = h('div', { class: 'army-list' });
-  if (heroName && heroFaction) box.append(h('div', { class: 'row' }, img(heroPortrait ?? portraitURL(`${heroFaction}_c3m`)), h('span', { class: 'gold' }, heroName), h('span', { class: 'muted' }, 'герой')));
+  if (heroName && heroFaction) box.append(h('div', { class: 'row' }, img(heroPortrait ?? portraitURL(`${heroFaction}_c3m`)), h('span', { class: 'gold' }, heroName), h('span', { class: 'muted' }, tr('герой'))));
   const sorted = [...troops].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier);
   for (const t of sorted.slice(0, 7)) box.append(h('div', { class: 'row' }, img(portraitURL(t.id)), h('span', {}, TROOPS[t.id].name), h('span', { class: 'muted' }, `×${t.count}`)));
-  if (sorted.length > 7) box.append(h('div', { class: 'muted' }, `и ещё ${sorted.length - 7} ${plural(sorted.length - 7, 'отряд', 'отряда', 'отрядов')}`));
+  if (sorted.length > 7) box.append(h('div', { class: 'muted' }, tr`и ещё ${sorted.length - 7} ${plural(sorted.length - 7, tr('отряд'), tr('отряда'), tr('отрядов'))}`));
   return box;
 }
 
@@ -53,7 +54,7 @@ export function openEncounter(
   const theirs = strength(party.troops) + strength(otherTroops);
   const pct = Math.round((mine / (mine + theirs)) * 100);
   const count = (list: { count: number }[]) => list.reduce((s, t) => s + t.count, 0);
-  const verdict = pct > 70 ? 'Лёгкая добыча' : pct > 55 ? 'Перевес на нашей стороне' : pct > 45 ? 'Силы равны' : pct > 30 ? 'Враг сильнее' : 'Смертельно опасно';
+  const verdict = pct > 70 ? tr('Лёгкая добыча') : pct > 55 ? tr('Перевес на нашей стороне') : pct > 45 ? tr('Силы равны') : pct > 30 ? tr('Враг сильнее') : tr('Смертельно опасно');
 
   let formation = lastFormation;
   const fButtons = new Map<Formation, HTMLButtonElement>();
@@ -77,40 +78,40 @@ export function openEncounter(
       'div',
       { class: 'head' },
       party.faction !== 'outlaw' ? img(emblemURL(party.faction), 'px', 'width:32px;height:36px') : null,
-      h('div', {}, h('h2', { class: 'title' }, party.name), h('div', { class: 'muted', style: 'font-size:13px' }, attackedByThem ? 'Враг нападает на ваш отряд!' : 'Вы настигли врага.')),
+      h('div', {}, h('h2', { class: 'title' }, party.name), h('div', { class: 'muted', style: 'font-size:13px' }, attackedByThem ? tr('Враг нападает на ваш отряд!') : tr('Вы настигли врага.'))),
     ),
     h(
       'div',
       { class: 'body col' },
       h('div', { class: 'muted', style: 'font-size:13px' }, KIND_INFO[party.kind].about),
-      extra.ambush ? h('div', { style: 'color:#e07a6a;font-size:13px' }, 'Засада! Разбойники выскочили из чащи — строй не успел сомкнуться.') : null,
-      mods ? h('div', { style: `color:${mods.won ? '#7ad06a' : '#e07a6a'};font-size:13px` }, mods.won ? 'Вы победили в поединке: враг пал духом, ваши воины ликуют.' : 'Вы проиграли поединок: герой изранен, воины приуныли.') : null,
-      extra.allies.length ? h('div', { style: 'color:#7ad06a;font-size:13px' }, `На вашей стороне: ${extra.allies.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
-      extra.others.length ? h('div', { style: 'color:#e07a6a;font-size:13px' }, `К врагу подходят: ${extra.others.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
+      extra.ambush ? h('div', { style: 'color:#e07a6a;font-size:13px' }, tr('Засада! Разбойники выскочили из чащи — строй не успел сомкнуться.')) : null,
+      mods ? h('div', { style: `color:${mods.won ? '#7ad06a' : '#e07a6a'};font-size:13px` }, mods.won ? tr('Вы победили в поединке: враг пал духом, ваши воины ликуют.') : tr('Вы проиграли поединок: герой изранен, воины приуныли.')) : null,
+      extra.allies.length ? h('div', { style: 'color:#7ad06a;font-size:13px' }, tr`На вашей стороне: ${extra.allies.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
+      extra.others.length ? h('div', { style: 'color:#e07a6a;font-size:13px' }, tr`К врагу подходят: ${extra.others.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
       h(
         'div',
         { class: 'versus' },
-        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Ваш отряд · ${count(state.party.troops) + 1 + count(allyTroops)}`), armyList(state.party.troops, state.hero.name, state.hero.faction, heroPortraitURL(state))),
+        h('div', { class: 'col' }, h('div', { class: 'col-title' }, tr`Ваш отряд · ${count(state.party.troops) + 1 + count(allyTroops)}`), armyList(state.party.troops, state.hero.name, state.hero.faction, heroPortraitURL(state))),
         h('div', { class: 'vs' }, 'VS'),
         h('div', { class: 'col' }, h('div', { class: 'col-title' }, `${party.name} · ${count(party.troops) + count(otherTroops)}`), armyList(mergeTroops([party.troops, otherTroops]))),
       ),
       h(
         'div',
         { class: 'col', style: 'gap:3px' },
-        h('div', { class: 'row', style: 'justify-content:space-between;font-size:13px' }, h('span', {}, 'Соотношение сил'), h('b', {}, verdict)),
+        h('div', { class: 'row', style: 'justify-content:space-between;font-size:13px' }, h('span', {}, tr('Соотношение сил')), h('b', {}, verdict)),
         h('div', { class: 'power' }, h('div', { style: `width:${pct}%;background:#5aa04a` }), h('div', { style: `width:${100 - pct}%;background:#c24040` })),
       ),
     ),
     h(
       'div',
       { class: 'row', style: 'justify-content:flex-end;flex-wrap:wrap;gap:6px' },
-      h('span', { class: 'col-title', style: 'margin:0' }, 'Построение:'),
+      h('span', { class: 'col-title', style: 'margin:0' }, tr('Построение:')),
       fBox,
       h('div', { class: 'grow' }),
-      btn('Отступить', () => { close(); on.retreat(); }, 'ghost', false, fast ? 'Враг быстрее: арьергард понесёт потери' : 'Уйти без боя'),
-      on.duel && !mods ? btn('Вызвать на поединок', () => { close(); on.duel!(); }, '', false, 'Один на один с вожаком: победа сломит дух врага') : null,
-      btn('Автобой', () => { close(); on.auto(formation, mods); }),
-      btn('В бой!', () => { close(); on.fight(formation, mods); }, 'primary'),
+      btn(tr('Отступить'), () => { close(); on.retreat(); }, 'ghost', false, fast ? tr('Враг быстрее: арьергард понесёт потери') : tr('Уйти без боя')),
+      on.duel && !mods ? btn(tr('Вызвать на поединок'), () => { close(); on.duel!(); }, '', false, tr('Один на один с вожаком: победа сломит дух врага')) : null,
+      btn(tr('Автобой'), () => { close(); on.auto(formation, mods); }),
+      btn(tr('В бой!'), () => { close(); on.fight(formation, mods); }, 'primary'),
     ),
   );
   close = openModal(content, { closeOnBack: false });
@@ -119,50 +120,50 @@ export function openEncounter(
 export function openBattleResult(state: GameState, r: AppliedResult, enemyName: string, onClose: () => void) {
   let close = () => {};
   const losses = h('div', { class: 'army-list' });
-  if (!r.ourLosses.length) losses.append(h('div', { class: 'muted' }, 'Без потерь'));
+  if (!r.ourLosses.length) losses.append(h('div', { class: 'muted' }, tr('Без потерь')));
   for (const l of r.ourLosses) {
     losses.append(
-      h('div', { class: 'row' }, img(portraitURL(l.id)), h('span', {}, TROOPS[l.id].name), l.killed ? h('span', { style: 'color:#e07a6a' }, `пали: ${l.killed}`) : null, l.wounded ? h('span', { class: 'muted' }, `ранены: ${l.wounded}`) : null),
+      h('div', { class: 'row' }, img(portraitURL(l.id)), h('span', {}, TROOPS[l.id].name), l.killed ? h('span', { style: 'color:#e07a6a' }, tr`пали: ${l.killed}`) : null, l.wounded ? h('span', { class: 'muted' }, tr`ранены: ${l.wounded}`) : null),
     );
   }
   const loot = h('div', { class: 'army-list' });
   if (r.won) {
-    loot.append(h('div', { class: 'row' }, h('span', { class: 'gold' }, `+${r.gold} ¤`), h('span', { class: 'muted' }, 'золото')));
+    loot.append(h('div', { class: 'row' }, h('span', { class: 'gold' }, `+${r.gold} ¤`), h('span', { class: 'muted' }, tr('золото'))));
     for (const id of r.items) {
       const it = ITEMS[id];
-      loot.append(h('div', { class: 'row' }, img(itemIconURL(it, state.hero.faction)), h('span', { class: 'gold' }, it.name), h('span', { class: 'muted' }, 'в сумке')));
+      loot.append(h('div', { class: 'row' }, img(itemIconURL(it, state.hero.faction)), h('span', { class: 'gold' }, it.name), h('span', { class: 'muted' }, tr('в сумке'))));
     }
     for (const [g, n] of Object.entries(r.goods) as [GoodId, number][]) {
       loot.append(h('div', { class: 'row' }, h('div', { class: 'good-icon', style: `background:${GOODS[g].color}` }), h('span', {}, GOODS[g].name), h('span', { class: 'muted' }, `×${n}`)));
     }
-    if (r.prisoners) loot.append(h('div', { class: 'row' }, h('span', {}, `Пленные: ${r.prisoners}`), h('span', { class: 'muted' }, 'продать или завербовать')));
+    if (r.prisoners) loot.append(h('div', { class: 'row' }, h('span', {}, tr`Пленные: ${r.prisoners}`), h('span', { class: 'muted' }, tr('продать или завербовать'))));
   } else {
-    if (r.captiveDays) loot.append(h('div', { style: 'color:#e07a6a' }, `Вас взяли в плен! Лишь через ${r.captiveDays} дн. удалось бежать. Пленные разбежались.`));
-    loot.append(h('div', { style: 'color:#e07a6a' }, `Потеряно золота: ${r.lostGold} ¤`));
-    loot.append(h('div', { class: 'muted' }, `Отряд отступил к: ${r.respawnAt}`));
+    if (r.captiveDays) loot.append(h('div', { style: 'color:#e07a6a' }, tr`Вас взяли в плен! Лишь через ${r.captiveDays} дн. удалось бежать. Пленные разбежались.`));
+    loot.append(h('div', { style: 'color:#e07a6a' }, tr`Потеряно золота: ${r.lostGold} ¤`));
+    loot.append(h('div', { class: 'muted' }, tr`Отряд отступил к: ${r.respawnAt}`));
   }
   const xp = h(
     'div',
     { class: 'army-list' },
-    h('div', {}, `Опыт героя: +${r.heroXp}`, r.levelUp ? h('b', { class: 'gold' }, ` · новый уровень ${state.hero.level}! +${r.levelUp * 2} очка характеристик и +${r.levelUp} умений`) : ''),
-    h('div', { class: 'muted' }, `До следующего уровня: ${heroXpToLevel(state.hero.level) - state.hero.xp}`),
-    h('div', {}, `Опыт отряда: +${r.troopXp}`),
-    r.heroWounded ? h('div', { style: 'color:#e07a6a' }, 'Герой ранен в бою, но выжил.') : null,
+    h('div', {}, tr`Опыт героя: +${r.heroXp}`, r.levelUp ? h('b', { class: 'gold' }, tr` · новый уровень ${state.hero.level}! +${r.levelUp * 2} очка характеристик и +${r.levelUp} умений`) : ''),
+    h('div', { class: 'muted' }, tr`До следующего уровня: ${heroXpToLevel(state.hero.level) - state.hero.xp}`),
+    h('div', {}, tr`Опыт отряда: +${r.troopXp}`),
+    r.heroWounded ? h('div', { style: 'color:#e07a6a' }, tr('Герой ранен в бою, но выжил.')) : null,
     ...(r.party ?? []).map((line) => h('div', { style: 'color:#c8a0e8;font-size:12.5px' }, line)),
   );
   const content = panel(
     'modal wide',
-    h('div', { class: `result-title ${r.won ? 'win' : 'lose'}` }, r.won ? 'Победа!' : 'Поражение'),
-    h('div', { class: 'muted', style: 'text-align:center' }, r.won ? `${enemyName}: перебито ${r.enemyKilled} из ${r.enemyTotal}` : `Враг взял верх (${enemyName}).`),
+    h('div', { class: `result-title ${r.won ? 'win' : 'lose'}` }, r.won ? tr('Победа!') : tr('Поражение')),
+    h('div', { class: 'muted', style: 'text-align:center' }, r.won ? tr`${enemyName}: перебито ${r.enemyKilled} из ${r.enemyTotal}` : tr`Враг взял верх (${enemyName}).`),
     r.headline ? h('div', { class: 'gold', style: 'text-align:center;font-size:17px;margin:4px 0' }, r.headline) : null,
     h(
       'div',
       { class: 'body', style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px' },
-      h('div', { class: 'col' }, h('div', { class: 'col-title' }, 'Наши потери'), losses),
-      h('div', { class: 'col' }, h('div', { class: 'col-title' }, r.won ? 'Трофеи' : 'Итог'), loot),
-      h('div', { class: 'col' }, h('div', { class: 'col-title' }, 'Опыт'), xp),
+      h('div', { class: 'col' }, h('div', { class: 'col-title' }, tr('Наши потери')), losses),
+      h('div', { class: 'col' }, h('div', { class: 'col-title' }, r.won ? tr('Трофеи') : tr('Итог')), loot),
+      h('div', { class: 'col' }, h('div', { class: 'col-title' }, tr('Опыт')), xp),
     ),
-    h('div', { class: 'row', style: 'justify-content:flex-end' }, btn('Продолжить', () => close(), 'primary')),
+    h('div', { class: 'row', style: 'justify-content:flex-end' }, btn(tr('Продолжить'), () => close(), 'primary')),
   );
   close = openModal(content, { closeOnBack: false, onClose });
 }
@@ -191,36 +192,36 @@ export function openSiegeDialog(
   const theirs = strength(merged) * 1.35; // стены удваивают стойкость
   const pct = Math.round((mine / (mine + theirs)) * 100);
   const count = (list: { count: number }[]) => list.reduce((a, t) => a + t.count, 0);
-  const verdict = pct > 65 ? 'Крепость падёт' : pct > 52 ? 'Шансы на нашей стороне' : pct > 42 ? 'Тяжёлый штурм' : 'Стены неприступны для такого войска';
+  const verdict = pct > 65 ? tr('Крепость падёт') : pct > 52 ? tr('Шансы на нашей стороне') : pct > 42 ? tr('Тяжёлый штурм') : tr('Стены неприступны для такого войска');
   const content = panel(
     'modal wide',
-    h('div', { class: 'head' }, img(emblemURL(owner), 'px', 'width:32px;height:36px'), h('div', {}, h('h2', { class: 'title' }, `Осада: ${s.name}`), h('div', { class: 'muted', style: 'font-size:13px' }, `${s.type === 'town' ? 'Город' : 'Замок'} · ${FACTIONS[owner].name}`)), btn('✕', () => close(), 'small close')),
+    h('div', { class: 'head' }, img(emblemURL(owner), 'px', 'width:32px;height:36px'), h('div', {}, h('h2', { class: 'title' }, tr`Осада: ${s.name}`), h('div', { class: 'muted', style: 'font-size:13px' }, `${s.type === 'town' ? tr('Город') : tr('Замок')} · ${FACTIONS[owner].name}`)), btn('✕', () => close(), 'small close')),
     h(
       'div',
       { class: 'body col' },
-      h('div', { class: 'muted', style: 'font-size:13px' }, 'Лучники на стенах бьют дальше и укрыты зубцами. Пока пехота держит ворота, на стены не взобраться. Взятая крепость отойдёт вашему государю.'),
-      lords.length ? h('div', { style: 'color:#e07a6a;font-size:13px' }, `В крепости укрылись: ${lords.map((l) => l.name).join(', ')}`) : null,
-      allies.length ? h('div', { style: 'color:#7ad06a;font-size:13px' }, `С вами на штурм идут: ${allies.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
+      h('div', { class: 'muted', style: 'font-size:13px' }, tr('Лучники на стенах бьют дальше и укрыты зубцами. Пока пехота держит ворота, на стены не взобраться. Взятая крепость отойдёт вашему государю.')),
+      lords.length ? h('div', { style: 'color:#e07a6a;font-size:13px' }, tr`В крепости укрылись: ${lords.map((l) => l.name).join(', ')}`) : null,
+      allies.length ? h('div', { style: 'color:#7ad06a;font-size:13px' }, tr`С вами на штурм идут: ${allies.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
       h(
         'div',
         { class: 'versus' },
-        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Ваш отряд · ${count(state.party.troops) + 1 + count(allyTroops)}`), armyList(state.party.troops, state.hero.name, state.hero.faction, heroPortraitURL(state))),
+        h('div', { class: 'col' }, h('div', { class: 'col-title' }, tr`Ваш отряд · ${count(state.party.troops) + 1 + count(allyTroops)}`), armyList(state.party.troops, state.hero.name, state.hero.faction, heroPortraitURL(state))),
         h('div', { class: 'vs' }, 'VS'),
-        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Защитники · ${count(merged)}`), armyList(merged)),
+        h('div', { class: 'col' }, h('div', { class: 'col-title' }, tr`Защитники · ${count(merged)}`), armyList(merged)),
       ),
       h(
         'div',
         { class: 'col', style: 'gap:3px' },
-        h('div', { class: 'row', style: 'justify-content:space-between;font-size:13px' }, h('span', {}, 'Соотношение сил (с учётом стен)'), h('b', {}, verdict)),
+        h('div', { class: 'row', style: 'justify-content:space-between;font-size:13px' }, h('span', {}, tr('Соотношение сил (с учётом стен)')), h('b', {}, verdict)),
         h('div', { class: 'power' }, h('div', { style: `width:${pct}%;background:#5aa04a` }), h('div', { style: `width:${100 - pct}%;background:#c24040` })),
       ),
     ),
     h(
       'div',
       { class: 'row', style: 'justify-content:flex-end;gap:6px' },
-      btn('Отойти', () => close(), 'ghost'),
-      btn('Автобой', () => { close(); on.auto(); }),
-      btn('На штурм!', () => { close(); on.assault(); }, 'primary'),
+      btn(tr('Отойти'), () => close(), 'ghost'),
+      btn(tr('Автобой'), () => { close(); on.auto(); }),
+      btn(tr('На штурм!'), () => { close(); on.assault(); }, 'primary'),
     ),
   );
   close = openModal(content, { closeOnBack: false });
@@ -235,27 +236,27 @@ export function openChronicle(state: GameState) {
   const list = h('div', { class: 'list' });
   const quests = state.quests ?? [];
   if (quests.length || state.fiefs?.length) {
-    const qb = h('div', { class: 'col', style: 'gap:4px;margin-bottom:8px' }, h('div', { class: 'col-title' }, 'Поручения'));
-    if (!quests.length) qb.append(h('div', { class: 'muted' }, 'Нет поручений.'));
+    const qb = h('div', { class: 'col', style: 'gap:4px;margin-bottom:8px' }, h('div', { class: 'col-title' }, tr('Поручения')));
+    if (!quests.length) qb.append(h('div', { class: 'muted' }, tr('Нет поручений.')));
     for (const q of quests) {
       qb.append(
         h(
           'div',
           { class: 'item', style: 'padding:5px 8px;flex-direction:column;align-items:flex-start;gap:2px' },
           h('div', {}, h('b', { class: canTurnIn(state, q) ? 'gold' : '' }, q.title), h('span', { class: 'muted' }, ` · ${q.giverName}, ${world.byId.get(q.from)?.name}`)),
-          h('div', { class: 'muted', style: 'font-size:12.5px' }, `${questProgress(state, q)} · осталось ${Math.max(0, Math.ceil(q.deadline - state.time))} дн. · награда ${q.reward} ¤`),
+          h('div', { class: 'muted', style: 'font-size:12.5px' }, tr`${questProgress(state, q)} · осталось ${Math.max(0, Math.ceil(q.deadline - state.time))} дн. · награда ${q.reward} ¤`),
         ),
       );
     }
-    if (state.fiefs?.length) qb.append(h('div', { class: 'col-title', style: 'margin-top:6px' }, 'Удел'), h('div', {}, `${state.fiefs.map((id) => world.byId.get(id)?.name).join(', ')} · доход ${fiefIncome(state)} ¤ в неделю`));
-    list.append(qb, h('div', { class: 'col-title' }, 'Летопись'));
+    if (state.fiefs?.length) qb.append(h('div', { class: 'col-title', style: 'margin-top:6px' }, tr('Удел')), h('div', {}, tr`${state.fiefs.map((id) => world.byId.get(id)?.name).join(', ')} · доход ${fiefIncome(state)} ¤ в неделю`));
+    list.append(qb, h('div', { class: 'col-title' }, tr('Летопись')));
   }
   const items = state.war?.news ?? [];
-  if (!items.length) list.append(h('div', { class: 'muted' }, 'Пока всё спокойно.'));
+  if (!items.length) list.append(h('div', { class: 'muted' }, tr('Пока всё спокойно.')));
   for (const n of items) {
     list.append(h('div', { class: 'item', style: 'padding:5px 8px' }, h('span', { class: 'muted', style: 'min-width:120px;font-size:12px' }, dateString(n.t)), h('span', { style: `color:${NEWS_COLOR[n.kind] ?? 'inherit'}` }, n.text)));
   }
-  const content = panel('modal', h('div', { class: 'head' }, h('h2', { class: 'title' }, 'Хроника'), btn('✕', () => close(), 'small close')), h('div', { class: 'body' }, list));
+  const content = panel('modal', h('div', { class: 'head' }, h('h2', { class: 'title' }, tr('Хроника')), btn('✕', () => close(), 'small close')), h('div', { class: 'body' }, list));
   close = openModal(content);
 }
 
@@ -267,7 +268,7 @@ export function openOutcome(state: GameState, kind: 'victory' | 'defeat', onCont
   const st = state.stats ?? { won: 0, lost: 0, killed: 0 };
   const content = panel(
     'modal',
-    h('div', { class: `result-title ${kind === 'victory' ? 'win' : 'lose'}` }, kind === 'victory' ? 'Евразия объединена!' : 'Держава пала'),
+    h('div', { class: `result-title ${kind === 'victory' ? 'win' : 'lose'}` }, kind === 'victory' ? tr('Евразия объединена!') : tr('Держава пала')),
     h(
       'div',
       { class: 'body col', style: 'text-align:center' },
@@ -275,12 +276,12 @@ export function openOutcome(state: GameState, kind: 'victory' | 'defeat', onCont
         'p',
         {},
         kind === 'victory'
-          ? `Все города и замки от Лиссабона до Ханбалыка подвластны ${f.rulerTitle.toLowerCase()}у ${f.ruler}. Имя ${state.hero.name} навеки в летописях.`
-          : `${f.name} больше не существует. ${state.hero.name} скитается без сюзерена.`,
+          ? tr`Все города и замки от Лиссабона до Ханбалыка подвластны ${lc(f.rulerTitle)}у ${f.ruler}. Имя ${state.hero.name} навеки в летописях.`
+          : tr`${f.name} больше не существует. ${state.hero.name} скитается без сюзерена.`,
       ),
-      h('p', { class: 'muted' }, `${dateString(state.time)} · побед: ${st.won} · поражений: ${st.lost} · сражено врагов: ${st.killed} · взято крепостей: ${st.captured ?? 0} · уровень героя: ${state.hero.level}`),
+      h('p', { class: 'muted' }, tr`${dateString(state.time)} · побед: ${st.won} · поражений: ${st.lost} · сражено врагов: ${st.killed} · взято крепостей: ${st.captured ?? 0} · уровень героя: ${state.hero.level}`),
     ),
-    h('div', { class: 'row', style: 'justify-content:center;gap:8px' }, btn('Продолжить странствия', () => { close(); onContinue(); }), btn('В главное меню', () => { close(); onMenu(); }, 'primary')),
+    h('div', { class: 'row', style: 'justify-content:center;gap:8px' }, btn(tr('Продолжить странствия'), () => { close(); onContinue(); }), btn(tr('В главное меню'), () => { close(); onMenu(); }, 'primary')),
   );
   close = openModal(content, { closeOnBack: false });
 }

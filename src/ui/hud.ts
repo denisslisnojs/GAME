@@ -4,6 +4,7 @@ import { partySize, totalReady } from '../game/logic';
 import { dateString, timeOfDay, type GameState } from '../game/state';
 import { btn, h, uiRoot } from './dom';
 import { TUTORIAL, tutorialStep } from '../game/tutorial';
+import { tr } from '../i18n';
 
 export interface HudActions {
   toggleWait(): void;
@@ -40,10 +41,10 @@ export class Hud {
 
   constructor(state: GameState, a: HudActions) {
     const f = FACTIONS[state.hero.faction];
-    this.waitBtn = btn('⌛ Ждать', () => a.toggleWait(), '', false, 'Ждать на месте: время идёт (пробел)');
-    this.speedBtn = btn('×1', () => a.cycleSpeed(), 'small', false, 'Скорость времени');
-    this.partyBtn = btn('Отряд', () => a.openParty());
-    this.tut = h('div', { class: 'tut-card' }, this.tutText, btn('✕', () => a.skipTutorial(), 'small ghost', false, 'Пропустить обучение'));
+    this.waitBtn = btn(tr('⌛ Ждать'), () => a.toggleWait(), '', false, tr('Ждать на месте: время идёт (пробел)'));
+    this.speedBtn = btn('×1', () => a.cycleSpeed(), 'small', false, tr('Скорость времени'));
+    this.partyBtn = btn(tr('Отряд'), () => a.openParty());
+    this.tut = h('div', { class: 'tut-card' }, this.tutText, btn('✕', () => a.skipTutorial(), 'small ghost', false, tr('Пропустить обучение')));
     this.partyBtn.append(this.partyBadge);
     this.root = h(
       'div',
@@ -54,7 +55,7 @@ export class Hud {
         { class: 'hud-top' },
         h(
           'div',
-          { class: 'hud-box', onclick: () => a.openHero(), style: 'cursor:pointer', title: 'Герой и снаряжение' },
+          { class: 'hud-box', onclick: () => a.openHero(), style: 'cursor:pointer', title: tr('Герой и снаряжение') },
           this.heroImg,
           h('div', { class: 'col', style: 'gap:0' }, h('span', {}, state.hero.name, this.heroBadge), h('span', { class: 'muted small', style: `color:${f.css}` }, this.heroLine)),
         ),
@@ -68,11 +69,11 @@ export class Hud {
         h(
           'div',
           { class: 'hud-group' },
-          btn('◎', () => a.centerParty(), 'icon', false, 'К отряду'),
+          btn('◎', () => a.centerParty(), 'icon', false, tr('К отряду')),
           this.partyBtn,
-          btn('Хроника', () => a.openChronicle()),
-          btn('Державы', () => a.openRealms()),
-          btn('☰', () => a.openMenu(), 'icon', false, 'Меню'),
+          btn(tr('Хроника'), () => a.openChronicle()),
+          btn(tr('Державы'), () => a.openRealms()),
+          btn('☰', () => a.openMenu(), 'icon', false, tr('Меню')),
         ),
       ),
       this.feed,
@@ -84,21 +85,21 @@ export class Hud {
     this.date.textContent = `${dateString(state.time)}, ${timeOfDay(state.time)}`;
     this.gold.textContent = `${state.gold} ¤`;
     this.men.textContent = `${partySize(state)} ⚔`;
-    this.terrain.textContent = flow === 'still' ? `${terrain} · время стоит` : terrain;
+    this.terrain.textContent = flow === 'still' ? tr`${terrain} · время стоит` : terrain;
     const pts = state.hero.points ?? 0;
     this.heroBadge.textContent = pts ? `+${pts}` : '';
     this.heroBadge.style.display = pts ? '' : 'none';
-    this.heroLine.textContent = `${FACTIONS[state.hero.faction].short} · ур. ${state.hero.level}`;
+    this.heroLine.textContent = tr`${FACTIONS[state.hero.faction].short} · ур. ${state.hero.level}`;
     const portrait = heroPortraitURL(state);
     if (this.heroImg.src !== portrait) this.heroImg.src = portrait;
     const ready = totalReady(state);
     this.partyBadge.textContent = ready ? `↑${ready}` : '';
     this.partyBadge.style.display = ready ? '' : 'none';
-    this.waitBtn.textContent = flow === 'wait' ? '■ Стоп' : '⌛ Ждать';
+    this.waitBtn.textContent = flow === 'wait' ? tr('■ Стоп') : tr('⌛ Ждать');
     const step = tutorialStep(state);
     this.tut.style.display = step ? '' : 'none';
     if (step) {
-      const txt = `Обучение ${(state.tutorial?.step ?? 0) + 1}/${TUTORIAL.length}: ${step.text} (+${step.reward} ¤)`;
+      const txt = tr`Обучение ${(state.tutorial?.step ?? 0) + 1}/${TUTORIAL.length}: ${step.text} (+${step.reward} ¤)`;
       if (this.tutText.textContent !== txt) this.tutText.textContent = txt;
     }
     this.waitBtn.classList.toggle('active', flow === 'wait');

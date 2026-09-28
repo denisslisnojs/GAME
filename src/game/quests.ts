@@ -12,6 +12,7 @@ import { KIND_INFO, spawn, type MapParty } from './parties';
 import type { GameState } from './state';
 import { activeLords, isLooted, news } from './war';
 import { world, type Settlement } from './world';
+import { tr } from '../i18n';
 
 export type QuestKind = 'bandits' | 'deliver' | 'raid' | 'troops' | 'hunt';
 
@@ -47,9 +48,9 @@ export interface Host {
   present: boolean;
 }
 
-const ELDER_NAMES = ['Микула', 'Ганс', 'Бьорн', 'Ахмад', 'Тимур', 'Петро', 'Ульф', 'Хасан', 'Йозеф', 'Карим', 'Всеслав', 'Эрик', 'Бату', 'Юсуф', 'Лука', 'Свен'];
-const CASTELLANS = ['Отто', 'Гуннар', 'Сартак', 'Масуд', 'Вильгельм', 'Торвальд', 'Кутлуг', 'Идрис', 'Райнер', 'Асгейр', 'Ильхан', 'Фарук'];
-const BANDIT_CHIEFS = ['Рябого', 'Кривого Яна', 'Чёрного Лиса', 'Безухого', 'Косого Юргена', 'Волчьей Пасти', 'Сиплого', 'Хромого Азиза', 'Рыжей Марты', 'Одноглазого'];
+const ELDER_NAMES = [tr('Микула'), tr('Ганс'), tr('Бьорн'), tr('Ахмад'), tr('Тимур'), tr('Петро'), tr('Ульф'), tr('Хасан'), tr('Йозеф'), tr('Карим'), tr('Всеслав'), tr('Эрик'), tr('Бату'), tr('Юсуф'), tr('Лука'), tr('Свен')];
+const CASTELLANS = [tr('Отто'), tr('Гуннар'), tr('Сартак'), tr('Масуд'), tr('Вильгельм'), tr('Торвальд'), tr('Кутлуг'), tr('Идрис'), tr('Райнер'), tr('Асгейр'), tr('Ильхан'), tr('Фарук')];
+const BANDIT_CHIEFS = [tr('Рябого'), tr('Кривого Яна'), tr('Чёрного Лиса'), tr('Безухого'), tr('Косого Юргена'), tr('Волчьей Пасти'), tr('Сиплого'), tr('Хромого Азиза'), tr('Рыжей Марты'), tr('Одноглазого')];
 
 function hashStr(s: string): number {
   let h = 2166136261;
@@ -67,12 +68,12 @@ export function addRelation(state: GameState, key: string, d: number) {
 }
 
 export function relationWord(v: number): string {
-  if (v >= 60) return 'верный друг';
-  if (v >= 30) return 'дружелюбен';
-  if (v >= 10) return 'благосклонен';
-  if (v > -10) return 'нейтрален';
-  if (v > -30) return 'холоден';
-  return 'враждебен';
+  if (v >= 60) return tr('верный друг');
+  if (v >= 30) return tr('дружелюбен');
+  if (v >= 10) return tr('благосклонен');
+  if (v > -10) return tr('нейтрален');
+  if (v > -30) return tr('холоден');
+  return tr('враждебен');
 }
 
 /** Кто принимает героя в поселении. */
@@ -80,7 +81,7 @@ export function hostOf(state: GameState, s: Settlement): Host {
   const owner = state.settlements[s.id].owner;
   if (s.type === 'village') {
     const n = ELDER_NAMES[hashStr(s.id) % ELDER_NAMES.length];
-    return { key: `elder:${s.id}`, name: `Староста ${n}`, rank: 0, faction: owner, present: true };
+    return { key: `elder:${s.id}`, name: tr`Староста ${n}`, rank: 0, faction: owner, present: true };
   }
   const lords = (state.lords ?? []).filter((l) => l.faction === owner);
   const ruler = FACTIONS[owner].capital === s.id ? lords.find((l) => l.lord!.rank === 3) : undefined;
@@ -90,7 +91,7 @@ export function hostOf(state: GameState, s: Settlement): Host {
     return { key: `lord:${lord.lord!.name}`, name: lord.name, rank: lord.lord!.rank, faction: owner, lord, present };
   }
   const n = CASTELLANS[hashStr(s.id) % CASTELLANS.length];
-  return { key: `cast:${s.id}`, name: `Кастелян ${n}`, rank: 1, faction: owner, present: true };
+  return { key: `cast:${s.id}`, name: tr`Кастелян ${n}`, rank: 1, faction: owner, present: true };
 }
 
 export function questsOf(state: GameState, key: string): Quest[] {
@@ -133,8 +134,8 @@ export function offerQuest(state: GameState, s: Settlement, host: Host): Quest |
       return {
         ...base,
         kind,
-        title: `Шайка ${chief}`,
-        text: `Шайка ${chief} грабит дороги в здешних краях. Найдите и разбейте её — она рыщет неподалёку.`,
+        title: tr`Шайка ${chief}`,
+        text: tr`Шайка ${chief} грабит дороги в здешних краях. Найдите и разбейте её — она рыщет неподалёку.`,
         reward: Math.round((s.type === 'village' ? 120 : 220) * bonus),
         relation: s.type === 'village' ? 10 : 6,
         target: s.id,
@@ -147,8 +148,8 @@ export function offerQuest(state: GameState, s: Settlement, host: Host): Quest |
       return {
         ...base,
         kind,
-        title: `${GOODS[good].name} для ${s.name}`,
-        text: `Нужно ${count} ед. товара «${GOODS[good].name}». Купите на рынке и привезите сюда. Заплатим вдвое против цены.`,
+        title: tr`${GOODS[good].name} для ${s.name}`,
+        text: tr`Нужно ${count} ед. товара «${GOODS[good].name}». Купите на рынке и привезите сюда. Заплатим вдвое против цены.`,
         good,
         count,
         reward: Math.round(GOODS[good].price * count * 2 * bonus),
@@ -161,8 +162,8 @@ export function offerQuest(state: GameState, s: Settlement, host: Host): Quest |
       return {
         ...base,
         kind,
-        title: 'Пополнить гарнизон',
-        text: `Здешнему гарнизону не хватает людей. Приведите ${count} воинов не ниже ${tier}-го уровня — они останутся служить здесь.`,
+        title: tr('Пополнить гарнизон'),
+        text: tr`Здешнему гарнизону не хватает людей. Приведите ${count} воинов не ниже ${tier}-го уровня — они останутся служить здесь.`,
         tier,
         count,
         reward: Math.round(count * (tier === 2 ? 70 : 150) * bonus),
@@ -176,8 +177,8 @@ export function offerQuest(state: GameState, s: Settlement, host: Host): Quest |
       return {
         ...base,
         kind,
-        title: `Разорить ${v.name}`,
-        text: `Враг кормит своих солдат с полей деревни ${v.name} (${FACTIONS[state.settlements[v.id].owner].short}). Разорите её — пусть голодают.`,
+        title: tr`Разорить ${v.name}`,
+        text: tr`Враг кормит своих солдат с полей деревни ${v.name} (${FACTIONS[state.settlements[v.id].owner].short}). Разорите её — пусть голодают.`,
         target: v.id,
         reward: Math.round(260 * bonus),
         relation: 8,
@@ -190,8 +191,8 @@ export function offerQuest(state: GameState, s: Settlement, host: Host): Quest |
       return {
         ...base,
         kind,
-        title: `Голова врага: ${foe.lord!.name}`,
-        text: `${foe.name} (${FACTIONS[foe.faction as FactionId].short}) разоряет наши земли. Разбейте его войско в поле.`,
+        title: tr`Голова врага: ${foe.lord!.name}`,
+        text: tr`${foe.name} (${FACTIONS[foe.faction as FactionId].short}) разоряет наши земли. Разбейте его войско в поле.`,
         lordId: foe.id,
         reward: Math.round(600 * bonus),
         relation: 15,
@@ -240,15 +241,15 @@ function eligibleTroops(state: GameState, tier: number): number {
 export function questProgress(state: GameState, q: Quest): string {
   switch (q.kind) {
     case 'deliver':
-      return `${Math.min(q.count!, state.cargo[q.good!] ?? 0)} из ${q.count}`;
+      return tr`${Math.min(q.count!, state.cargo[q.good!] ?? 0)} из ${q.count}`;
     case 'troops':
-      return `${Math.min(q.count!, eligibleTroops(state, q.tier!))} из ${q.count}`;
+      return tr`${Math.min(q.count!, eligibleTroops(state, q.tier!))} из ${q.count}`;
     case 'bandits':
-      return q.done ? 'шайка разбита — вернитесь за наградой' : 'шайка ещё на воле';
+      return q.done ? tr('шайка разбита — вернитесь за наградой') : tr('шайка ещё на воле');
     case 'raid':
-      return q.done ? 'деревня разорена — вернитесь за наградой' : `цель: ${world.byId.get(q.target!)?.name}`;
+      return q.done ? tr('деревня разорена — вернитесь за наградой') : tr`цель: ${world.byId.get(q.target!)?.name}`;
     case 'hunt':
-      return q.done ? 'враг разбит — вернитесь за наградой' : 'враг ещё в поле';
+      return q.done ? tr('враг разбит — вернитесь за наградой') : tr('враг ещё в поле');
   }
 }
 
@@ -315,22 +316,22 @@ export function questsDaily(state: GameState): string[] {
   for (const q of [...(state.quests ?? [])]) {
     if (q.done || state.time < q.deadline) continue;
     abandonQuest(state, q);
-    out.push(`Срок поручения «${q.title}» вышел. ${q.giverName} недоволен.`);
+    out.push(tr`Срок поручения «${q.title}» вышел. ${q.giverName} недоволен.`);
   }
   // Удел: потеря при захвате и доход раз в неделю
   for (const id of [...(state.fiefs ?? [])]) {
     if (state.settlements[id].owner !== state.hero.faction) {
       state.fiefs = state.fiefs!.filter((x) => x !== id);
       const s = world.byId.get(id)!;
-      out.push(`Ваш удел ${s.name} захвачен врагом!`);
-      news(state, `${state.hero.name} потерял свой удел — ${s.name}.`, 'player');
+      out.push(tr`Ваш удел ${s.name} захвачен врагом!`);
+      news(state, tr`${state.hero.name} потерял свой удел — ${s.name}.`, 'player');
     }
   }
   if (state.fiefs?.length && Math.floor(state.time) % 7 === 0) {
     const inc = fiefIncome(state);
     if (inc > 0) {
       state.gold += inc;
-      out.push(`Доход с удела за неделю: +${inc} ¤`);
+      out.push(tr`Доход с удела за неделю: +${inc} ¤`);
     }
   }
   return out;
@@ -348,24 +349,24 @@ export function fiefIncome(state: GameState): number {
 /** Что государь может пожаловать (или почему нет). */
 export function fiefCandidate(state: GameState): { s?: Settlement; reason?: string } {
   const ruler = (state.lords ?? []).find((l) => l.faction === state.hero.faction && l.lord!.rank === 3);
-  if (!ruler) return { reason: 'Государя нет при дворе.' };
+  if (!ruler) return { reason: tr('Государя нет при дворе.') };
   const rel = relation(state, `lord:${ruler.lord!.name}`);
   const have = state.fiefs?.length ?? 0;
   const needRel = 20 + have * 25;
   const needLvl = 4 + have * 3;
-  if (state.hero.level < needLvl) return { reason: `Вы ещё мало известны при дворе (нужен уровень ${needLvl}).` };
-  if (rel < needRel) return { reason: `Государь пока не доверяет вам настолько (нужно отношение ${needRel}, сейчас ${rel}).` };
+  if (state.hero.level < needLvl) return { reason: tr`Вы ещё мало известны при дворе (нужен уровень ${needLvl}).` };
+  if (rel < needRel) return { reason: tr`Государь пока не доверяет вам настолько (нужно отношение ${needRel}, сейчас ${rel}).` };
   const f = state.hero.faction;
   const pool = world.settlements.filter((s) => s.type !== 'village' && state.settlements[s.id].owner === f && FACTIONS[f].capital !== s.id && !state.fiefs?.includes(s.id));
   const mine = pool.filter((s) => state.capturedByHero?.includes(s.id));
   const pick = mine[0] ?? pool.find((s) => s.type === 'castle') ?? pool[0];
-  if (!pick) return { reason: 'Свободных владений нет.' };
+  if (!pick) return { reason: tr('Свободных владений нет.') };
   return { s: pick };
 }
 
 export function grantFief(state: GameState, s: Settlement) {
   (state.fiefs ??= []).push(s.id);
-  news(state, `${FACTIONS[state.hero.faction].rulerTitle} жалует ${state.hero.name} удел: ${s.name}.`, 'player');
+  news(state, tr`${FACTIONS[state.hero.faction].rulerTitle} жалует ${state.hero.name} удел: ${s.name}.`, 'player');
 }
 
 export function activeEnemyLordsNear(state: GameState, s: Settlement): MapParty[] {

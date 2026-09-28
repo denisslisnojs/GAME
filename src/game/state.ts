@@ -14,6 +14,7 @@ import type { CaptiveLord } from './prisoners';
 import type { FiefState } from './fief';
 import type { Arms } from '../gfx/heraldry';
 import type { Difficulty } from './difficulty';
+import { tr } from '../i18n';
 
 export interface TroopStack {
   id: string;
@@ -246,7 +247,7 @@ export function saveGame(state: GameState) {
     localStorage.setItem(slotKey(n), JSON.stringify(state));
     localStorage.setItem(LAST_KEY, String(n));
   } catch (e) {
-    console.warn('Не удалось сохранить игру', e);
+    console.warn(tr('Не удалось сохранить игру'), e);
   }
 }
 
@@ -283,7 +284,7 @@ export function hasSave(): boolean {
 
 // ───────────────────────── календарь ─────────────────────────
 
-const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const MONTHS = [tr('января'), tr('февраля'), tr('марта'), tr('апреля'), tr('мая'), tr('июня'), tr('июля'), tr('августа'), tr('сентября'), tr('октября'), tr('ноября'), tr('декабря')];
 const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 /** Игра начинается 1 марта 1347 года. */
 const START_DAY_OF_YEAR = 31 + 28;
@@ -305,9 +306,9 @@ export function dateString(time: number): string {
 
 export function timeOfDay(time: number): string {
   const h = Math.floor((time % 1) * 24);
-  if (h < 5) return 'ночь';
-  if (h < 11) return 'утро';
-  if (h < 17) return 'день';
-  if (h < 21) return 'вечер';
-  return 'ночь';
+  if (h < 5) return tr('ночь');
+  if (h < 11) return tr('утро');
+  if (h < 17) return tr('день');
+  if (h < 21) return tr('вечер');
+  return tr('ночь');
 }

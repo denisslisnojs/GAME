@@ -3,6 +3,7 @@ import { ITEM_LIST, ITEM_SELL_RATIO, ITEMS, type Item, type Slot } from '../data
 import { mulberry32 } from '../util/rng';
 import type { GameState } from './state';
 import type { Settlement } from './world';
+import { tr } from '../i18n';
 
 export type ShopKind = 'weapons' | 'armor' | 'horses';
 
@@ -12,7 +13,7 @@ export const SHOP_SLOTS: Record<ShopKind, Slot[]> = {
   horses: ['horse'],
 };
 
-export const SHOP_NAME: Record<ShopKind, string> = { weapons: 'Оружейник', armor: 'Бронник', horses: 'Конюшня' };
+export const SHOP_NAME: Record<ShopKind, string> = { weapons: tr('Оружейник'), armor: tr('Бронник'), horses: tr('Конюшня') };
 
 /** Города-мастерские: предельный уровень товара по видам лавок. */
 const SPECIAL: Record<string, Partial<Record<ShopKind, number>>> = {

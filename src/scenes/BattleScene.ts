@@ -8,6 +8,7 @@ import type { FactionId } from '../data/factions';
 import { drawUnitSheet, FEET_Y, FRAME_H, FRAME_W, type UnitLook } from '../gfx/units';
 import { BattleHud } from '../ui/battleHud';
 import { resetHints } from '../ui/hints';
+import { tr } from '../i18n';
 
 export interface BattleSceneData {
   battle: Battle;
@@ -209,12 +210,12 @@ export class BattleScene extends Phaser.Scene {
     // Условия поля — коротко в начале боя
     const o = this.battle.opts;
     const tips: string[] = [];
-    if (o.ambush) tips.push('Засада!');
-    if (o.night && !this.cfg.arena) tips.push('Ночь: стрелки бьют вслепую');
-    if (o.ford && !this.battle.siege) tips.push('Брод: в реке все вязнут');
-    if (o.terrain === 'forest') tips.push('Лес: конница вязнет, стрелы путаются в ветвях');
-    else if (o.terrain === 'snow') tips.push('Снег: войска идут медленнее');
-    else if (o.terrain === 'dry') tips.push('Холмы: стрелки бьют дальше');
+    if (o.ambush) tips.push(tr('Засада!'));
+    if (o.night && !this.cfg.arena) tips.push(tr('Ночь: стрелки бьют вслепую'));
+    if (o.ford && !this.battle.siege) tips.push(tr('Брод: в реке все вязнут'));
+    if (o.terrain === 'forest') tips.push(tr('Лес: конница вязнет, стрелы путаются в ветвях'));
+    else if (o.terrain === 'snow') tips.push(tr('Снег: войска идут медленнее'));
+    else if (o.terrain === 'dry') tips.push(tr('Холмы: стрелки бьют дальше'));
     if (tips.length) this.time.delayedCall(500, () => this.hud.banner(tips.join(' · ')));
     if (o.ambush) sfx.play('horn');
     const front = this.battle.units.filter((u) => u.side === 0).reduce((m, u) => Math.max(m, u.x), 0);
@@ -723,17 +724,17 @@ export class BattleScene extends Phaser.Scene {
           break;
         case 'crit':
           this.burst(e.x, e.y - 40, 0xc02020, 9, 120);
-          this.floatText(e.x, e.y - 90, 'Крит!', '#ffd24a');
+          this.floatText(e.x, e.y - 90, tr('Крит!'), '#ffd24a');
           sfx.play('crit');
           break;
         case 'block':
           this.burst(e.x + 10, e.y - 45, 0xfff0b0, 5, 110);
           this.burst(e.x + 8, e.y - 40, 0x8a6a45, 3, 90); // щепки от щита
-          if (Math.random() < 0.5) this.floatText(e.x, e.y - 90, 'Блок', '#9ad0ff');
+          if (Math.random() < 0.5) this.floatText(e.x, e.y - 90, tr('Блок'), '#9ad0ff');
           sfx.play('block');
           break;
         case 'dodge':
-          if (Math.random() < 0.6) this.floatText(e.x, e.y - 90, 'Уклон', '#e8e8e8');
+          if (Math.random() < 0.6) this.floatText(e.x, e.y - 90, tr('Уклон'), '#e8e8e8');
           sfx.play('whoosh');
           break;
         case 'death':
@@ -745,22 +746,22 @@ export class BattleScene extends Phaser.Scene {
           sfx.play('bow');
           break;
         case 'charge':
-          this.floatText(e.x, e.y - 100, 'Таран!', '#ffb060');
+          this.floatText(e.x, e.y - 100, tr('Таран!'), '#ffb060');
           sfx.play('charge');
           break;
         case 'heroDown':
-          this.floatText(e.x, e.y - 110, e.side === this.battle.playerSide ? 'Герой ранен!' : 'Вожак пал!', '#ff8a6a');
+          this.floatText(e.x, e.y - 110, e.side === this.battle.playerSide ? tr('Герой ранен!') : tr('Вожак пал!'), '#ff8a6a');
           break;
         case 'rout':
-          this.hud.banner(e.side === this.battle.playerSide ? 'Ваши воины бегут!' : 'Враг бежит!');
+          this.hud.banner(e.side === this.battle.playerSide ? tr('Ваши воины бегут!') : tr('Враг бежит!'));
           sfx.play('horn');
           break;
         case 'cry':
-          this.hud.banner('Боевой клич!');
+          this.hud.banner(tr('Боевой клич!'));
           sfx.play('horn');
           break;
         case 'volley':
-          this.hud.banner('Залп!');
+          this.hud.banner(tr('Залп!'));
           break;
         case 'stakes':
           sfx.play('stakes');
@@ -768,7 +769,7 @@ export class BattleScene extends Phaser.Scene {
         case 'smoke':
           break;
         case 'breach':
-          this.hud.banner('Ворота пали! На стены!');
+          this.hud.banner(tr('Ворота пали! На стены!'));
           sfx.play('horn');
           break;
       }

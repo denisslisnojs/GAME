@@ -4,6 +4,7 @@ import type { RoadEvent } from '../game/events';
 import { markEvent } from '../game/events';
 import { btn, h, openModal, panel } from './dom';
 import type { GameCtx } from './panels';
+import { tr } from '../i18n';
 
 export function openRoadEvent(ctx: GameCtx, ev: RoadEvent) {
   const { state } = ctx;
@@ -20,7 +21,7 @@ export function openRoadEvent(ctx: GameCtx, ev: RoadEvent) {
         const outcome = o.run(state);
         ctx.commit();
         story.replaceChildren(...outcome.split('\n\n').map((p, i) => h('p', { style: i ? 'color:#5a3a6a;margin-top:6px' : '' }, p)));
-        options.replaceChildren(btn('Продолжить путь', () => close(), 'primary'));
+        options.replaceChildren(btn(tr('Продолжить путь'), () => close(), 'primary'));
       }, '', !can),
     );
   }

@@ -6,6 +6,7 @@ import { btn, getSfxVolume, h, img, openModal, panel, setSfxVolume, uiRoot } fro
 import { DIFFICULTY, type Difficulty } from '../game/difficulty';
 import { ACHIEVEMENTS, unlocked } from '../game/achievements';
 import { dateString, listSlots, deleteSlot } from '../game/state';
+import { LANG, setLang, tr, type Lang } from '../i18n';
 
 // ───────────────────────── достижения ─────────────────────────
 
@@ -20,7 +21,7 @@ export function showAchievements() {
       h('div', { class: `item ach${on ? ' on' : ''}` }, h('span', { class: 'ach-icon' }, on ? '★' : '☆'), h('div', { class: 'grow col', style: 'gap:1px' }, h('span', { class: 'name' }, a.name), h('span', { class: 'sub' }, a.desc)), on ? h('span', { class: 'muted small' }, new Date(got[a.id]).toLocaleDateString()) : null),
     );
   }
-  const content = panel('modal', h('div', { class: 'head' }, h('div', {}, h('h2', { class: 'title' }, 'Достижения'), h('div', { class: 'muted', style: 'font-size:13px' }, `Открыто ${n} из ${ACHIEVEMENTS.length}. Достижения общие для всех партий.`)), btn('✕', () => close(), 'small close')), list);
+  const content = panel('modal', h('div', { class: 'head' }, h('div', {}, h('h2', { class: 'title' }, tr('Достижения')), h('div', { class: 'muted', style: 'font-size:13px' }, tr`Открыто ${n} из ${ACHIEVEMENTS.length}. Достижения общие для всех партий.`)), btn('✕', () => close(), 'small close')), list);
   close = openModal(content);
 }
 
@@ -43,19 +44,19 @@ export function showSlots(mode: 'load' | 'new', onPick: (slot: number) => void) 
           h(
             'div',
             { class: 'grow col', style: 'gap:1px' },
-            h('span', { class: 'name' }, info ? `${slot}. ${info.name}` : `${slot}. Пусто`),
-            info ? h('span', { class: 'sub' }, `${f!.short} · уровень ${info.level} · ${dateString(info.time)} · ${DIFFICULTY[info.difficulty].name}`) : null,
+            h('span', { class: 'name' }, info ? `${slot}. ${info.name}` : tr`${slot}. Пусто`),
+            info ? h('span', { class: 'sub' }, tr`${f!.short} · уровень ${info.level} · ${dateString(info.time)} · ${DIFFICULTY[info.difficulty].name}`) : null,
           ),
-          info && mode === 'load' ? btn('Удалить', () => { if (confirm(`Удалить сохранение «${info.name}»?`)) { deleteSlot(slot); render(); } }, 'small ghost') : null,
+          info && mode === 'load' ? btn(tr('Удалить'), () => { if (confirm(tr`Удалить сохранение «${info.name}»?`)) { deleteSlot(slot); render(); } }, 'small ghost') : null,
           mode === 'load'
-            ? btn('Загрузить', () => { close(); onPick(slot); }, 'small primary', !info)
-            : btn(info ? 'Записать поверх' : 'Выбрать', () => { if (!info || confirm(`Сохранение «${info.name}» будет стёрто. Продолжить?`)) { close(); onPick(slot); } }, `small${info ? ' danger' : ' primary'}`),
+            ? btn(tr('Загрузить'), () => { close(); onPick(slot); }, 'small primary', !info)
+            : btn(info ? tr('Записать поверх') : tr('Выбрать'), () => { if (!info || confirm(tr`Сохранение «${info.name}» будет стёрто. Продолжить?`)) { close(); onPick(slot); } }, `small${info ? ' danger' : ' primary'}`),
         ),
       );
     });
   };
   render();
-  const content = panel('modal narrow', h('div', { class: 'head' }, h('h2', { class: 'title' }, mode === 'load' ? 'Загрузить игру' : 'Слот для новой игры'), btn('✕', () => close(), 'small close')), body);
+  const content = panel('modal narrow', h('div', { class: 'head' }, h('h2', { class: 'title' }, mode === 'load' ? tr('Загрузить игру') : tr('Слот для новой игры')), btn('✕', () => close(), 'small close')), body);
   close = openModal(content);
 }
 
@@ -63,7 +64,7 @@ export function showSlots(mode: 'load' | 'new', onPick: (slot: number) => void) 
 
 export function showLoading() {
   const bar = h('div');
-  const label = h('div', { class: 'muted' }, 'Подготовка…');
+  const label = h('div', { class: 'muted' }, tr('Подготовка…'));
   const el = h(
     'div',
     { class: 'loading' },
@@ -94,16 +95,16 @@ export function showMainMenu(o: { hasSave: boolean; onNew: () => void; onContinu
       { class: 'logo' },
       h('h1', { class: 'title' }, 'WARFARE'),
       h('div', { class: 'year' }, '1347'),
-      h('p', {}, 'Евразия в огне. Четыре державы — одна корона.'),
+      h('p', {}, tr('Евразия в огне. Четыре державы — одна корона.')),
     ),
     panel(
       'buttons',
-      o.hasSave ? btn('Продолжить', o.onContinue, 'primary') : null,
-      btn('Новая игра', o.onNew, o.hasSave ? '' : 'primary'),
-      o.hasSave ? btn('Загрузить', o.onLoad) : null,
-      btn('Достижения', () => showAchievements()),
-      btn('Настройки', () => showSettings()),
-      btn('Об игре', showAbout, 'ghost'),
+      o.hasSave ? btn(tr('Продолжить'), o.onContinue, 'primary') : null,
+      btn(tr('Новая игра'), o.onNew, o.hasSave ? '' : 'primary'),
+      o.hasSave ? btn(tr('Загрузить'), o.onLoad) : null,
+      btn(tr('Достижения'), () => showAchievements()),
+      btn(tr('Настройки'), () => showSettings()),
+      btn(tr('Об игре'), showAbout, 'ghost'),
     ),
   );
   uiRoot().append(el);
@@ -114,14 +115,14 @@ function showAbout() {
   let close = () => {};
   const content = panel(
     'modal narrow',
-    h('div', { class: 'head' }, h('h2', { class: 'title' }, 'Об игре'), btn('✕', () => close(), 'small close')),
+    h('div', { class: 'head' }, h('h2', { class: 'title' }, tr('Об игре')), btn('✕', () => close(), 'small close')),
     h(
       'div',
       { class: 'body parch' },
-      h('p', {}, '1347 год. С востока идёт чума, а четыре державы делят Евразию.'),
-      h('p', {}, 'Станьте вассалом одной из них, соберите армию, найдите спутников, женитесь, получите удел — или возьмите корону сами.'),
-      h('p', {}, 'Сражения, осады, турниры, пленники, торговля, поручения лордов и Чёрная смерть — мир живёт без вас, но вы можете его изменить.'),
-      h('p', { class: 'muted', style: 'color:#5a4a30' }, 'Карта: Natural Earth. Шрифты: Kurale, Ruslan Display (OFL).'),
+      h('p', {}, tr('1347 год. С востока идёт чума, а четыре державы делят Евразию.')),
+      h('p', {}, tr('Станьте вассалом одной из них, соберите армию, найдите спутников, женитесь, получите удел — или возьмите корону сами.')),
+      h('p', {}, tr('Сражения, осады, турниры, пленники, торговля, поручения лордов и Чёрная смерть — мир живёт без вас, но вы можете его изменить.')),
+      h('p', { class: 'muted', style: 'color:#5a4a30' }, tr('Карта: Natural Earth. Шрифты: Kurale, Ruslan Display (OFL).')),
     ),
   );
   close = openModal(content);
@@ -154,7 +155,7 @@ function saveSettings() {
   }
 }
 
-export function showSettings(extra?: HTMLElement) {
+export function showSettings(extra?: HTMLElement, beforeLangSwitch?: () => void) {
   let close = () => {};
   const slider = (value: number, onInput: (v: number) => void) => {
     const s = h('input', { type: 'range', min: 0, max: 100, value: Math.round(value * 100), class: 'slider' });
@@ -163,14 +164,27 @@ export function showSettings(extra?: HTMLElement) {
   };
   const content = panel(
     'modal narrow',
-    h('div', { class: 'head' }, h('h2', { class: 'title' }, 'Настройки'), btn('✕', () => close(), 'small close')),
+    h('div', { class: 'head' }, h('h2', { class: 'title' }, tr('Настройки')), btn('✕', () => close(), 'small close')),
     h(
       'div',
       { class: 'body col' },
-      h('div', {}, 'Музыка'),
+      h('div', {}, tr('Музыка')),
       slider(music.getVolume(), (v) => music.setVolume(v)),
-      h('div', {}, 'Звуки'),
+      h('div', {}, tr('Звуки')),
       slider(getSfxVolume(), (v) => setSfxVolume(v)),
+      h('div', {}, tr('Язык / Language')),
+      h(
+        'div',
+        { class: 'row', style: 'gap:6px' },
+        ...([['en', 'English'], ['ru', 'Русский']] as [Lang, string][]).map(([l, name]) =>
+          btn(name, () => {
+            if (l === LANG) return;
+            saveSettings();
+            beforeLangSwitch?.();
+            setLang(l);
+          }, `small${l === LANG ? ' primary' : ''}`),
+        ),
+      ),
       extra ?? null,
     ),
   );
@@ -186,15 +200,15 @@ export function showCreation(onDone: (name: string, faction: FactionId, difficul
   const diffBox = h('div', { class: 'row', style: 'gap:4px;flex-wrap:wrap;align-items:center' });
   const renderDiff = () => {
     diffBox.replaceChildren(
-      h('span', { class: 'muted' }, 'Сложность:'),
+      h('span', { class: 'muted' }, tr('Сложность:')),
       ...(Object.keys(DIFFICULTY) as Difficulty[]).map((d) => btn(DIFFICULTY[d].name, () => { difficulty = d; renderDiff(); }, `small${d === difficulty ? ' primary' : ''}`)),
       h('span', { class: 'muted small' }, DIFFICULTY[difficulty].hint),
       h('span', { class: 'grow' }),
-      btn(tutorial ? '✔ Обучение' : '✕ Без обучения', () => { tutorial = !tutorial; renderDiff(); }, `small${tutorial ? ' primary' : ''}`),
+      btn(tutorial ? tr('✔ Обучение') : tr('✕ Без обучения'), () => { tutorial = !tutorial; renderDiff(); }, `small${tutorial ? ' primary' : ''}`),
     );
   };
   renderDiff();
-  const nameInput = h('input', { class: 'text grow', value: 'Ульрих', maxlength: 20, placeholder: 'Имя героя' }) as HTMLInputElement;
+  const nameInput = h('input', { class: 'text grow', value: tr('Ульрих'), maxlength: 20, placeholder: tr('Имя героя') }) as HTMLInputElement;
   const preview = img(portraitURL('aurelia_c2'), 'px', 'width:72px;height:72px;border:2px solid #0e0f10;background:rgba(255,255,255,.05)');
   const cards = new Map<FactionId, HTMLElement>();
 
@@ -219,7 +233,7 @@ export function showCreation(onDone: (name: string, faction: FactionId, difficul
   }
 
   const start = () => {
-    const name = nameInput.value.trim() || 'Безымянный';
+    const name = nameInput.value.trim() || tr('Безымянный');
     onDone(name, selected, difficulty, tutorial);
   };
 
@@ -228,12 +242,12 @@ export function showCreation(onDone: (name: string, faction: FactionId, difficul
     { class: 'creation' },
     panel(
       '',
-      h('h2', { class: 'title', style: 'font-size:24px' }, 'Создание героя'),
-      h('div', { class: 'row' }, preview, h('div', { class: 'col grow' }, h('div', { class: 'muted' }, 'Имя'), nameInput)),
-      h('div', { class: 'muted' }, 'Выберите державу. Вы начнёте игру её вассалом, со скромным отрядом у столицы.'),
+      h('h2', { class: 'title', style: 'font-size:24px' }, tr('Создание героя')),
+      h('div', { class: 'row' }, preview, h('div', { class: 'col grow' }, h('div', { class: 'muted' }, tr('Имя')), nameInput)),
+      h('div', { class: 'muted' }, tr('Выберите державу. Вы начнёте игру её вассалом, со скромным отрядом у столицы.')),
       grid,
       diffBox,
-      h('div', { class: 'row', style: 'justify-content:flex-end' }, btn('Назад', onBack, 'ghost'), btn('Присягнуть', start, 'primary')),
+      h('div', { class: 'row', style: 'justify-content:flex-end' }, btn(tr('Назад'), onBack, 'ghost'), btn(tr('Присягнуть'), start, 'primary')),
     ),
   );
   uiRoot().append(el);

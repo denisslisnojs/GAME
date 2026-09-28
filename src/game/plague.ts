@@ -8,6 +8,7 @@ import { dismiss } from './logic';
 import type { GameState } from './state';
 import { news, placeName } from './war';
 import { world, type Settlement } from './world';
+import { tr } from '../i18n';
 
 export interface PlagueState {
   /** id крепости → день, когда мор утихнет. */
@@ -36,8 +37,8 @@ export function plagueDaily(state: GameState): string[] {
     pl.started = true;
     pl.infected[ORIGIN] = state.time + 40;
     pl.infected.constantinople = state.time + 45;
-    news(state, 'Генуэзские галеры из Таны привезли мор в Константинополь.', 'war');
-    news(state, 'В Азаке, у устья Дона, люди падают замертво: чёрные бубоны, жар и кровавый кашель. Генуэзские галеры бегут из порта…', 'war');
+    news(state, tr('Генуэзские галеры из Таны привезли мор в Константинополь.'), 'war');
+    news(state, tr('В Азаке, у устья Дона, люди падают замертво: чёрные бубоны, жар и кровавый кашель. Генуэзские галеры бегут из порта…'), 'war');
   }
   const forts = world.settlements.filter((s) => s.type !== 'village');
   // Распространение по торговым путям: города заражаются охотнее замков
@@ -54,7 +55,7 @@ export function plagueDaily(state: GameState): string[] {
       const sea = s.type === 'town' && src.type === 'town' && d < 160 ? 0.001 : 0;
       if (r() < land + sea) {
         pl.infected[s.id] = state.time + 30 + r() * 15;
-        news(state, `Чёрная смерть пришла в ${placeName(s)}.`, 'war');
+        news(state, tr`Чёрная смерть пришла в ${placeName(s)}.`, 'war');
       }
     }
   }
@@ -64,7 +65,7 @@ export function plagueDaily(state: GameState): string[] {
     if (until <= state.time) {
       delete pl.infected[id];
       pl.done.push(id);
-      if (s.type === 'town') news(state, `Мор в ${s.name} утих. Живые хоронят мёртвых.`, 'info');
+      if (s.type === 'town') news(state, tr`Мор в ${s.name} утих. Живые хоронят мёртвых.`, 'info');
       continue;
     }
     const g = state.war?.garrisons[id];
@@ -88,7 +89,7 @@ export function plagueDaily(state: GameState): string[] {
       if (n) dismiss(state, t.id, n);
       died += n;
     }
-    if (died) out.push(`Отряд стоит у заражённого города (${near.name}): от мора умерло ${died}. Уходите!`);
+    if (died) out.push(tr`Отряд стоит у заражённого города (${near.name}): от мора умерло ${died}. Уходите!`);
   }
   return out;
 }

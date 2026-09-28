@@ -5,24 +5,25 @@ import { DAMAGE_NAME, TROOPS, type TroopDef } from '../data/troops';
 import type { GameState } from '../game/state';
 import { emblemURL, figureURL } from '../gfx/icons';
 import { btn, h, img, openModal, panel, stars } from './dom';
+import { tr } from '../i18n';
 
 const LINES = [
-  { id: 'i', name: 'Пехота' },
-  { id: 'c', name: 'Конница' },
+  { id: 'i', name: tr('Пехота') },
+  { id: 'c', name: tr('Конница') },
 ] as const;
 
 const WEAPON_NAME: Record<string, string> = {
-  pitchfork: 'вилы',
-  spear: 'копьё',
-  sword: 'меч',
-  axe: 'топор',
-  mace: 'булава',
-  halberd: 'алебарда',
-  glaive: 'глефа',
-  bow: 'лук',
-  crossbow: 'арбалет',
-  lance: 'пика',
-  sabre: 'сабля',
+  pitchfork: tr('вилы'),
+  spear: tr('копьё'),
+  sword: tr('меч'),
+  axe: tr('топор'),
+  mace: tr('булава'),
+  halberd: tr('алебарда'),
+  glaive: tr('глефа'),
+  bow: tr('лук'),
+  crossbow: tr('арбалет'),
+  lance: tr('пика'),
+  sabre: tr('сабля'),
 };
 
 function armorPct(t: TroopDef) {
@@ -44,7 +45,7 @@ export function openTroopTree(state: GameState, start?: FactionId) {
   const node = (id: string, area: string) => {
     const t = TROOPS[id];
     const n = owned(id);
-    const cost = t.tier === 1 ? `наём ${t.hireCost} ¤` : '';
+    const cost = t.tier === 1 ? tr`наём ${t.hireCost} ¤` : '';
     const el = h(
       'div',
       { class: `tree-node${picked === id ? ' picked' : ''}`, style: `grid-area:${area}`, onclick: () => pick(id) },
@@ -54,10 +55,10 @@ export function openTroopTree(state: GameState, start?: FactionId) {
         { class: 'col', style: 'gap:1px;min-width:0' },
         h('span', { class: 'name' }, t.name),
         h('span', { class: 'stars' }, stars(t.tier)),
-        h('span', { class: 'muted small' }, `${t.role === 'ranged' ? '🏹 ' : ''}${WEAPON_NAME[t.look.weapon] ?? t.look.weapon}${t.look.shield ? ', щит' : ''}`),
+        h('span', { class: 'muted small' }, `${t.role === 'ranged' ? '🏹 ' : ''}${WEAPON_NAME[t.look.weapon] ?? t.look.weapon}${t.look.shield ? tr(', щит') : ''}`),
         h('span', { class: 'small' }, `♥${t.hp} ⚔${t.damage} ⛨${armorPct(t)}%`),
         cost ? h('span', { class: 'gold small' }, cost) : null,
-        n ? h('span', { class: 'own small' }, `в отряде: ${n}`) : null,
+        n ? h('span', { class: 'own small' }, tr`в отряде: ${n}`) : null,
       ),
     );
     return el;
@@ -72,7 +73,7 @@ export function openTroopTree(state: GameState, start?: FactionId) {
         ? h('div', { class: 'fork' }, h('i', { class: 'up' }), h('i', { class: 'down' }))
         : h('div', { class: 'line' }),
       h('span', { class: 'small gold' }, `${cost} ¤`),
-      h('span', { class: 'small muted' }, `опыт ${xp}`),
+      h('span', { class: 'small muted' }, tr`опыт ${xp}`),
     );
 
   const pick = (id: string) => {
@@ -115,29 +116,29 @@ export function openTroopTree(state: GameState, start?: FactionId) {
     );
     const sel = TROOPS[picked || id('1')];
     info.replaceChildren(
-      h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, h('b', { class: 'gold' }, sel.name), h('span', { class: 'stars' }, stars(sel.tier)), h('span', { class: 'muted small' }, sel.role === 'ranged' ? 'стрелок' : 'ближний бой')),
+      h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, h('b', { class: 'gold' }, sel.name), h('span', { class: 'stars' }, stars(sel.tier)), h('span', { class: 'muted small' }, sel.role === 'ranged' ? tr('стрелок') : tr('ближний бой'))),
       h('div', { class: 'small', style: 'line-height:1.35' }, sel.description),
       h(
         'div',
         { class: 'stats' },
-        h('span', {}, `Здоровье ${sel.hp}`),
-        h('span', {}, `Урон ${sel.damage} (${DAMAGE_NAME[sel.damageType]})`),
-        h('span', {}, `Броня: руб. ${Math.round(sel.armor.cut * 100)}% · кол. ${Math.round(sel.armor.pierce * 100)}% · дроб. ${Math.round(sel.armor.blunt * 100)}%`),
-        sel.range ? h('span', {}, `Дальность ${sel.range} м`) : null,
-        h('span', {}, `Скорость ${sel.speed}`),
-        h('span', {}, `Крит ${Math.round(sel.crit * 100)}%`),
-        h('span', {}, `Уклон ${Math.round(sel.dodge * 100)}%`),
-        sel.block ? h('span', {}, `Блок ${Math.round(sel.block * 100)}%`) : null,
+        h('span', {}, tr`Здоровье ${sel.hp}`),
+        h('span', {}, tr`Урон ${sel.damage} (${DAMAGE_NAME[sel.damageType]})`),
+        h('span', {}, tr`Броня: руб. ${Math.round(sel.armor.cut * 100)}% · кол. ${Math.round(sel.armor.pierce * 100)}% · дроб. ${Math.round(sel.armor.blunt * 100)}%`),
+        sel.range ? h('span', {}, tr`Дальность ${sel.range} м`) : null,
+        h('span', {}, tr`Скорость ${sel.speed}`),
+        h('span', {}, tr`Крит ${Math.round(sel.crit * 100)}%`),
+        h('span', {}, tr`Уклон ${Math.round(sel.dodge * 100)}%`),
+        sel.block ? h('span', {}, tr`Блок ${Math.round(sel.block * 100)}%`) : null,
       ),
       h(
         'div',
         { class: 'muted small' },
         sel.tier === 1
-          ? `Нанимается ${line === 'i' ? 'в деревнях' : 'в замках'} за ${sel.hireCost} ¤. `
+          ? tr`Нанимается ${line === 'i' ? tr('в деревнях') : tr('в замках')} за ${sel.hireCost} ¤. `
           : '',
         sel.upgradesTo.length
-          ? `Повышение: ${sel.upgradesTo.map((u) => TROOPS[u].name).join(' или ')} — ${sel.upgradeCost} ¤ после ${sel.xpToUpgrade} опыта.`
-          : 'Высший уровень.',
+          ? tr`Повышение: ${sel.upgradesTo.map((u) => TROOPS[u].name).join(tr(' или '))} — ${sel.upgradeCost} ¤ после ${sel.xpToUpgrade} опыта.`
+          : tr('Высший уровень.'),
       ),
     );
   };
@@ -147,7 +148,7 @@ export function openTroopTree(state: GameState, start?: FactionId) {
     h(
       'div',
       { class: 'head' },
-      h('div', {}, h('h2', { class: 'title' }, 'Древо воинов'), h('div', { class: 'muted', style: 'font-size:13px' }, 'Воины набирают опыт в боях и повышаются в окне «Отряд». Коснитесь воина — подробности.')),
+      h('div', {}, h('h2', { class: 'title' }, tr('Древо воинов')), h('div', { class: 'muted', style: 'font-size:13px' }, tr('Воины набирают опыт в боях и повышаются в окне «Отряд». Коснитесь воина — подробности.'))),
       btn('✕', () => close(), 'small close'),
     ),
     h('div', { class: 'body' }, tabs, grid, info),

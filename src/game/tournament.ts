@@ -8,6 +8,7 @@ import { gainHeroXp } from './battleResult';
 import { heroStats, heroTroop } from './hero';
 import type { GameState } from './state';
 import type { Settlement } from './world';
+import { tr } from '../i18n';
 
 export type TourneyKind = 'duel' | 'melee';
 
@@ -37,20 +38,20 @@ export const TOURNEY_COOLDOWN = 6;
 
 const NAMES: Record<FactionId, { first: string[]; last: string[] }> = {
   aurelia: {
-    first: ['Конрад', 'Генрих', 'Оттон', 'Бертольд', 'Гуго', 'Джованни', 'Марко', 'Ульрих', 'Дитрих', 'Альбрехт', 'Лоренцо', 'Гвидо'],
-    last: ['фон Трир', 'из Вероны', 'фон Цоллерн', 'Малатеста', 'фон Лихтенштейн', 'Орсини', 'фон Кибург', 'да Кремона', 'Железная Рука', 'фон Эгер'],
+    first: [tr('Конрад'), tr('Генрих'), tr('Оттон'), tr('Бертольд'), tr('Гуго'), tr('Джованни'), tr('Марко'), tr('Ульрих'), tr('Дитрих'), tr('Альбрехт'), tr('Лоренцо'), tr('Гвидо')],
+    last: [tr('фон Трир'), tr('из Вероны'), tr('фон Цоллерн'), tr('Малатеста'), tr('фон Лихтенштейн'), tr('Орсини'), tr('фон Кибург'), tr('да Кремона'), tr('Железная Рука'), tr('фон Эгер')],
   },
   nordmark: {
-    first: ['Хакон', 'Торстейн', 'Эйрик', 'Олаф', 'Свен', 'Харальд', 'Ингвар', 'Ульф', 'Бьярни', 'Гудмунд', 'Святослав', 'Ратибор'],
-    last: ['Рыжий', 'Секира', 'из Бергена', 'Медведь', 'Кривоносый', 'Сын Кетиля', 'из Упсалы', 'Волчья Шкура', 'Новгородец', 'Тихий'],
+    first: [tr('Хакон'), tr('Торстейн'), tr('Эйрик'), tr('Олаф'), tr('Свен'), tr('Харальд'), tr('Ингвар'), tr('Ульф'), tr('Бьярни'), tr('Гудмунд'), tr('Святослав'), tr('Ратибор')],
+    last: [tr('Рыжий'), tr('Секира'), tr('из Бергена'), tr('Медведь'), tr('Кривоносый'), tr('Сын Кетиля'), tr('из Упсалы'), tr('Волчья Шкура'), tr('Новгородец'), tr('Тихий')],
   },
   horde: {
-    first: ['Тохта', 'Баатур', 'Есугей', 'Кичиг', 'Сартак', 'Алгуй', 'Ногай', 'Тимур', 'Буджек', 'Мунке', 'Кара-Хулагу', 'Тулун'],
-    last: ['Меткий', 'сын Бури', 'из Сарая', 'Кречет', 'Беркут', 'Однодум', 'Хромой', 'Серый Волк', 'из Хорезма', 'Длиннорукий'],
+    first: [tr('Тохта'), tr('Баатур'), tr('Есугей'), tr('Кичиг'), tr('Сартак'), tr('Алгуй'), tr('Ногай'), tr('Тимур'), tr('Буджек'), tr('Мунке'), tr('Кара-Хулагу'), tr('Тулун')],
+    last: [tr('Меткий'), tr('сын Бури'), tr('из Сарая'), tr('Кречет'), tr('Беркут'), tr('Однодум'), tr('Хромой'), tr('Серый Волк'), tr('из Хорезма'), tr('Длиннорукий')],
   },
   sultanate: {
-    first: ['Юсуф', 'Салах', 'Кутуз', 'Байбарс', 'Имад', 'Насир', 'Акбуга', 'Тенгиз', 'Муса', 'Асад', 'Джамал', 'Кара-Сункур'],
-    last: ['аль-Хамави', 'ибн Карим', 'из Халеба', 'аль-Масри', 'Лев Пустыни', 'аль-Мансури', 'ас-Сайфи', 'из Дамаска', 'аль-Джазари', 'Сокол'],
+    first: [tr('Юсуф'), tr('Салах'), tr('Кутуз'), tr('Байбарс'), tr('Имад'), tr('Насир'), tr('Акбуга'), tr('Тенгиз'), tr('Муса'), tr('Асад'), tr('Джамал'), tr('Кара-Сункур')],
+    last: [tr('аль-Хамави'), tr('ибн Карим'), tr('из Халеба'), tr('аль-Масри'), tr('Лев Пустыни'), tr('аль-Мансури'), tr('ас-Сайфи'), tr('из Дамаска'), tr('аль-Джазари'), tr('Сокол')],
   },
 };
 
@@ -127,8 +128,8 @@ export function meleeArmies(state: GameState, s: Settlement): [ArmyDef, ArmyDef]
   };
   const mine = heroArmy(state);
   mine.troops = team(4);
-  mine.name = `Синие · ${state.hero.name}`;
-  return [mine, { name: 'Красные', culture: s.culture, troops: team(5), formation: 'classic', morale: 100 }];
+  mine.name = tr`Синие · ${state.hero.name}`;
+  return [mine, { name: tr('Красные'), culture: s.culture, troops: team(5), formation: 'classic', morale: 100 }];
 }
 
 /** Остальные пары круга: исход по силе бойца. */
@@ -140,13 +141,13 @@ export function resolveOthers(t: Tourney, heroWon: boolean) {
     const b = t.alive[k + 1];
     if (a === 0) {
       next.push(heroWon ? a : b);
-      t.log.push(heroWon ? `${t.bracket[0].name} побеждает ${t.bracket[b].name}` : `${t.bracket[b].name} побеждает ${t.bracket[0].name}`);
+      t.log.push(heroWon ? tr`${t.bracket[0].name} побеждает ${t.bracket[b].name}` : tr`${t.bracket[b].name} побеждает ${t.bracket[0].name}`);
       continue;
     }
     const pa = tierOf(a) / (tierOf(a) + tierOf(b));
     const w = Math.random() < pa ? a : b;
     next.push(w);
-    t.log.push(`${t.bracket[w].name} побеждает ${t.bracket[w === a ? b : a].name}`);
+    t.log.push(tr`${t.bracket[w].name} побеждает ${t.bracket[w === a ? b : a].name}`);
   }
   t.alive = next;
   t.round++;
@@ -176,17 +177,17 @@ export function tourneyPrize(state: GameState, t: Tourney, won: boolean, roundsW
       gold += 260;
       xp += 120;
       betWin = t.bet * 4;
-      title = 'Вы — победитель турнира!';
-    } else title = roundsWon === 2 ? 'Вы дошли до финала' : roundsWon === 1 ? 'Вы дошли до полуфинала' : 'Вы выбыли в первом круге';
+      title = tr('Вы — победитель турнира!');
+    } else title = roundsWon === 2 ? tr('Вы дошли до финала') : roundsWon === 1 ? tr('Вы дошли до полуфинала') : tr('Вы выбыли в первом круге');
   } else {
     if (won) {
       gold = 180;
       xp = 110;
       betWin = t.bet * 2;
-      title = 'Ваша команда выиграла схватку!';
+      title = tr('Ваша команда выиграла схватку!');
     } else {
       xp = 30;
-      title = 'Ваша команда проиграла схватку';
+      title = tr('Ваша команда проиграла схватку');
     }
   }
   if (won) {

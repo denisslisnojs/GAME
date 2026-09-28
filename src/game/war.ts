@@ -12,6 +12,7 @@ import { atWar } from './logic';
 import { advance, getLandCost, partyRuntime, pathTo, powerRatio, type MapParty } from './parties';
 import type { GameState } from './state';
 import { spawnPointNear, world, type Settlement } from './world';
+import { lc, tr } from '../i18n';
 
 export type Troops = { id: string; count: number }[];
 
@@ -132,13 +133,13 @@ export function initWar(state: GameState) {
       });
     });
   }
-  news(state, 'Весна 1347 года. Над Евразией сгущаются тучи войны.', 'info');
-  for (const [a, b] of state.wars) news(state, `${FACTIONS[a].short} и ${FACTIONS[b].short} воюют.`, 'war');
+  news(state, tr('Весна 1347 года. Над Евразией сгущаются тучи войны.'), 'info');
+  for (const [a, b] of state.wars) news(state, tr`${FACTIONS[a].short} и ${FACTIONS[b].short} воюют.`, 'war');
 }
 
 /** «город Москва» / «замок Мальборк» — без склонения самих названий. */
 export function placeName(s: Settlement): string {
-  return `${s.type === 'town' ? 'город' : s.type === 'castle' ? 'замок' : 'деревню'} ${s.name}`;
+  return `${s.type === 'town' ? tr('город') : s.type === 'castle' ? tr('замок') : tr('деревню')} ${s.name}`;
 }
 
 function realm(f: FactionId): string {
@@ -188,8 +189,8 @@ export function capture(state: GameState, s: Settlement, to: FactionId, byPlayer
   news(
     state,
     byPlayer
-      ? `${state.hero.name} взял ${placeName(s)}! Крепость переходит под руку государя: ${FACTIONS[to].rulerTitle.toLowerCase()} ${FACTIONS[to].ruler}.`
-      : `${FACTIONS[to].short} захватывает ${placeName(s)}. Прежний владелец — ${realm(from)}.`,
+      ? tr`${state.hero.name} взял ${placeName(s)}! Крепость переходит под руку государя: ${lc(FACTIONS[to].rulerTitle)} ${FACTIONS[to].ruler}.`
+      : tr`${FACTIONS[to].short} захватывает ${placeName(s)}. Прежний владелец — ${realm(from)}.`,
     byPlayer ? 'player' : 'capture',
   );
   checkElimination(state, from);
@@ -212,7 +213,7 @@ function checkElimination(state: GameState, f: FactionId) {
   w.eliminated.push(f);
   state.lords = (state.lords ?? []).filter((l) => l.faction !== f);
   state.wars = state.wars.filter(([a, b]) => a !== f && b !== f);
-  news(state, `${FACTIONS[f].name} пала. ${FACTIONS[f].rulerTitle} ${FACTIONS[f].ruler} бежал в изгнание.`, 'war');
+  news(state, tr`${FACTIONS[f].name} пала. ${FACTIONS[f].rulerTitle} ${FACTIONS[f].ruler} бежал в изгнание.`, 'war');
 }
 
 function checkOutcome(state: GameState) {
@@ -271,7 +272,7 @@ export function defeatLord(state: GameState, l: MapParty, by: FactionId | 'playe
   info.target = undefined;
   l.troops = [];
   partyRuntime(l).path = [];
-  news(state, by === 'player' ? `${state.hero.name} разбил ${l.name}. Тот бежал с горсткой людей.` : `${l.name} разбит войском державы ${realm(by)} и бежал.`, by === 'player' ? 'player' : 'battle');
+  news(state, by === 'player' ? tr`${state.hero.name} разбил ${l.name}. Тот бежал с горсткой людей.` : tr`${l.name} разбит войском державы ${realm(by)} и бежал.`, by === 'player' ? 'player' : 'battle');
 }
 
 // ───────────────────────── ежедневная логика ─────────────────────────
@@ -298,7 +299,7 @@ export function warDaily(state: GameState) {
       info.status = 'active';
       info.task = 'idle';
       info.home = home.id;
-      news(state, `${l.name} собрал новое войско. Ставка: ${home.name}.`, 'lord');
+      news(state, tr`${l.name} собрал новое войско. Ставка: ${home.name}.`, 'lord');
     } else if (info.status === 'active') {
       // Пополнение дружины
       const target = lordArmy(l.faction as FactionId, info.rank, state.time, r);
@@ -338,7 +339,7 @@ export function warDaily(state: GameState) {
           l.lord!.target = target.id;
           partyRuntime(l).repathAt = 0;
         }
-        if (go.length) news(state, `${FACTIONS[f].short} выступает в поход на ${placeName(target)}.`, state.settlements[target.id].owner === state.hero.faction ? 'war' : 'lord');
+        if (go.length) news(state, tr`${FACTIONS[f].short} выступает в поход на ${placeName(target)}.`, state.settlements[target.id].owner === state.hero.faction ? 'war' : 'lord');
       }
     }
     // Вернувшиеся после разгрома лорды присоединяются к идущему походу
@@ -364,7 +365,7 @@ export function warDaily(state: GameState) {
     const attackers = activeLords(state, sg.attacker).filter((l) => distCells(l, s) < 6);
     if (!attackers.length) {
       delete w.sieges[sid];
-      news(state, `Осаждавшие ушли: ${placeName(s)} свободен.`, 'battle');
+      news(state, tr`Осаждавшие ушли: ${placeName(s)} свободен.`, 'battle');
       continue;
     }
     // Владения героя держатся дольше: есть время прийти на выручку
@@ -380,7 +381,7 @@ export function warDaily(state: GameState) {
       for (const l of attackers) if (l.lord!.status === 'active') l.lord!.task = 'idle';
     } else {
       delete w.sieges[sid];
-      news(state, `Гарнизон отбил штурм: ${placeName(s)} устоял! Войско державы ${realm(sg.attacker)} бежит.`, 'battle');
+      news(state, tr`Гарнизон отбил штурм: ${placeName(s)} устоял! Войско державы ${realm(sg.attacker)} бежит.`, 'battle');
     }
   }
 
@@ -400,7 +401,7 @@ export function warDaily(state: GameState) {
     if (info.task === 'relieve' && (!info.target || !w.sieges[info.target])) info.task = 'idle';
     if (info.task === 'follow' && state.time >= (info.followUntil ?? 0)) {
       info.task = 'idle';
-      news(state, `${l.name} покидает отряд ${state.hero.name} и возвращается к своим делам.`, 'lord');
+      news(state, tr`${l.name} покидает отряд ${state.hero.name} и возвращается к своим делам.`, 'lord');
     }
   }
 }
@@ -436,7 +437,7 @@ function diplomacy(state: GameState, r: () => number) {
     if (state.time - since > 40 && r() < (playerWar ? 0.12 : 0.22)) {
       state.wars = state.wars.filter(([x, y]) => !(x === a && y === b));
       for (const [sid, sg] of Object.entries(w.sieges)) if ((sg.attacker === a && state.settlements[sid].owner === b) || (sg.attacker === b && state.settlements[sid].owner === a)) delete w.sieges[sid];
-      news(state, `${FACTIONS[a].short} и ${FACTIONS[b].short} заключили мир.`, 'peace');
+      news(state, tr`${FACTIONS[a].short} и ${FACTIONS[b].short} заключили мир.`, 'peace');
     }
   }
   // Новые войны: держава без войны ищет повод
@@ -448,7 +449,7 @@ function diplomacy(state: GameState, r: () => number) {
     const o = others[Math.floor(r() * others.length)];
     state.wars.push([f, o]);
     w.warSince[pairKey(f, o)] = state.time;
-    news(state, `${FACTIONS[f].rulerTitle} ${FACTIONS[f].ruler} объявляет войну: ${FACTIONS[f].short} против ${FACTIONS[o].short}!`, 'war');
+    news(state, tr`${FACTIONS[f].rulerTitle} ${FACTIONS[f].ruler} объявляет войну: ${FACTIONS[f].short} против ${FACTIONS[o].short}!`, 'war');
   }
 }
 
@@ -515,8 +516,8 @@ export function warUpdate(state: GameState, dtDays: number, targetId: number | n
         r.path = [];
         if (info.task === 'campaign' && !w.sieges[s.id] && atWar(state, f, state.settlements[s.id].owner)) {
           w.sieges[s.id] = { attacker: f, since: state.time };
-          if (state.fiefs?.includes(s.id)) news(state, `Враг осадил ваш удел ${s.name}! Гарнизон продержится несколько дней — спешите на выручку.`, 'war');
-          news(state, `${l.name} осаждает ${placeName(s)}.`, state.settlements[s.id].owner === state.hero.faction ? 'war' : 'battle');
+          if (state.fiefs?.includes(s.id)) news(state, tr`Враг осадил ваш удел ${s.name}! Гарнизон продержится несколько дней — спешите на выручку.`, 'war');
+          news(state, tr`${l.name} осаждает ${placeName(s)}.`, state.settlements[s.id].owner === state.hero.faction ? 'war' : 'battle');
         }
       }
     } else if (!r.path.length && r.repathAt <= 0) {
@@ -550,7 +551,7 @@ export function warUpdate(state: GameState, dtDays: number, targetId: number | n
       const aWon = fight(state, { lords: sideA, faction: a.faction as FactionId }, { lords: sideB, faction: b.faction as FactionId }, false);
       const winner = aWon ? sideA : sideB;
       for (const l of winner) l.lord!.truceUntil = state.time + 0.5;
-      news(state, `Битва: ${(aWon ? sideA : sideB)[0].name} разбивает ${(aWon ? sideB : sideA)[0].name}.`, 'battle');
+      news(state, tr`Битва: ${(aWon ? sideA : sideB)[0].name} разбивает ${(aWon ? sideB : sideA)[0].name}.`, 'battle');
     }
   }
   return met;

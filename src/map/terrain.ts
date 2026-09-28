@@ -2,6 +2,7 @@ import landData from '../data/land.json';
 import { ART_H, ART_W, CELL, GRID_H, GRID_W, LAT_MAX, LON_FACTOR, LON_MIN, PX_PER_DEG_LAT, PX_PER_DEG_LON } from '../config';
 import { clamp, fbm, hash2, valueNoise } from '../util/rng';
 import { LAKES, LONG_LAKES, RANGES, RIVERS, type LonLat } from './geodata';
+import { tr } from '../i18n';
 
 /** Типы местности клетки навигационной сетки. */
 export const T = {
@@ -24,21 +25,21 @@ export const T = {
 export type Terrain = (typeof T)[keyof typeof T];
 
 export const TERRAIN_NAME: Record<number, string> = {
-  [T.DEEP]: 'Открытое море',
-  [T.SEA]: 'Прибрежные воды',
-  [T.GRASS]: 'Луга',
-  [T.FOREST]: 'Лес',
-  [T.TAIGA]: 'Тайга',
-  [T.STEPPE]: 'Степь',
-  [T.DRY]: 'Сухие земли',
-  [T.DESERT]: 'Пустыня',
-  [T.TUNDRA]: 'Тундра',
-  [T.SNOW]: 'Снега',
-  [T.JUNGLE]: 'Джунгли',
-  [T.FARM]: 'Поля',
-  [T.HILLS]: 'Холмы',
-  [T.MOUNTAIN]: 'Горы',
-  [T.PEAK]: 'Непроходимые вершины',
+  [T.DEEP]: tr('Открытое море'),
+  [T.SEA]: tr('Прибрежные воды'),
+  [T.GRASS]: tr('Луга'),
+  [T.FOREST]: tr('Лес'),
+  [T.TAIGA]: tr('Тайга'),
+  [T.STEPPE]: tr('Степь'),
+  [T.DRY]: tr('Сухие земли'),
+  [T.DESERT]: tr('Пустыня'),
+  [T.TUNDRA]: tr('Тундра'),
+  [T.SNOW]: tr('Снега'),
+  [T.JUNGLE]: tr('Джунгли'),
+  [T.FARM]: tr('Поля'),
+  [T.HILLS]: tr('Холмы'),
+  [T.MOUNTAIN]: tr('Горы'),
+  [T.PEAK]: tr('Непроходимые вершины'),
 };
 
 /** Множитель времени пути (1 — луга). Infinity — непроходимо. */
@@ -260,7 +261,7 @@ export async function generateMap(progress: Progress): Promise<MapData> {
   const N = W * H;
 
   // 1. Маска суши
-  await progress('Очертания земель');
+  await progress(tr('Очертания земель'));
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -306,12 +307,12 @@ export async function generateMap(progress: Progress): Promise<MapData> {
   for (let i = 0; i < N; i++) land[i] = maskData[i * 4] > 127 ? 1 : 0;
 
   // 2. Расстояние до суши для воды и до воды для суши (в арт-пикселях, до 14)
-  await progress('Моря и побережья');
+  await progress(tr('Моря и побережья'));
   const distWater = bfsDistance(land, W, H, 1, 14); // для воды: расстояние до суши
   const distLand = bfsDistance(land, W, H, 0, 3); // для суши: расстояние до воды
 
   // 3. Высоты на сетке клеток
-  await progress('Горные хребты');
+  await progress(tr('Горные хребты'));
   const elevGrid = new Float32Array((GRID_W + 1) * (GRID_H + 1));
   for (let gy = 0; gy <= GRID_H; gy++) {
     for (let gx = 0; gx <= GRID_W; gx++) {
@@ -346,7 +347,7 @@ export async function generateMap(progress: Progress): Promise<MapData> {
   };
 
   // 4. Биомы и базовая раскраска
-  await progress('Леса, степи и пустыни');
+  await progress(tr('Леса, степи и пустыни'));
   const biome = new Uint8Array(N);
   const elev = new Float32Array(N);
   const img = ctx.createImageData(W, H);
@@ -400,7 +401,7 @@ export async function generateMap(progress: Progress): Promise<MapData> {
   }
 
   // 5. Реки (+ плодородные берега в засушливых землях)
-  await progress('Реки');
+  await progress(tr('Реки'));
   for (const r of RIVERS) drawRiver(r.pts, r.width, W, H, land, biome, px);
   // Дельта Нила
   for (let y = 0; y < H; y++) {
@@ -419,13 +420,13 @@ export async function generateMap(progress: Progress): Promise<MapData> {
   }
 
   // 6. Деревья, холмы, вершины (сверху вниз, чтобы ближние перекрывали дальние)
-  await progress('Деревья и вершины');
+  await progress(tr('Деревья и вершины'));
   decorate(W, H, biome, elev, px);
 
   ctx.putImageData(img, 0, 0);
 
   // 7. Навигационная сетка
-  await progress('Дороги и переправы');
+  await progress(tr('Дороги и переправы'));
   const terrain = new Uint8Array(GRID_W * GRID_H);
   const cost = new Float32Array(GRID_W * GRID_H);
   for (let cy = 0; cy < GRID_H; cy++) {

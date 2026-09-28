@@ -6,6 +6,7 @@ import { buildWorld } from '../game/world';
 import { loadCachedMap, saveMapLater } from '../map/cache';
 import { generateMap } from '../map/terrain';
 import { showLoading } from '../ui/screens';
+import { tr } from '../i18n';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -14,7 +15,7 @@ export class BootScene extends Phaser.Scene {
 
   async create() {
     const loading = showLoading();
-    const steps = ['Шрифты', 'Очертания земель', 'Моря и побережья', 'Горные хребты', 'Леса, степи и пустыни', 'Реки', 'Деревья и вершины', 'Дороги и переправы', 'Города и деревни'];
+    const steps = [tr('Шрифты'), tr('Очертания земель'), tr('Моря и побережья'), tr('Горные хребты'), tr('Леса, степи и пустыни'), tr('Реки'), tr('Деревья и вершины'), tr('Дороги и переправы'), tr('Города и деревни')];
     let step = 0;
     const progress = async (label: string) => {
       loading.set(step++ / steps.length, label + '…');
@@ -22,9 +23,9 @@ export class BootScene extends Phaser.Scene {
       await new Promise((r) => setTimeout(r, 16));
     };
 
-    await progress('Шрифты');
+    await progress(tr('Шрифты'));
     try {
-      await Promise.all([document.fonts.load('16px "Kurale"', 'Кириллица'), document.fonts.load('16px "Ruslan Display"', 'Кириллица')]);
+      await Promise.all([document.fonts.load('16px "Kurale"', tr('Кириллица')), document.fonts.load('16px "Ruslan Display"', tr('Кириллица'))]);
     } catch {
       /* шрифты не критичны */
     }
@@ -32,14 +33,14 @@ export class BootScene extends Phaser.Scene {
     let map = await loadCachedMap();
     if (map) {
       step = steps.length - 2;
-      await progress('Карта из кэша');
+      await progress(tr('Карта из кэша'));
     } else {
       map = await generateMap(progress);
       saveMapLater(map);
     }
     this.textures.addCanvas('map', map.canvas);
 
-    await progress('Города и деревни');
+    await progress(tr('Города и деревни'));
     buildWorld(map);
     for (const { key, canvas } of allSettlementTextures()) this.textures.addCanvas(key, canvas);
     for (const id of FACTION_IDS) {
@@ -69,7 +70,7 @@ export class BootScene extends Phaser.Scene {
     }
 
     this.textures.addCanvas('crown', drawCrown());
-    loading.set(1, 'Готово');
+    loading.set(1, tr('Готово'));
     loading.close();
     this.scene.start('world');
   }

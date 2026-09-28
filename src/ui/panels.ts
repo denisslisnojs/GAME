@@ -36,6 +36,7 @@ import { companionPortraitURL, heroEmblemURL } from '../gfx/icons';
 import { declareWar, offerPeace } from '../game/crown';
 import { lordRansom, prisonerCap, prisonerCount, ransomPrice, recruitPrisoner, releaseLord } from '../game/prisoners';
 import { heroPortraitURL } from '../gfx/icons';
+import { lc, tr } from '../i18n';
 
 export interface GameCtx {
   state: GameState;
@@ -64,15 +65,15 @@ export interface BattleView {
   arena?: { colors: string[] };
 }
 
-const TYPE_NAME = { town: 'Город', castle: 'Замок', village: 'Деревня' } as const;
+const TYPE_NAME = { town: tr('Город'), castle: tr('Замок'), village: tr('Деревня') } as const;
 
 /** Подсказка на кнопке хозяина: можно сдать поручение или есть новое. */
 function hostHint(state: GameState, s: Settlement): string {
   const host = hostOf(state, s);
   const qs = questsOf(state, host.key);
-  if (qs.some((q) => canTurnIn(state, q))) return '✔ поручение выполнено';
-  if (qs.length) return 'поручение в работе';
-  if (offerQuest(state, s, host)) return 'есть поручение';
+  if (qs.some((q) => canTurnIn(state, q))) return tr('✔ поручение выполнено');
+  if (qs.length) return tr('поручение в работе');
+  if (offerQuest(state, s, host)) return tr('есть поручение');
   return host.name;
 }
 
@@ -100,13 +101,13 @@ export function troopStats(t: TroopDef): HTMLElement {
   return h(
     'div',
     { class: 'stats' },
-    h('span', {}, `Здоровье ${t.hp}`),
-    h('span', {}, `Урон ${t.damage} (${DAMAGE_NAME[t.damageType]})`),
-    h('span', {}, `Броня ${armorAvg}%`),
-    t.range ? h('span', {}, `Дальность ${t.range} м`) : null,
-    h('span', {}, `Крит ${Math.round(t.crit * 100)}%`),
-    h('span', {}, `Уклон ${Math.round(t.dodge * 100)}%`),
-    t.block ? h('span', {}, `Блок ${Math.round(t.block * 100)}%`) : null,
+    h('span', {}, tr`Здоровье ${t.hp}`),
+    h('span', {}, tr`Урон ${t.damage} (${DAMAGE_NAME[t.damageType]})`),
+    h('span', {}, tr`Броня ${armorAvg}%`),
+    t.range ? h('span', {}, tr`Дальность ${t.range} м`) : null,
+    h('span', {}, tr`Крит ${Math.round(t.crit * 100)}%`),
+    h('span', {}, tr`Уклон ${Math.round(t.dodge * 100)}%`),
+    t.block ? h('span', {}, tr`Блок ${Math.round(t.block * 100)}%`) : null,
   );
 }
 
@@ -118,7 +119,7 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
   const owner = ownerOf(state, s);
   const f = FACTIONS[owner];
   const rel = relationTo(state, s);
-  const relText = rel === 'own' ? 'Ваша держава' : rel === 'war' ? 'Война!' : 'Мир';
+  const relText = rel === 'own' ? tr('Ваша держава') : rel === 'war' ? tr('Война!') : tr('Мир');
   const relColor = rel === 'own' ? 'var(--green)' : rel === 'war' ? 'var(--red)' : 'var(--muted)';
 
   const info = h(
@@ -129,14 +130,14 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
     h(
       'div',
       { class: 'stats', style: 'font-size:13px' },
-      h('span', {}, `Владелец: `, h('b', { style: `color:${f.css}` }, f.short)),
+      h('span', {}, tr`Владелец: `, h('b', { style: `color:${f.css}` }, f.short)),
       h('span', { style: `color:${relColor}` }, relText),
-      s.parent ? h('span', {}, `Приписана к: ${world.byId.get(s.parent)?.name}`) : null,
-      s.villages.length ? h('span', {}, `Деревни: ${s.villages.map((v) => world.byId.get(v)?.name).join(', ')}`) : null,
-      s.type !== 'village' ? h('span', {}, `Гарнизон: ${troopCount(state.war?.garrisons[s.id] ?? [])}`) : null,
-      state.war?.sieges[s.id] ? h('span', { style: 'color:var(--red)' }, `В осаде: ${FACTIONS[state.war.sieges[s.id].attacker].short}`) : null,
-      isLooted(state, s.id) ? h('span', { style: 'color:var(--red)' }, 'Разорена') : null,
-      isPlagued(state, s) ? h('span', { style: 'color:#9ab87a' }, 'Мор! Рекрутов нет, отряд рядом болеет') : null,
+      s.parent ? h('span', {}, tr`Приписана к: ${world.byId.get(s.parent)?.name}`) : null,
+      s.villages.length ? h('span', {}, tr`Деревни: ${s.villages.map((v) => world.byId.get(v)?.name).join(', ')}`) : null,
+      s.type !== 'village' ? h('span', {}, tr`Гарнизон: ${troopCount(state.war?.garrisons[s.id] ?? [])}`) : null,
+      state.war?.sieges[s.id] ? h('span', { style: 'color:var(--red)' }, tr`В осаде: ${FACTIONS[state.war.sieges[s.id].attacker].short}`) : null,
+      isLooted(state, s.id) ? h('span', { style: 'color:var(--red)' }, tr('Разорена')) : null,
+      isPlagued(state, s) ? h('span', { style: 'color:#9ab87a' }, tr('Мор! Рекрутов нет, отряд рядом болеет')) : null,
     ),
   );
 
@@ -157,40 +158,40 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
         'div',
         { class: 'parch', style: 'font-size:13.5px' },
         s.type === 'village'
-          ? 'Завидев ваше знамя, крестьяне попрятались. Староста кричит из-за плетня, чтобы вы убирались.'
-          : 'Ворота заперты, на стенах лучники. Здесь вас встретят только стрелами.',
+          ? tr('Завидев ваше знамя, крестьяне попрятались. Староста кричит из-за плетня, чтобы вы убирались.')
+          : tr('Ворота заперты, на стенах лучники. Здесь вас встретят только стрелами.'),
       ),
       s.type === 'village'
         ? isLooted(state, s.id)
-          ? optF('Разорить деревню', 'уже разорена', () => {}, '', true)
-          : optF('Разорить деревню', 'бой с ополчением, добыча', () => { close(); ctx.startRaid?.(s); })
-        : optF('Начать осаду', `гарнизон ≈ ${siegeSize(state, s)}`, () => { close(); ctx.startSiege?.(s); }, 'danger'),
-      optF('Уйти', '', leave, 'primary'),
+          ? optF(tr('Разорить деревню'), tr('уже разорена'), () => {}, '', true)
+          : optF(tr('Разорить деревню'), tr('бой с ополчением, добыча'), () => { close(); ctx.startRaid?.(s); })
+        : optF(tr('Начать осаду'), tr`гарнизон ≈ ${siegeSize(state, s)}`, () => { close(); ctx.startSiege?.(s); }, 'danger'),
+      optF(tr('Уйти'), '', leave, 'primary'),
     );
   } else {
     if (state.crown && s.type !== 'village' && rel === 'own' && !state.fiefs?.includes(s.id))
-      options.append(optF('Взять в свой домен', 'государю можно', () => { (state.fiefs ??= []).push(s.id); toast(`${s.name} теперь ваш домен`); ctx.commit(); close(); ctx.visit?.(s); }));
+      options.append(optF(tr('Взять в свой домен'), tr('государю можно'), () => { (state.fiefs ??= []).push(s.id); toast(tr`${s.name} теперь ваш домен`); ctx.commit(); close(); ctx.visit?.(s); }));
     const sg = state.war?.sieges[s.id];
-    if (sg && s.type !== 'village') options.append(optF('Защищать стены', `осаждает ${FACTIONS[sg.attacker].short}`, () => { close(); ctx.defendSiege?.(s); }, 'danger'));
-    if (state.fiefs?.includes(s.id)) options.append(optF('Управлять уделом', 'постройки, налоги, гарнизон', () => openFief(ctx, s), 'primary'));
-    const recruitLabel = s.type === 'village' ? 'Нанять крестьян' : s.type === 'castle' ? 'Нанять всадников' : 'Нанять войска';
+    if (sg && s.type !== 'village') options.append(optF(tr('Защищать стены'), tr`осаждает ${FACTIONS[sg.attacker].short}`, () => { close(); ctx.defendSiege?.(s); }, 'danger'));
+    if (state.fiefs?.includes(s.id)) options.append(optF(tr('Управлять уделом'), tr('постройки, налоги, гарнизон'), () => openFief(ctx, s), 'primary'));
+    const recruitLabel = s.type === 'village' ? tr('Нанять крестьян') : s.type === 'castle' ? tr('Нанять всадников') : tr('Нанять войска');
     options.append(optF(recruitLabel, '', () => openRecruit(ctx, s)));
-    if (s.type !== 'castle') options.append(optF(s.type === 'town' ? 'Рынок' : 'Торговать с крестьянами', '', () => openMarket(ctx, s)));
+    if (s.type !== 'castle') options.append(optF(s.type === 'town' ? tr('Рынок') : tr('Торговать с крестьянами'), '', () => openMarket(ctx, s)));
     if (s.type === 'town') {
       options.append(
-        optF('Оружейник', 'оружие и щиты', () => openShop(ctx, s, 'weapons')),
-        optF('Бронник', 'шлемы и доспехи', () => openShop(ctx, s, 'armor')),
-        optF('Конюшня', 'кони', () => openShop(ctx, s, 'horses')),
-        optF('Таверна', companionsAt(state, s.id).length ? `за столом: ${companionsAt(state, s.id).map((c) => c.def.name.split(' ')[0]).join(', ')}` : 'спутники, слухи', () => openTavern(ctx, s)),
-        optF('Ристалище', tourneyReady(state, s) ? `турнир через ${tourneyReady(state, s)} дн.` : 'турнир сегодня!', () => openArena(ctx, s, () => close())),
-        optF(FACTIONS[owner].capital === s.id ? 'Тронный зал' : 'Замок лорда', hostHint(state, s), () => openHost(ctx, s)),
+        optF(tr('Оружейник'), tr('оружие и щиты'), () => openShop(ctx, s, 'weapons')),
+        optF(tr('Бронник'), tr('шлемы и доспехи'), () => openShop(ctx, s, 'armor')),
+        optF(tr('Конюшня'), tr('кони'), () => openShop(ctx, s, 'horses')),
+        optF(tr('Таверна'), companionsAt(state, s.id).length ? tr`за столом: ${companionsAt(state, s.id).map((c) => c.def.name.split(' ')[0]).join(', ')}` : tr('спутники, слухи'), () => openTavern(ctx, s)),
+        optF(tr('Ристалище'), tourneyReady(state, s) ? tr`турнир через ${tourneyReady(state, s)} дн.` : tr('турнир сегодня!'), () => openArena(ctx, s, () => close())),
+        optF(FACTIONS[owner].capital === s.id ? tr('Тронный зал') : tr('Замок лорда'), hostHint(state, s), () => openHost(ctx, s)),
       );
     } else if (s.type === 'castle') {
-      options.append(optF('Конюшня', 'кони', () => openShop(ctx, s, 'horses')), optF(hostOf(state, s).lord ? 'Зал лорда' : 'Поговорить с кастеляном', hostHint(state, s), () => openHost(ctx, s)));
+      options.append(optF(tr('Конюшня'), tr('кони'), () => openShop(ctx, s, 'horses')), optF(hostOf(state, s).lord ? tr('Зал лорда') : tr('Поговорить с кастеляном'), hostHint(state, s), () => openHost(ctx, s)));
     } else {
-      options.append(optF('Поговорить со старостой', hostHint(state, s), () => openHost(ctx, s)));
+      options.append(optF(tr('Поговорить со старостой'), hostHint(state, s), () => openHost(ctx, s)));
     }
-    options.append(optF('Покинуть', '', leave, 'primary'));
+    options.append(optF(tr('Покинуть'), '', leave, 'primary'));
   }
 
   const content = panel(
@@ -211,10 +212,10 @@ export function openRecruit(ctx: GameCtx, s: Settlement) {
 
   const render = () => {
     body.replaceChildren();
-    sub.replaceChildren(goldLine(state), ` · В отряде: ${partySize(state)}`);
+    sub.replaceChildren(goldLine(state), tr` · В отряде: ${partySize(state)}`);
     const st = state.settlements[s.id];
     const ids = Object.keys(st.recruits);
-    if (!ids.length) body.append(h('div', { class: 'muted' }, 'Здесь некого нанять.'));
+    if (!ids.length) body.append(h('div', { class: 'muted' }, tr('Здесь некого нанять.')));
     for (const id of ids) {
       const t = TROOPS[id];
       const avail = Math.floor(st.recruits[id]);
@@ -223,9 +224,9 @@ export function openRecruit(ctx: GameCtx, s: Settlement) {
         const got = hire(state, s, id, n);
         if (got > 0) {
           sfxCoins();
-          toast(`Нанято: ${t.name} ×${got}`);
+          toast(tr`Нанято: ${t.name} ×${got}`);
           ctx.commit();
-        } else if (state.gold < price) toast('Не хватает денег');
+        } else if (state.gold < price) toast(tr('Не хватает денег'));
         render();
       };
       body.append(
@@ -236,25 +237,25 @@ export function openRecruit(ctx: GameCtx, s: Settlement) {
           h(
             'div',
             { class: 'grow col', style: 'gap:2px' },
-            h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name' }, t.name), h('span', { class: 'stars' }, stars(t.tier)), t.line === 'cavalry' ? h('span', { class: 'muted', style: 'font-size:12px' }, 'конница') : null),
+            h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name' }, t.name), h('span', { class: 'stars' }, stars(t.tier)), t.line === 'cavalry' ? h('span', { class: 'muted', style: 'font-size:12px' }, tr('конница')) : null),
             h('div', { class: 'sub' }, t.description),
             troopStats(t),
           ),
           h('div', { class: 'col', style: 'align-items:flex-end;gap:4px' },
-            h('div', {}, h('span', { class: 'count' }, avail), h('span', { class: 'muted', style: 'font-size:12px' }, ' готовы')),
-            h('div', { class: 'gold', style: 'font-size:13px' }, `${price} ¤ за воина`),
+            h('div', {}, h('span', { class: 'count' }, avail), h('span', { class: 'muted', style: 'font-size:12px' }, tr(' готовы'))),
+            h('div', { class: 'gold', style: 'font-size:13px' }, tr`${price} ¤ за воина`),
             h('div', { class: 'row', style: 'gap:4px' },
               btn('+1', () => doHire(1), 'small', avail < 1 || state.gold < price),
-              btn('Всех', () => doHire(avail), 'small primary', avail < 1 || state.gold < price),
+              btn(tr('Всех'), () => doHire(avail), 'small primary', avail < 1 || state.gold < price),
             ),
           ),
         ),
       );
     }
-    body.append(h('div', { class: 'muted', style: 'font-size:12px;padding:4px' }, 'Новые рекруты приходят каждый день. В чужих землях найм в полтора раза дороже.'));
+    body.append(h('div', { class: 'muted', style: 'font-size:12px;padding:4px' }, tr('Новые рекруты приходят каждый день. В чужих землях найм в полтора раза дороже.')));
   };
 
-  const content = panel('modal', header(`Найм — ${s.name}`, sub, () => close()), body);
+  const content = panel('modal', header(tr`Найм — ${s.name}`, sub, () => close()), body);
   render();
   close = openModal(content);
 }
@@ -272,8 +273,8 @@ export function openMarket(ctx: GameCtx, s: Settlement) {
     h('div', { class: 'item' }, h('div', { class: 'good-icon', style: `background:${GOODS[g].color}` }), h('div', { class: 'grow' }, h('div', { class: 'name' }, GOODS[g].name)), right);
 
   const render = () => {
-    sub.replaceChildren(goldLine(state), ` · Груз: ${cargoCount(state)}`);
-    left.replaceChildren(h('div', { class: 'col-title' }, 'Товары рынка'));
+    sub.replaceChildren(goldLine(state), tr` · Груз: ${cargoCount(state)}`);
+    left.replaceChildren(h('div', { class: 'col-title' }, tr('Товары рынка')));
     for (const g of s.goods) {
       const p = buyPrice(g, state);
       left.append(
@@ -281,15 +282,15 @@ export function openMarket(ctx: GameCtx, s: Settlement) {
           g,
           h('div', { class: 'row', style: 'gap:4px' },
             h('span', { class: 'gold', style: 'min-width:48px;text-align:right' }, `${p} ¤`),
-            btn('+1', () => { if (buy(state, g, 1)) { sfxCoins(); ctx.commit(); } else toast('Не хватает денег'); render(); }, 'small', state.gold < p),
+            btn('+1', () => { if (buy(state, g, 1)) { sfxCoins(); ctx.commit(); } else toast(tr('Не хватает денег')); render(); }, 'small', state.gold < p),
             btn('+10', () => { if (buy(state, g, 10)) { sfxCoins(); ctx.commit(); } render(); }, 'small', state.gold < p),
           ),
         ),
       );
     }
-    right.replaceChildren(h('div', { class: 'col-title' }, 'Ваши товары'));
+    right.replaceChildren(h('div', { class: 'col-title' }, tr('Ваши товары')));
     const cargo = Object.entries(state.cargo) as [GoodId, number][];
-    if (!cargo.length) right.append(h('div', { class: 'muted', style: 'padding:6px' }, 'Пусто. Товары и трофеи добываются в боях и на турнирах.'));
+    if (!cargo.length) right.append(h('div', { class: 'muted', style: 'padding:6px' }, tr('Пусто. Товары и трофеи добываются в боях и на турнирах.')));
     for (const [g, n] of cargo) {
       const p = sellPrice(g, state);
       right.append(
@@ -299,7 +300,7 @@ export function openMarket(ctx: GameCtx, s: Settlement) {
             h('span', { style: 'min-width:30px;text-align:right' }, `×${n}`),
             h('span', { class: 'gold', style: 'min-width:48px;text-align:right' }, `${p} ¤`),
             btn('−1', () => { if (sell(state, g, 1)) { sfxCoins(); ctx.commit(); } render(); }, 'small'),
-            btn('Все', () => { if (sell(state, g, n)) { sfxCoins(); ctx.commit(); } render(); }, 'small primary'),
+            btn(tr('Все'), () => { if (sell(state, g, n)) { sfxCoins(); ctx.commit(); } render(); }, 'small primary'),
           ),
         ),
       );
@@ -308,9 +309,9 @@ export function openMarket(ctx: GameCtx, s: Settlement) {
 
   const content = panel(
     'modal wide',
-    header(`${s.type === 'town' ? 'Рынок' : 'Торговля'} — ${s.name}`, sub, () => close()),
+    header(`${s.type === 'town' ? tr('Рынок') : tr('Торговля')} — ${s.name}`, sub, () => close()),
     h('div', { class: 'body two-col' }, left, right),
-    h('div', { class: 'muted', style: 'font-size:12px' }, 'Цены везде одинаковые, продажа — за 80% цены. Умение «Торговля» (ваше или спутника) улучшает обе цены.'),
+    h('div', { class: 'muted', style: 'font-size:12px' }, tr('Цены везде одинаковые, продажа — за 80% цены. Умение «Торговля» (ваше или спутника) улучшает обе цены.')),
   );
   render();
   close = openModal(content);
@@ -326,7 +327,7 @@ export function openParty(ctx: GameCtx) {
 
   const render = () => {
     const size = partySize(state);
-    sub.replaceChildren(`${size} ${plural(size, 'воин', 'воина', 'воинов')} · `, goldLine(state));
+    sub.replaceChildren(`${size} ${plural(size, tr('воин'), tr('воина'), tr('воинов'))} · `, goldLine(state));
     body.replaceChildren();
     const f = FACTIONS[state.hero.faction];
     body.append(
@@ -335,10 +336,10 @@ export function openParty(ctx: GameCtx) {
         { class: 'item', style: 'border-color:#6a5a3a' },
         img(heroPortraitURL(state), 'px portrait'),
         h('div', { class: 'grow col', style: 'gap:2px' },
-          h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, h('span', { class: 'name gold' }, state.hero.name), h('span', { class: 'muted', style: 'font-size:12px' }, state.crown ? `${f.rulerTitle.toLowerCase()} державы «${f.short}»` : `вассал: ${f.rulerTitle.toLowerCase()} ${f.ruler}`), state.spouse ? h('span', { style: 'font-size:12px;color:#e8a0b8' }, `жена: ${state.spouse.name}`) : null),
-          h('div', { class: 'sub' }, `Уровень ${state.hero.level} · Опыт ${state.hero.xp}${state.hero.points ? ` · свободных очков: ${state.hero.points}` : ''}`),
+          h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, h('span', { class: 'name gold' }, state.hero.name), h('span', { class: 'muted', style: 'font-size:12px' }, state.crown ? tr`${lc(f.rulerTitle)} державы «${f.short}»` : tr`вассал: ${lc(f.rulerTitle)} ${f.ruler}`), state.spouse ? h('span', { style: 'font-size:12px;color:#e8a0b8' }, tr`жена: ${state.spouse.name}`) : null),
+          h('div', { class: 'sub' }, tr`Уровень ${state.hero.level} · Опыт ${state.hero.xp}${state.hero.points ? tr` · свободных очков: ${state.hero.points}` : ''}`),
         ),
-        btn('Снаряжение', () => openHero(ctx), 'small primary'),
+        btn(tr('Снаряжение'), () => openHero(ctx), 'small primary'),
       ),
     );
     for (const { def, cs } of inParty(state)) {
@@ -352,17 +353,17 @@ export function openParty(ctx: GameCtx) {
           h('div', { class: 'grow col', style: 'gap:2px' },
             h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' },
               h('span', { class: 'name', style: 'color:#c8a0e8' }, def.name),
-              h('span', { class: 'muted', style: 'font-size:12px' }, `${def.title} · ур. ${cs.level}`),
-              wounded ? h('span', { style: 'font-size:12px;color:#e07a6a' }, `ранен ещё ${Math.ceil((cs.woundedUntil ?? 0) - state.time)} дн.`) : null,
+              h('span', { class: 'muted', style: 'font-size:12px' }, tr`${def.title} · ур. ${cs.level}`),
+              wounded ? h('span', { style: 'font-size:12px;color:#e07a6a' }, tr`ранен ещё ${Math.ceil((cs.woundedUntil ?? 0) - state.time)} дн.`) : null,
             ),
-            h('div', { class: 'stats' }, h('span', { class: 'gold' }, skillLine(def.skills)), h('span', {}, `жалованье ${def.wage} ¤/нед.`)),
+            h('div', { class: 'stats' }, h('span', { class: 'gold' }, skillLine(def.skills)), h('span', {}, tr`жалованье ${def.wage} ¤/нед.`)),
             h('div', { class: 'row', style: 'gap:6px;font-size:12px;flex-wrap:wrap' },
               h('div', { style: 'flex:none;width:90px;height:6px;background:#0e0f10;border:1px solid #45494e' }, h('div', { style: `height:100%;width:${Math.max(0, Math.min(100, cs.loyalty))}%;background:${m.color}` })),
-              h('span', { style: `color:${m.color};white-space:nowrap` }, `Настроение: ${m.text}`),
-              h('span', { class: 'muted' }, `· любит: ${def.likes.map(deedName).join(', ') || '—'} · не терпит: ${def.dislikes.map(deedName).join(', ') || '—'}`),
+              h('span', { style: `color:${m.color};white-space:nowrap` }, tr`Настроение: ${m.text}`),
+              h('span', { class: 'muted' }, tr`· любит: ${def.likes.map(deedName).join(', ') || '—'} · не терпит: ${def.dislikes.map(deedName).join(', ') || '—'}`),
             ),
           ),
-          btn('Отпустить', () => { dismissCompanion(state, def.id); toast(`${def.name} ушёл искать другую службу`); ctx.commit(); render(); }, 'small ghost'),
+          btn(tr('Отпустить'), () => { dismissCompanion(state, def.id); toast(tr`${def.name} ушёл искать другую службу`); ctx.commit(); render(); }, 'small ghost'),
         ),
       );
     }
@@ -377,7 +378,7 @@ export function openParty(ctx: GameCtx) {
           sfxCoins();
           toast(`${t.name} → ${TROOPS[to].name} ×${k}`);
           ctx.commit();
-        } else if (state.gold < t.upgradeCost) toast('Не хватает денег на повышение');
+        } else if (state.gold < t.upgradeCost) toast(tr('Не хватает денег на повышение'));
         render();
       };
       const upgradeRow = ready
@@ -405,32 +406,32 @@ export function openParty(ctx: GameCtx) {
             t.upgradesTo.length
               ? h('div', { class: 'row', style: 'gap:6px;font-size:12px' },
                   h('div', { style: 'width:90px;height:6px;background:#0e0f10;border:1px solid #45494e' }, h('div', { style: `height:100%;width:${xpPct}%;background:var(--gold)` })),
-                  h('span', { class: ready ? 'gold' : 'muted' }, ready ? `Готовы к повышению: ${ready}` : `→ ${t.upgradesTo.map((u) => TROOPS[u].name).join(' / ')}`),
+                  h('span', { class: ready ? 'gold' : 'muted' }, ready ? tr`Готовы к повышению: ${ready}` : `→ ${t.upgradesTo.map((u) => TROOPS[u].name).join(' / ')}`),
                 )
-              : h('div', { class: 'muted', style: 'font-size:12px' }, 'Высший уровень'),
+              : h('div', { class: 'muted', style: 'font-size:12px' }, tr('Высший уровень')),
             upgradeRow,
           ),
           h('div', { class: 'col', style: 'align-items:flex-end;gap:4px' },
             h('span', { class: 'count' }, `×${stack.count}`),
-            btn('Распустить 1', () => { dismiss(state, stack.id, 1); ctx.commit(); render(); }, 'small ghost'),
+            btn(tr('Распустить 1'), () => { dismiss(state, stack.id, 1); ctx.commit(); render(); }, 'small ghost'),
           ),
         ),
       );
     }
-    if (!troops.length) body.append(h('div', { class: 'muted', style: 'padding:8px' }, 'Отряд пуст. Наймите воинов в деревнях и городах.'));
+    if (!troops.length) body.append(h('div', { class: 'muted', style: 'padding:8px' }, tr('Отряд пуст. Наймите воинов в деревнях и городах.')));
 
     // Пленные
     const pris = state.prisoners ?? [];
     const lords = state.captives ?? [];
-    if (pris.length || lords.length) body.append(h('div', { class: 'col-title', style: 'margin-top:6px' }, `Пленные · ${prisonerCount(state)} из ${prisonerCap(state)} под стражей`));
+    if (pris.length || lords.length) body.append(h('div', { class: 'col-title', style: 'margin-top:6px' }, tr`Пленные · ${prisonerCount(state)} из ${prisonerCap(state)} под стражей`));
     for (const c of lords) {
       body.append(
         h(
           'div',
           { class: 'item', style: 'border-color:#6a5a3a' },
           img(emblemURL(c.faction), 'px', 'width:32px;height:36px'),
-          h('div', { class: 'grow col', style: 'gap:2px' }, h('span', { class: 'name gold' }, c.name), h('div', { class: 'sub' }, `В плену ${Math.floor(state.time - c.since)} дн. Выкуп — ${lordRansom(c)} ¤ у торговца в любой таверне.`)),
-          btn('Отпустить', () => { releaseLord(state, c); toast(`${c.name} отпущен и запомнит вашу щедрость`); ctx.commit(); render(); }, 'small ghost'),
+          h('div', { class: 'grow col', style: 'gap:2px' }, h('span', { class: 'name gold' }, c.name), h('div', { class: 'sub' }, tr`В плену ${Math.floor(state.time - c.since)} дн. Выкуп — ${lordRansom(c)} ¤ у торговца в любой таверне.`)),
+          btn(tr('Отпустить'), () => { releaseLord(state, c); toast(tr`${c.name} отпущен и запомнит вашу щедрость`); ctx.commit(); render(); }, 'small ghost'),
         ),
       );
     }
@@ -441,35 +442,35 @@ export function openParty(ctx: GameCtx) {
           'div',
           { class: 'item' },
           img(portraitURL(p.id), 'px portrait'),
-          h('div', { class: 'grow col', style: 'gap:2px' }, h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name' }, t.name), h('span', { class: 'stars' }, stars(t.tier))), h('div', { class: 'sub' }, `Выкуп ${ransomPrice(p.id)} ¤ за голову. Можно уговорить служить.`)),
+          h('div', { class: 'grow col', style: 'gap:2px' }, h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name' }, t.name), h('span', { class: 'stars' }, stars(t.tier))), h('div', { class: 'sub' }, tr`Выкуп ${ransomPrice(p.id)} ¤ за голову. Можно уговорить служить.`)),
           h('div', { class: 'col', style: 'align-items:flex-end;gap:4px' },
             h('span', { class: 'count' }, `×${p.count}`),
-            btn('Уговорить служить', () => { toast(recruitPrisoner(state, p.id) ? `${t.name} согласился служить вам` : `${t.name} плюнул под ноги и отказался`); ctx.commit(); render(); }, 'small'),
+            btn(tr('Уговорить служить'), () => { toast(recruitPrisoner(state, p.id) ? tr`${t.name} согласился служить вам` : tr`${t.name} плюнул под ноги и отказался`); ctx.commit(); render(); }, 'small'),
           ),
         ),
       );
     }
   };
 
-  const head = header('Отряд', sub, () => close(), heroEmblemURL(state));
+  const head = header(tr('Отряд'), sub, () => close(), heroEmblemURL(state));
   const closeBtn = head.lastElementChild as HTMLElement;
   closeBtn.style.marginLeft = '6px';
-  head.insertBefore(btn('Древо воинов', () => openTroopTree(state), 'small', false, 'Как растут воины'), closeBtn).setAttribute('style', 'margin-left:auto');
+  head.insertBefore(btn(tr('Древо воинов'), () => openTroopTree(state), 'small', false, tr('Как растут воины')), closeBtn).setAttribute('style', 'margin-left:auto');
   const content = panel('modal', head, body);
   render();
   close = openModal(content);
 }
 
 const DEED_NAME: Record<string, string> = {
-  raid: 'грабёж деревень',
-  caravan: 'грабёж караванов',
-  retreat: 'отступление',
-  defeat: 'поражения',
-  victory: 'победы',
-  siege: 'штурмы',
-  tourney: 'турниры',
-  lord: 'победы над лордами',
-  cruelty: 'жестокость',
+  raid: tr('грабёж деревень'),
+  caravan: tr('грабёж караванов'),
+  retreat: tr('отступление'),
+  defeat: tr('поражения'),
+  victory: tr('победы'),
+  siege: tr('штурмы'),
+  tourney: tr('турниры'),
+  lord: tr('победы над лордами'),
+  cruelty: tr('жестокость'),
 };
 function deedName(d: string) {
   return DEED_NAME[d] ?? d;
@@ -486,10 +487,10 @@ function lordLine(state: GameState, id: FactionId) {
   return h(
     'div',
     { class: 'sub' },
-    `Лорды: ${active.length} из ${all.length} в строю · войско ≈ ${men} ⚔`,
-    sieges.length ? h('span', { style: 'color:#e8c04a' }, ` · осаждает ${sieges.join(', ')}`) : null,
-    besieged.length ? h('span', { style: 'color:#e07a6a' }, ` · в осаде ${besieged.join(', ')}`) : null,
-    h('span', { class: 'muted' }, ' · нажмите — список'),
+    tr`Лорды: ${active.length} из ${all.length} в строю · войско ≈ ${men} ⚔`,
+    sieges.length ? h('span', { style: 'color:#e8c04a' }, tr` · осаждает ${sieges.join(', ')}`) : null,
+    besieged.length ? h('span', { style: 'color:#e07a6a' }, tr` · в осаде ${besieged.join(', ')}`) : null,
+    h('span', { class: 'muted' }, tr(' · нажмите — список')),
   );
 }
 
@@ -516,27 +517,27 @@ export function openRealms(ctx: GameCtx) {
       const info = l.lord!;
       const where = info.target ? world.byId.get(info.target)?.name : '';
       const task = info.status === 'defeated'
-        ? `разбит, вернётся через ${Math.max(1, Math.ceil(info.recoverAt - state.time))} дн.`
-        : info.task === 'campaign' ? (state.war?.sieges[info.target!] ? `осаждает ${where}` : `идёт на ${where}`) : info.task === 'relieve' ? `спешит к ${where}` : info.task === 'follow' ? 'идёт с вашим отрядом' : 'в своих землях';
+        ? tr`разбит, вернётся через ${Math.max(1, Math.ceil(info.recoverAt - state.time))} дн.`
+        : info.task === 'campaign' ? (state.war?.sieges[info.target!] ? tr`осаждает ${where}` : tr`идёт на ${where}`) : info.task === 'relieve' ? tr`спешит к ${where}` : info.task === 'follow' ? tr('идёт с вашим отрядом') : tr('в своих землях');
       lordList.append(h('div', { class: 'row', style: 'gap:6px' }, h('span', { style: info.status === 'defeated' ? 'color:#8a8070;text-decoration:line-through' : '' }, l.name), h('span', { class: 'muted' }, `· ${info.status === 'active' ? troopCount(l.troops) + ' ⚔ · ' : ''}${task}`)));
     }
-    if (state.war?.eliminated.includes(id)) lordList.append(h('div', { style: 'color:#e07a6a' }, 'Держава пала.'));
+    if (state.war?.eliminated.includes(id)) lordList.append(h('div', { style: 'color:#e07a6a' }, tr('Держава пала.')));
     body.append(
       h(
         'div',
         { class: 'item', style: id === state.hero.faction ? 'border-color:#6a5a3a' : '' },
         img(emblemURL(id), 'px', 'width:32px;height:36px'),
         h('div', { class: 'grow col', style: 'gap:2px' },
-          h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name', style: `color:${f.css}` }, f.name), id === state.hero.faction ? h('span', { class: 'gold', style: 'font-size:12px' }, 'ваша держава') : null),
-          h('div', { class: 'sub' }, `${f.rulerTitle} ${f.ruler} · Городов: ${towns}, замков: ${castles}, деревень: ${villages}`),
-          h('div', { class: 'sub', style: wars.length ? 'color:#e07a6a' : '' }, wars.length ? `Воюет с: ${wars.join(', ')}` : 'Ни с кем не воюет'),
+          h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name', style: `color:${f.css}` }, f.name), id === state.hero.faction ? h('span', { class: 'gold', style: 'font-size:12px' }, tr('ваша держава')) : null),
+          h('div', { class: 'sub' }, tr`${f.rulerTitle} ${f.ruler} · Городов: ${towns}, замков: ${castles}, деревень: ${villages}`),
+          h('div', { class: 'sub', style: wars.length ? 'color:#e07a6a' : '' }, wars.length ? tr`Воюет с: ${wars.join(', ')}` : tr('Ни с кем не воюет')),
           state.crown && id !== state.hero.faction && !state.war?.eliminated.includes(id)
             ? h(
                 'div',
                 { class: 'row', style: 'gap:6px;margin-top:2px' },
                 atWar(state, id, state.hero.faction)
-                  ? btn('Предложить мир', () => { const ok = offerPeace(state, id, (x) => realmPower(state, x)); toast(ok ? `${f.short} принимает мир` : `${f.short} отвергает мир`); ctx.commit(); close(); openRealms(ctx); }, 'small')
-                  : btn('Объявить войну', () => { declareWar(state, id); toast(`Война с державой «${f.short}»!`); ctx.commit(); close(); openRealms(ctx); }, 'small danger'),
+                  ? btn(tr('Предложить мир'), () => { const ok = offerPeace(state, id, (x) => realmPower(state, x)); toast(ok ? tr`${f.short} принимает мир` : tr`${f.short} отвергает мир`); ctx.commit(); close(); openRealms(ctx); }, 'small')
+                  : btn(tr('Объявить войну'), () => { declareWar(state, id); toast(tr`Война с державой «${f.short}»!`); ctx.commit(); close(); openRealms(ctx); }, 'small danger'),
               )
             : null,
           lordLine(state, id),
@@ -548,7 +549,7 @@ export function openRealms(ctx: GameCtx) {
     item.style.cursor = 'pointer';
     item.onclick = () => (lordList.style.display = lordList.style.display === 'none' ? '' : 'none');
   }
-  body.append(h('div', { class: 'muted', style: 'font-size:12px;padding:4px' }, 'Цель игры: ваша держава должна владеть всеми городами и замками.'));
-  const content = panel('modal', header('Державы', null, () => close()), body);
+  body.append(h('div', { class: 'muted', style: 'font-size:12px;padding:4px' }, tr('Цель игры: ваша держава должна владеть всеми городами и замками.')));
+  const content = panel('modal', header(tr('Державы'), null, () => close()), body);
   close = openModal(content);
 }

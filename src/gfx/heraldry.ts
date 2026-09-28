@@ -1,6 +1,7 @@
 // Личный герб героя: поле, деление, фигура. Рисуется пиксель-артом на щите.
 
 import { Pix, shade } from './pixel';
+import { tr } from '../i18n';
 
 export type Division = 'plain' | 'pale' | 'fess' | 'quarterly' | 'chevron' | 'bend';
 export type Charge = 'none' | 'lion' | 'eagle' | 'cross' | 'tower' | 'star' | 'boar' | 'crescent' | 'fleur' | 'axe' | 'horse';
@@ -15,37 +16,37 @@ export interface Arms {
 
 /** Геральдические цвета (финифти и металлы). */
 export const TINCTURES: { name: string; c: string }[] = [
-  { name: 'Золото', c: '#e8c04a' },
-  { name: 'Серебро', c: '#eeeae0' },
-  { name: 'Червлень', c: '#c23030' },
-  { name: 'Лазурь', c: '#2f5fb3' },
-  { name: 'Зелень', c: '#3a8a3a' },
-  { name: 'Чернь', c: '#2a2522' },
-  { name: 'Пурпур', c: '#7a3a8a' },
-  { name: 'Киноварь', c: '#d8702a' },
+  { name: tr('Золото'), c: '#e8c04a' },
+  { name: tr('Серебро'), c: '#eeeae0' },
+  { name: tr('Червлень'), c: '#c23030' },
+  { name: tr('Лазурь'), c: '#2f5fb3' },
+  { name: tr('Зелень'), c: '#3a8a3a' },
+  { name: tr('Чернь'), c: '#2a2522' },
+  { name: tr('Пурпур'), c: '#7a3a8a' },
+  { name: tr('Киноварь'), c: '#d8702a' },
 ];
 
 export const DIVISIONS: { id: Division; name: string }[] = [
-  { id: 'plain', name: 'Цельное' },
-  { id: 'pale', name: 'Рассечённое' },
-  { id: 'fess', name: 'Пересечённое' },
-  { id: 'quarterly', name: 'Четверочастное' },
-  { id: 'chevron', name: 'Стропило' },
-  { id: 'bend', name: 'Перевязь' },
+  { id: 'plain', name: tr('Цельное') },
+  { id: 'pale', name: tr('Рассечённое') },
+  { id: 'fess', name: tr('Пересечённое') },
+  { id: 'quarterly', name: tr('Четверочастное') },
+  { id: 'chevron', name: tr('Стропило') },
+  { id: 'bend', name: tr('Перевязь') },
 ];
 
 export const CHARGES: { id: Charge; name: string }[] = [
-  { id: 'none', name: 'Без фигуры' },
-  { id: 'lion', name: 'Лев' },
-  { id: 'eagle', name: 'Орёл' },
-  { id: 'cross', name: 'Крест' },
-  { id: 'tower', name: 'Башня' },
-  { id: 'star', name: 'Звезда' },
-  { id: 'boar', name: 'Вепрь' },
-  { id: 'crescent', name: 'Полумесяц' },
-  { id: 'fleur', name: 'Лилия' },
-  { id: 'axe', name: 'Секира' },
-  { id: 'horse', name: 'Конь' },
+  { id: 'none', name: tr('Без фигуры') },
+  { id: 'lion', name: tr('Лев') },
+  { id: 'eagle', name: tr('Орёл') },
+  { id: 'cross', name: tr('Крест') },
+  { id: 'tower', name: tr('Башня') },
+  { id: 'star', name: tr('Звезда') },
+  { id: 'boar', name: tr('Вепрь') },
+  { id: 'crescent', name: tr('Полумесяц') },
+  { id: 'fleur', name: tr('Лилия') },
+  { id: 'axe', name: tr('Секира') },
+  { id: 'horse', name: tr('Конь') },
 ];
 
 const FIG: Record<Exclude<Charge, 'none'>, string[]> = {

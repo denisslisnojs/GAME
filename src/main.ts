@@ -6,13 +6,14 @@ import { BattleScene } from './scenes/BattleScene';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
 import { loadSettings } from './ui/screens';
+import { tr } from './i18n';
 
 loadSettings();
 
 // Подсказка повернуть телефон
 const hint = document.createElement('div');
 hint.className = 'rotate-hint';
-hint.innerHTML = '<div style="font-size:42px">⟳</div><div>Поверните телефон горизонтально</div>';
+hint.innerHTML = tr('<div style="font-size:42px">⟳</div><div>Поверните телефон горизонтально</div>');
 document.body.append(hint);
 
 // Звук разрешается только после первого касания

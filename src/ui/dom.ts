@@ -1,4 +1,5 @@
 // Мини-помощники для DOM-интерфейса поверх холста Phaser.
+import { LANG } from '../i18n';
 
 type Attrs = Record<string, string | number | boolean | EventListener | undefined> & { class?: string; style?: string };
 type Child = Node | string | number | null | undefined | false;
@@ -92,6 +93,7 @@ export function stars(n: number): string {
 }
 
 export function plural(n: number, one: string, few: string, many: string): string {
+  if (LANG === 'en') return Math.abs(n) === 1 ? one : many;
   const a = Math.abs(n) % 100;
   const b = a % 10;
   if (a > 10 && a < 20) return many;

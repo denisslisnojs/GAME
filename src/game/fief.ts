@@ -3,6 +3,7 @@
 import { TROOPS } from '../data/troops';
 import type { GameState } from './state';
 import { world } from './world';
+import { tr } from '../i18n';
 
 export type BuildingId = 'walls' | 'market' | 'barracks' | 'yard';
 export type Tax = 'low' | 'normal' | 'high';
@@ -16,16 +17,16 @@ export interface BuildingDef {
 }
 
 export const BUILDINGS: BuildingDef[] = [
-  { id: 'walls', name: 'Каменные стены', desc: 'Гарнизон держит осаду на треть крепче; враги тратят больше времени на штурм.', cost: 1500, days: 14 },
-  { id: 'market', name: 'Торговые ряды', desc: 'Доход с удела на 40% выше.', cost: 900, days: 10 },
-  { id: 'barracks', name: 'Казармы', desc: 'Каждый день в гарнизон приходит новобранец (до 60 воинов).', cost: 1100, days: 12 },
-  { id: 'yard', name: 'Ристалище для оруженосцев', desc: 'Раз в неделю лучшие из гарнизона повышаются в звании.', cost: 1000, days: 12 },
+  { id: 'walls', name: tr('Каменные стены'), desc: tr('Гарнизон держит осаду на треть крепче; враги тратят больше времени на штурм.'), cost: 1500, days: 14 },
+  { id: 'market', name: tr('Торговые ряды'), desc: tr('Доход с удела на 40% выше.'), cost: 900, days: 10 },
+  { id: 'barracks', name: tr('Казармы'), desc: tr('Каждый день в гарнизон приходит новобранец (до 60 воинов).'), cost: 1100, days: 12 },
+  { id: 'yard', name: tr('Ристалище для оруженосцев'), desc: tr('Раз в неделю лучшие из гарнизона повышаются в звании.'), cost: 1000, days: 12 },
 ];
 
 export const TAX_INFO: Record<Tax, { name: string; k: number; hint: string }> = {
-  low: { name: 'Низкие', k: 0.7, hint: 'меньше денег, но крестьяне довольны' },
-  normal: { name: 'Обычные', k: 1, hint: '' },
-  high: { name: 'Высокие', k: 1.4, hint: 'больше денег, старосты ропщут' },
+  low: { name: tr('Низкие'), k: 0.7, hint: tr('меньше денег, но крестьяне довольны') },
+  normal: { name: tr('Обычные'), k: 1, hint: '' },
+  high: { name: tr('Высокие'), k: 1.4, hint: tr('больше денег, старосты ропщут') },
 };
 
 export interface FiefState {
@@ -73,7 +74,7 @@ export function fiefDaily(state: GameState): string[] {
     const f = fiefState(state, id);
     if (f.building && state.time >= f.building.done) {
       f.built.push(f.building.id);
-      out.push(`${s.name}: достроено — ${BUILDINGS.find((b) => b.id === f.building!.id)!.name}.`);
+      out.push(tr`${s.name}: достроено — ${BUILDINGS.find((b) => b.id === f.building!.id)!.name}.`);
       f.building = undefined;
     }
     const gar = (state.war!.garrisons[id] ??= []);

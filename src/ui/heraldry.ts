@@ -5,6 +5,7 @@ import { armsURL, CHARGES, DEFAULT_ARMS, DIVISIONS, TINCTURES, type Arms } from 
 import { hex } from '../gfx/pixel';
 import { btn, h, img, openModal, panel, toast } from './dom';
 import type { GameCtx } from './panels';
+import { tr } from '../i18n';
 
 export function openArmsEditor(ctx: GameCtx, onDone?: () => void) {
   const { state } = ctx;
@@ -38,25 +39,25 @@ export function openArmsEditor(ctx: GameCtx, onDone?: () => void) {
     );
 
   const render = () => {
-    preview.replaceChildren(img(armsURL(a), 'px', 'width:128px;height:144px'), h('div', { class: 'muted small', style: 'text-align:center;margin-top:4px' }, 'Герб на щите героя, на знамени отряда и в бою'));
+    preview.replaceChildren(img(armsURL(a), 'px', 'width:128px;height:144px'), h('div', { class: 'muted small', style: 'text-align:center;margin-top:4px' }, tr('Герб на щите героя, на знамени отряда и в бою')));
     controls.replaceChildren(
-      swatches('Поле', 'field'),
-      choice('Деление', DIVISIONS, () => a.division, (v) => (a.division = v)),
-      a.division !== 'plain' ? swatches('Второй цвет', 'field2') : '',
-      choice('Фигура', CHARGES, () => a.charge, (v) => (a.charge = v)),
-      a.charge !== 'none' ? swatches('Цвет фигуры', 'chargeColor') : '',
+      swatches(tr('Поле'), 'field'),
+      choice(tr('Деление'), DIVISIONS, () => a.division, (v) => (a.division = v)),
+      a.division !== 'plain' ? swatches(tr('Второй цвет'), 'field2') : '',
+      choice(tr('Фигура'), CHARGES, () => a.charge, (v) => (a.charge = v)),
+      a.charge !== 'none' ? swatches(tr('Цвет фигуры'), 'chargeColor') : '',
     );
   };
 
   const content = panel(
     'modal wide',
-    h('div', { class: 'head' }, h('div', {}, h('h2', { class: 'title' }, 'Личный герб'), h('div', { class: 'muted', style: 'font-size:13px' }, 'Правило геральдики: не кладите цвет на цвет — металл (золото, серебро) на финифть смотрится лучше.')), btn('✕', () => close(), 'small close')),
+    h('div', { class: 'head' }, h('div', {}, h('h2', { class: 'title' }, tr('Личный герб')), h('div', { class: 'muted', style: 'font-size:13px' }, tr('Правило геральдики: не кладите цвет на цвет — металл (золото, серебро) на финифть смотрится лучше.'))), btn('✕', () => close(), 'small close')),
     h('div', { class: 'body arms-layout' }, preview, controls),
     h(
       'div',
       { class: 'row', style: 'justify-content:flex-end;gap:6px' },
-      state.hero.arms ? btn('Вернуть знамя державы', () => { state.hero.arms = undefined; ctx.commit(); ctx.refreshHero?.(); close(); onDone?.(); toast('Снова под знаменем державы'); }, 'ghost') : null,
-      btn('Утвердить герб', () => { state.hero.arms = { ...a }; ctx.commit(); ctx.refreshHero?.(); close(); onDone?.(); toast('Герб утверждён'); }, 'primary'),
+      state.hero.arms ? btn(tr('Вернуть знамя державы'), () => { state.hero.arms = undefined; ctx.commit(); ctx.refreshHero?.(); close(); onDone?.(); toast(tr('Снова под знаменем державы')); }, 'ghost') : null,
+      btn(tr('Утвердить герб'), () => { state.hero.arms = { ...a }; ctx.commit(); ctx.refreshHero?.(); close(); onDone?.(); toast(tr('Герб утверждён')); }, 'primary'),
     ),
   );
   render();

@@ -1,4 +1,5 @@
 import type { FactionId } from './factions';
+import { tr } from '../i18n';
 
 export type DamageType = 'cut' | 'pierce' | 'blunt';
 export type TroopLine = 'infantry' | 'cavalry';
@@ -94,68 +95,68 @@ interface Spec {
   mod?: Partial<{ hp: number; damage: number; armor: number; speed: number; block: number; dodge: number; attackTime: number; range: number; crit: number }>;
 }
 
-const PEASANT_DESC = 'Вчерашний пахарь с вилами. Дёшев, слаб, но из него можно вырастить настоящего воина.';
+const PEASANT_DESC = tr('Вчерашний пахарь с вилами. Дёшев, слаб, но из него можно вырастить настоящего воина.');
 
 const SPECS: Record<FactionId, { cloth: string } & Record<Slot, Spec>> = {
   aurelia: {
     cloth: '#3a6cc4',
-    i1: { name: 'Крестьянин', weapon: 'pitchfork', helmet: 'hood', shield: false, armor: '#8a6d4a', description: PEASANT_DESC },
-    i2: { name: 'Ландвер', weapon: 'spear', helmet: 'kettle', shield: true, armor: '#9a9a9a', description: 'Городское ополчение: копьё, щит и железная шляпа.' },
-    i3m: { name: 'Имперский пехотинец', weapon: 'sword', helmet: 'bascinet', shield: true, armor: '#a8adb4', description: 'Кольчуга, бацинет и добрый меч. Держит строй под натиском.', mod: { armor: 1.1 } },
-    i3r: { name: 'Генуэзский арбалетчик', weapon: 'crossbow', helmet: 'kettle', shield: false, armor: '#9a9a9a', description: 'Арбалет бьёт медленно, но пробивает кольчугу.', mod: { damage: 1.25, attackTime: 1.3, range: 1.1 } },
-    i4m: { name: 'Доппельзольднер', weapon: 'halberd', helmet: 'bascinet', shield: false, armor: '#c0c5cc', description: 'Ветеран в полулатах с алебардой. Получает двойное жалованье — и заслуживает его.', mod: { armor: 1.15, damage: 1.15, block: 0 } },
-    i4r: { name: 'Павезьер', weapon: 'crossbow', helmet: 'bascinet', shield: true, armor: '#b0b5bc', description: 'Арбалетчик с огромным щитом-павезой. Стреляет из-за укрытия.', mod: { damage: 1.25, attackTime: 1.3, armor: 1.2 } },
-    c1: { name: 'Конный слуга', weapon: 'spear', helmet: 'cap', shield: false, armor: '#8a6d4a', description: 'Слуга при рыцарском коне. Умеет держаться в седле.' },
-    c2: { name: 'Сквайр', weapon: 'sword', helmet: 'nasal', shield: true, armor: '#9a9a9a', description: 'Оруженосец, мечтающий о рыцарских шпорах.' },
-    c3m: { name: 'Конный латник', weapon: 'lance', helmet: 'bascinet', shield: true, armor: '#b0b5bc', description: 'Тяжёлый всадник в латах. Таранный удар копьём сметает пехоту.', mod: { damage: 1.1 } },
-    c3r: { name: 'Конный арбалетчик', weapon: 'crossbow', helmet: 'kettle', shield: false, armor: '#9a9a9a', description: 'Арбалетчик верхом: медленно, но метко.', mod: { damage: 1.2, attackTime: 1.25 } },
-    c4m: { name: 'Имперский рыцарь', weapon: 'lance', helmet: 'great', shield: true, armor: '#d0d5dc', description: 'Цвет имперского рыцарства в полных латах. Сильнейшая конница Европы.', mod: { armor: 1.1, damage: 1.1 } },
-    c4r: { name: 'Кондотьер', weapon: 'crossbow', helmet: 'bascinet', shield: false, armor: '#c0c5cc', description: 'Наёмный капитан итальянских войн. Стреляет, рубит и торгуется.', mod: { damage: 1.2, attackTime: 1.25, armor: 1.1 } },
+    i1: { name: tr('Крестьянин'), weapon: 'pitchfork', helmet: 'hood', shield: false, armor: '#8a6d4a', description: PEASANT_DESC },
+    i2: { name: tr('Ландвер'), weapon: 'spear', helmet: 'kettle', shield: true, armor: '#9a9a9a', description: tr('Городское ополчение: копьё, щит и железная шляпа.') },
+    i3m: { name: tr('Имперский пехотинец'), weapon: 'sword', helmet: 'bascinet', shield: true, armor: '#a8adb4', description: tr('Кольчуга, бацинет и добрый меч. Держит строй под натиском.'), mod: { armor: 1.1 } },
+    i3r: { name: tr('Генуэзский арбалетчик'), weapon: 'crossbow', helmet: 'kettle', shield: false, armor: '#9a9a9a', description: tr('Арбалет бьёт медленно, но пробивает кольчугу.'), mod: { damage: 1.25, attackTime: 1.3, range: 1.1 } },
+    i4m: { name: tr('Доппельзольднер'), weapon: 'halberd', helmet: 'bascinet', shield: false, armor: '#c0c5cc', description: tr('Ветеран в полулатах с алебардой. Получает двойное жалованье — и заслуживает его.'), mod: { armor: 1.15, damage: 1.15, block: 0 } },
+    i4r: { name: tr('Павезьер'), weapon: 'crossbow', helmet: 'bascinet', shield: true, armor: '#b0b5bc', description: tr('Арбалетчик с огромным щитом-павезой. Стреляет из-за укрытия.'), mod: { damage: 1.25, attackTime: 1.3, armor: 1.2 } },
+    c1: { name: tr('Конный слуга'), weapon: 'spear', helmet: 'cap', shield: false, armor: '#8a6d4a', description: tr('Слуга при рыцарском коне. Умеет держаться в седле.') },
+    c2: { name: tr('Сквайр'), weapon: 'sword', helmet: 'nasal', shield: true, armor: '#9a9a9a', description: tr('Оруженосец, мечтающий о рыцарских шпорах.') },
+    c3m: { name: tr('Конный латник'), weapon: 'lance', helmet: 'bascinet', shield: true, armor: '#b0b5bc', description: tr('Тяжёлый всадник в латах. Таранный удар копьём сметает пехоту.'), mod: { damage: 1.1 } },
+    c3r: { name: tr('Конный арбалетчик'), weapon: 'crossbow', helmet: 'kettle', shield: false, armor: '#9a9a9a', description: tr('Арбалетчик верхом: медленно, но метко.'), mod: { damage: 1.2, attackTime: 1.25 } },
+    c4m: { name: tr('Имперский рыцарь'), weapon: 'lance', helmet: 'great', shield: true, armor: '#d0d5dc', description: tr('Цвет имперского рыцарства в полных латах. Сильнейшая конница Европы.'), mod: { armor: 1.1, damage: 1.1 } },
+    c4r: { name: tr('Кондотьер'), weapon: 'crossbow', helmet: 'bascinet', shield: false, armor: '#c0c5cc', description: tr('Наёмный капитан итальянских войн. Стреляет, рубит и торгуется.'), mod: { damage: 1.2, attackTime: 1.25, armor: 1.1 } },
   },
   nordmark: {
     cloth: '#c24040',
-    i1: { name: 'Крестьянин', weapon: 'pitchfork', helmet: 'hood', shield: false, armor: '#7a6448', description: PEASANT_DESC },
-    i2: { name: 'Бонд', weapon: 'axe', helmet: 'cap', shield: true, armor: '#8a7050', description: 'Свободный земледелец с топором и круглым щитом.', mod: { hp: 1.1, block: 1.3 } },
-    i3m: { name: 'Хирдман', weapon: 'axe', helmet: 'nasal', shield: true, armor: '#9aa0a8', description: 'Дружинник ярла. Щит к щиту — стену не пробить.', mod: { hp: 1.1, block: 1.3 } },
-    i3r: { name: 'Лесной лучник', weapon: 'bow', helmet: 'hood', shield: false, armor: '#6a5a40', description: 'Охотник из северных лесов. Бьёт белку в глаз.', mod: { range: 1.15 } },
-    i4m: { name: 'Хускарл', weapon: 'axe', helmet: 'nasal', shield: true, armor: '#b0b5bc', description: 'Личная гвардия конунга с датским топором. Не отступает никогда.', mod: { hp: 1.15, damage: 1.15, block: 1.2 } },
-    i4r: { name: 'Охотник Нордмарка', weapon: 'bow', helmet: 'fur', shield: false, armor: '#7a6a50', description: 'Лучший лучник Севера с тисовым длинным луком.', mod: { range: 1.2, crit: 1.3 } },
-    c1: { name: 'Конный слуга', weapon: 'spear', helmet: 'cap', shield: false, armor: '#7a6448', description: 'Бонд, раздобывший лошадь.' },
-    c2: { name: 'Дружинник', weapon: 'sword', helmet: 'nasal', shield: true, armor: '#9aa0a8', description: 'Конный воин из дружины ярла.' },
-    c3m: { name: 'Конный хирдман', weapon: 'axe', helmet: 'nasal', shield: true, armor: '#a8adb4', description: 'Хирдман, привыкший сражаться и в седле.', mod: { hp: 1.1, damage: 0.95 } },
-    c3r: { name: 'Конный лучник', weapon: 'bow', helmet: 'hood', shield: false, armor: '#7a6a50', description: 'Лёгкий стрелок на выносливой северной лошадке.', mod: { damage: 0.95 } },
-    c4m: { name: 'Ярлов гвардеец', weapon: 'sword', helmet: 'great', shield: true, armor: '#c0c5cc', description: 'Отборный всадник из свиты ярла.', mod: { hp: 1.1, damage: 0.95 } },
-    c4r: { name: 'Всадник-следопыт', weapon: 'bow', helmet: 'fur', shield: false, armor: '#8a7a5a', description: 'Разведчик, знающий каждую тропу Севера.', mod: { range: 1.1 } },
+    i1: { name: tr('Крестьянин'), weapon: 'pitchfork', helmet: 'hood', shield: false, armor: '#7a6448', description: PEASANT_DESC },
+    i2: { name: tr('Бонд'), weapon: 'axe', helmet: 'cap', shield: true, armor: '#8a7050', description: tr('Свободный земледелец с топором и круглым щитом.'), mod: { hp: 1.1, block: 1.3 } },
+    i3m: { name: tr('Хирдман'), weapon: 'axe', helmet: 'nasal', shield: true, armor: '#9aa0a8', description: tr('Дружинник ярла. Щит к щиту — стену не пробить.'), mod: { hp: 1.1, block: 1.3 } },
+    i3r: { name: tr('Лесной лучник'), weapon: 'bow', helmet: 'hood', shield: false, armor: '#6a5a40', description: tr('Охотник из северных лесов. Бьёт белку в глаз.'), mod: { range: 1.15 } },
+    i4m: { name: tr('Хускарл'), weapon: 'axe', helmet: 'nasal', shield: true, armor: '#b0b5bc', description: tr('Личная гвардия конунга с датским топором. Не отступает никогда.'), mod: { hp: 1.15, damage: 1.15, block: 1.2 } },
+    i4r: { name: tr('Охотник Нордмарка'), weapon: 'bow', helmet: 'fur', shield: false, armor: '#7a6a50', description: tr('Лучший лучник Севера с тисовым длинным луком.'), mod: { range: 1.2, crit: 1.3 } },
+    c1: { name: tr('Конный слуга'), weapon: 'spear', helmet: 'cap', shield: false, armor: '#7a6448', description: tr('Бонд, раздобывший лошадь.') },
+    c2: { name: tr('Дружинник'), weapon: 'sword', helmet: 'nasal', shield: true, armor: '#9aa0a8', description: tr('Конный воин из дружины ярла.') },
+    c3m: { name: tr('Конный хирдман'), weapon: 'axe', helmet: 'nasal', shield: true, armor: '#a8adb4', description: tr('Хирдман, привыкший сражаться и в седле.'), mod: { hp: 1.1, damage: 0.95 } },
+    c3r: { name: tr('Конный лучник'), weapon: 'bow', helmet: 'hood', shield: false, armor: '#7a6a50', description: tr('Лёгкий стрелок на выносливой северной лошадке.'), mod: { damage: 0.95 } },
+    c4m: { name: tr('Ярлов гвардеец'), weapon: 'sword', helmet: 'great', shield: true, armor: '#c0c5cc', description: tr('Отборный всадник из свиты ярла.'), mod: { hp: 1.1, damage: 0.95 } },
+    c4r: { name: tr('Всадник-следопыт'), weapon: 'bow', helmet: 'fur', shield: false, armor: '#8a7a5a', description: tr('Разведчик, знающий каждую тропу Севера.'), mod: { range: 1.1 } },
   },
   horde: {
     cloth: '#e0aa24',
-    i1: { name: 'Крестьянин', weapon: 'pitchfork', helmet: 'fur', shield: false, armor: '#8a6d4a', description: PEASANT_DESC },
-    i2: { name: 'Цэрэг', weapon: 'spear', helmet: 'fur', shield: true, armor: '#8a6a45', description: 'Новобранец тумена в стёганом халате.' },
-    i3m: { name: 'Пеший нукер', weapon: 'sabre', helmet: 'spired', shield: true, armor: '#8f7a5a', description: 'Воин в ламеллярном доспехе с кривой саблей.', mod: { armor: 0.9 } },
-    i3r: { name: 'Степной лучник', weapon: 'bow', helmet: 'fur', shield: false, armor: '#8a6a45', description: 'Составной лук степи бьёт дальше любого другого.', mod: { range: 1.1 } },
-    i4m: { name: 'Турхаут', weapon: 'glaive', helmet: 'spired', shield: false, armor: '#a08a60', description: 'Дневная стража хана с тяжёлой глефой.', mod: { damage: 1.15, block: 0 } },
-    i4r: { name: 'Мэргэн', weapon: 'bow', helmet: 'spired', shield: false, armor: '#9a8055', description: 'Мастер-стрелок: три стрелы в воздухе одновременно.', mod: { range: 1.15, attackTime: 0.85 } },
-    c1: { name: 'Табунщик', weapon: 'spear', helmet: 'fur', shield: false, armor: '#8a6a45', description: 'Степняк, выросший в седле.', mod: { speed: 1.15 } },
-    c2: { name: 'Аратский всадник', weapon: 'sabre', helmet: 'fur', shield: true, armor: '#8f7a5a', description: 'Лёгкий всадник тумена.', mod: { speed: 1.15 } },
-    c3m: { name: 'Тяжёлый нукер', weapon: 'lance', helmet: 'spired', shield: true, armor: '#a08a60', description: 'Всадник в ламеллярной броне на бронированном коне.', mod: { speed: 1.1 } },
-    c3r: { name: 'Конный лучник', weapon: 'bow', helmet: 'fur', shield: false, armor: '#8f7a5a', description: 'Главное оружие Орды: стреляет на скаку и уходит от погони.', mod: { speed: 1.15, damage: 1.15, dodge: 1.2 } },
-    c4m: { name: 'Кешиктен', weapon: 'lance', helmet: 'spired', shield: true, armor: '#b89a60', description: 'Гвардеец личной стражи хана. Лучший из лучших.', mod: { speed: 1.1, damage: 1.05 } },
-    c4r: { name: 'Хубилганский стрелок', weapon: 'bow', helmet: 'spired', shield: false, armor: '#a88a55', description: 'Легендарный конный лучник: не промахивается даже на полном скаку.', mod: { speed: 1.15, damage: 1.2, dodge: 1.2, crit: 1.2 } },
+    i1: { name: tr('Крестьянин'), weapon: 'pitchfork', helmet: 'fur', shield: false, armor: '#8a6d4a', description: PEASANT_DESC },
+    i2: { name: tr('Цэрэг'), weapon: 'spear', helmet: 'fur', shield: true, armor: '#8a6a45', description: tr('Новобранец тумена в стёганом халате.') },
+    i3m: { name: tr('Пеший нукер'), weapon: 'sabre', helmet: 'spired', shield: true, armor: '#8f7a5a', description: tr('Воин в ламеллярном доспехе с кривой саблей.'), mod: { armor: 0.9 } },
+    i3r: { name: tr('Степной лучник'), weapon: 'bow', helmet: 'fur', shield: false, armor: '#8a6a45', description: tr('Составной лук степи бьёт дальше любого другого.'), mod: { range: 1.1 } },
+    i4m: { name: tr('Турхаут'), weapon: 'glaive', helmet: 'spired', shield: false, armor: '#a08a60', description: tr('Дневная стража хана с тяжёлой глефой.'), mod: { damage: 1.15, block: 0 } },
+    i4r: { name: tr('Мэргэн'), weapon: 'bow', helmet: 'spired', shield: false, armor: '#9a8055', description: tr('Мастер-стрелок: три стрелы в воздухе одновременно.'), mod: { range: 1.15, attackTime: 0.85 } },
+    c1: { name: tr('Табунщик'), weapon: 'spear', helmet: 'fur', shield: false, armor: '#8a6a45', description: tr('Степняк, выросший в седле.'), mod: { speed: 1.15 } },
+    c2: { name: tr('Аратский всадник'), weapon: 'sabre', helmet: 'fur', shield: true, armor: '#8f7a5a', description: tr('Лёгкий всадник тумена.'), mod: { speed: 1.15 } },
+    c3m: { name: tr('Тяжёлый нукер'), weapon: 'lance', helmet: 'spired', shield: true, armor: '#a08a60', description: tr('Всадник в ламеллярной броне на бронированном коне.'), mod: { speed: 1.1 } },
+    c3r: { name: tr('Конный лучник'), weapon: 'bow', helmet: 'fur', shield: false, armor: '#8f7a5a', description: tr('Главное оружие Орды: стреляет на скаку и уходит от погони.'), mod: { speed: 1.15, damage: 1.15, dodge: 1.2 } },
+    c4m: { name: tr('Кешиктен'), weapon: 'lance', helmet: 'spired', shield: true, armor: '#b89a60', description: tr('Гвардеец личной стражи хана. Лучший из лучших.'), mod: { speed: 1.1, damage: 1.05 } },
+    c4r: { name: tr('Хубилганский стрелок'), weapon: 'bow', helmet: 'spired', shield: false, armor: '#a88a55', description: tr('Легендарный конный лучник: не промахивается даже на полном скаку.'), mod: { speed: 1.15, damage: 1.2, dodge: 1.2, crit: 1.2 } },
   },
   sultanate: {
     cloth: '#35a066',
-    i1: { name: 'Крестьянин', weapon: 'pitchfork', helmet: 'turban', shield: false, armor: '#b09a70', description: PEASANT_DESC },
-    i2: { name: 'Ахдас', weapon: 'spear', helmet: 'turban', shield: true, armor: '#a08a60', description: 'Городское ополчение с копьём и лёгким щитом.', mod: { dodge: 1.3 } },
-    i3m: { name: 'Копейщик', weapon: 'spear', helmet: 'spired', shield: true, armor: '#a8a8a0', description: 'Опытный копейщик. Длинное копьё — гроза конницы.', mod: { dodge: 1.3 } },
-    i3r: { name: 'Лучник-рами', weapon: 'bow', helmet: 'turban', shield: false, armor: '#a08a60', description: 'Выученный стрелок из составного лука.', mod: { dodge: 1.3 } },
-    i4m: { name: 'Гулям-страж', weapon: 'sabre', helmet: 'spired', shield: true, armor: '#c0c0b8', description: 'Гвардеец эмира в кольчуге и с дамасским клинком.', mod: { damage: 1.1, dodge: 1.3 } },
-    i4r: { name: 'Мастер-рами', weapon: 'bow', helmet: 'spired', shield: false, armor: '#b0a890', description: 'Мастер стрельбы, обученный по трактатам о фурусийе.', mod: { crit: 1.3, dodge: 1.3 } },
-    c1: { name: 'Бедуин-наездник', weapon: 'spear', helmet: 'turban', shield: false, armor: '#b09a70', description: 'Сын пустыни на быстром скакуне.', mod: { speed: 1.1 } },
-    c2: { name: 'Фарис', weapon: 'sabre', helmet: 'turban', shield: true, armor: '#a8a8a0', description: 'Конный воин, знающий правила фурусийи.' },
-    c3m: { name: 'Мамлюк', weapon: 'lance', helmet: 'spired', shield: true, armor: '#c0c0b8', description: 'Воин-невольник, выращенный для войны. Страшен в ближнем бою.', mod: { damage: 1.1 } },
-    c3r: { name: 'Туркопол', weapon: 'bow', helmet: 'spired', shield: false, armor: '#a8a8a0', description: 'Конный лучник на службе султана.' },
-    c4m: { name: 'Мамлюк Халки', weapon: 'lance', helmet: 'spired', shield: true, armor: '#d0d0c8', description: 'Элита мамлюков — личная гвардия султана.', mod: { damage: 1.1, armor: 1.05 } },
-    c4r: { name: 'Эмирский стрелок', weapon: 'bow', helmet: 'spired', shield: false, armor: '#b8b0a0', description: 'Конный лучник эмира в кольчуге.', mod: { crit: 1.2, armor: 1.1 } },
+    i1: { name: tr('Крестьянин'), weapon: 'pitchfork', helmet: 'turban', shield: false, armor: '#b09a70', description: PEASANT_DESC },
+    i2: { name: tr('Ахдас'), weapon: 'spear', helmet: 'turban', shield: true, armor: '#a08a60', description: tr('Городское ополчение с копьём и лёгким щитом.'), mod: { dodge: 1.3 } },
+    i3m: { name: tr('Копейщик'), weapon: 'spear', helmet: 'spired', shield: true, armor: '#a8a8a0', description: tr('Опытный копейщик. Длинное копьё — гроза конницы.'), mod: { dodge: 1.3 } },
+    i3r: { name: tr('Лучник-рами'), weapon: 'bow', helmet: 'turban', shield: false, armor: '#a08a60', description: tr('Выученный стрелок из составного лука.'), mod: { dodge: 1.3 } },
+    i4m: { name: tr('Гулям-страж'), weapon: 'sabre', helmet: 'spired', shield: true, armor: '#c0c0b8', description: tr('Гвардеец эмира в кольчуге и с дамасским клинком.'), mod: { damage: 1.1, dodge: 1.3 } },
+    i4r: { name: tr('Мастер-рами'), weapon: 'bow', helmet: 'spired', shield: false, armor: '#b0a890', description: tr('Мастер стрельбы, обученный по трактатам о фурусийе.'), mod: { crit: 1.3, dodge: 1.3 } },
+    c1: { name: tr('Бедуин-наездник'), weapon: 'spear', helmet: 'turban', shield: false, armor: '#b09a70', description: tr('Сын пустыни на быстром скакуне.'), mod: { speed: 1.1 } },
+    c2: { name: tr('Фарис'), weapon: 'sabre', helmet: 'turban', shield: true, armor: '#a8a8a0', description: tr('Конный воин, знающий правила фурусийи.') },
+    c3m: { name: tr('Мамлюк'), weapon: 'lance', helmet: 'spired', shield: true, armor: '#c0c0b8', description: tr('Воин-невольник, выращенный для войны. Страшен в ближнем бою.'), mod: { damage: 1.1 } },
+    c3r: { name: tr('Туркопол'), weapon: 'bow', helmet: 'spired', shield: false, armor: '#a8a8a0', description: tr('Конный лучник на службе султана.') },
+    c4m: { name: tr('Мамлюк Халки'), weapon: 'lance', helmet: 'spired', shield: true, armor: '#d0d0c8', description: tr('Элита мамлюков — личная гвардия султана.'), mod: { damage: 1.1, armor: 1.05 } },
+    c4r: { name: tr('Эмирский стрелок'), weapon: 'bow', helmet: 'spired', shield: false, armor: '#b8b0a0', description: tr('Конный лучник эмира в кольчуге.'), mod: { crit: 1.2, armor: 1.1 } },
   },
 };
 
@@ -245,11 +246,11 @@ function outlaw(id: string, name: string, o: Partial<TroopDef> & { look: TroopLo
 }
 
 const OUTLAWS: TroopDef[] = [
-  outlaw('outlaw_bandit', 'Разбойник', {
+  outlaw('outlaw_bandit', tr('Разбойник'), {
     look: { helmet: 'hood', cloth: '#6a3a2a', armor: '#6a5a40', weapon: 'mace', shield: false },
-    description: 'Лесной грабитель с дубиной. Опасен только толпой.',
+    description: tr('Лесной грабитель с дубиной. Опасен только толпой.'),
   }),
-  outlaw('outlaw_archer', 'Разбойник-лучник', {
+  outlaw('outlaw_archer', tr('Разбойник-лучник'), {
     tier: 2,
     role: 'ranged',
     hp: 50,
@@ -257,25 +258,25 @@ const OUTLAWS: TroopDef[] = [
     range: 65,
     attackTime: 2.3,
     look: { helmet: 'hood', cloth: '#4a5a32', armor: '#5a4a38', weapon: 'bow', shield: false },
-    description: 'Бьёт из засады и сразу уходит в чащу.',
+    description: tr('Бьёт из засады и сразу уходит в чащу.'),
   }),
-  outlaw('outlaw_leader', 'Главарь шайки', {
+  outlaw('outlaw_leader', tr('Главарь шайки'), {
     tier: 3,
     hp: 90,
     damage: 17,
     armor: { cut: 0.25, pierce: 0.2, blunt: 0.12 },
     look: { helmet: 'nasal', cloth: '#5a2a22', armor: '#8a8f96', weapon: 'axe', shield: true },
-    description: 'Бывший наёмник, ставший атаманом.',
+    description: tr('Бывший наёмник, ставший атаманом.'),
   }),
-  outlaw('outlaw_pirate', 'Морской разбойник', {
+  outlaw('outlaw_pirate', tr('Морской разбойник'), {
     tier: 2,
     hp: 60,
     damage: 13,
     armor: { cut: 0.1, pierce: 0.08, blunt: 0.06 },
     look: { helmet: 'cap', cloth: '#2a3a5a', armor: '#6a5a40', weapon: 'axe', shield: true },
-    description: 'Грабит берега с быстрых ладей.',
+    description: tr('Грабит берега с быстрых ладей.'),
   }),
-  outlaw('outlaw_raider', 'Степной налётчик', {
+  outlaw('outlaw_raider', tr('Степной налётчик'), {
     tier: 2,
     line: 'cavalry',
     role: 'ranged',
@@ -286,9 +287,9 @@ const OUTLAWS: TroopDef[] = [
     speed: 2.3,
     dodge: 0.15,
     look: { helmet: 'fur', cloth: '#7a5a32', armor: '#6a4a2c', weapon: 'bow', shield: false },
-    description: 'Налетает, осыпает стрелами и исчезает в степи.',
+    description: tr('Налетает, осыпает стрелами и исчезает в степи.'),
   }),
-  outlaw('outlaw_desert', 'Пустынный разбойник', {
+  outlaw('outlaw_desert', tr('Пустынный разбойник'), {
     tier: 2,
     line: 'cavalry',
     hp: 80,
@@ -296,13 +297,13 @@ const OUTLAWS: TroopDef[] = [
     speed: 2.2,
     armor: { cut: 0.1, pierce: 0.08, blunt: 0.06 },
     look: { helmet: 'turban', cloth: '#3a3028', armor: '#8a7a5a', weapon: 'sabre', shield: true },
-    description: 'Всадник пустыни, грабящий караваны.',
+    description: tr('Всадник пустыни, грабящий караваны.'),
   }),
 ];
 
 /** Наёмные отряды из таверн: опытные бойцы без повышения, дорогие, но готовые сразу. */
 const MERCS: TroopDef[] = [
-  outlaw('merc_genoese', 'Генуэзский арбалетчик', {
+  outlaw('merc_genoese', tr('Генуэзский арбалетчик'), {
     tier: 3,
     role: 'ranged',
     hp: 70,
@@ -313,9 +314,9 @@ const MERCS: TroopDef[] = [
     block: 0.2,
     hireCost: 160,
     look: { helmet: 'kettle', cloth: '#c83030', armor: '#9aa0a8', weapon: 'crossbow', shield: true },
-    description: 'Лучшие стрелки Европы: большой арбалет и павеза за спиной. Служат за звонкую монету.',
+    description: tr('Лучшие стрелки Европы: большой арбалет и павеза за спиной. Служат за звонкую монету.'),
   }),
-  outlaw('merc_swiss', 'Швейцарский алебардщик', {
+  outlaw('merc_swiss', tr('Швейцарский алебардщик'), {
     tier: 3,
     hp: 85,
     damage: 21,
@@ -323,9 +324,9 @@ const MERCS: TroopDef[] = [
     armor: { cut: 0.25, pierce: 0.2, blunt: 0.14 },
     hireCost: 150,
     look: { helmet: 'kettle', cloth: '#b83a3a', armor: '#a0a6ae', weapon: 'halberd', shield: false },
-    description: 'Горцы из лесных кантонов. После Моргартена рыцари их побаиваются.',
+    description: tr('Горцы из лесных кантонов. После Моргартена рыцари их побаиваются.'),
   }),
-  outlaw('merc_almogavar', 'Альмогавар', {
+  outlaw('merc_almogavar', tr('Альмогавар'), {
     tier: 3,
     hp: 75,
     damage: 18,
@@ -334,9 +335,9 @@ const MERCS: TroopDef[] = [
     armor: { cut: 0.12, pierce: 0.1, blunt: 0.06 },
     hireCost: 130,
     look: { helmet: 'cap', cloth: '#8a5a2a', armor: '#6a5a40', weapon: 'spear', shield: false },
-    description: 'Каталонские ветераны Великой компании: легки, быстры и безжалостны.',
+    description: tr('Каталонские ветераны Великой компании: легки, быстры и безжалостны.'),
   }),
-  outlaw('merc_knight', 'Странствующий рыцарь', {
+  outlaw('merc_knight', tr('Странствующий рыцарь'), {
     tier: 4,
     line: 'cavalry',
     hp: 150,
@@ -346,9 +347,9 @@ const MERCS: TroopDef[] = [
     block: 0.25,
     hireCost: 320,
     look: { helmet: 'great', cloth: '#3a3a4a', armor: '#b8bec6', weapon: 'lance', shield: true },
-    description: 'Рыцарь без земли, продающий копьё. Страшен в таранном ударе.',
+    description: tr('Рыцарь без земли, продающий копьё. Страшен в таранном ударе.'),
   }),
-  outlaw('merc_turcopole', 'Туркопол-наёмник', {
+  outlaw('merc_turcopole', tr('Туркопол-наёмник'), {
     tier: 3,
     line: 'cavalry',
     role: 'ranged',
@@ -361,9 +362,9 @@ const MERCS: TroopDef[] = [
     armor: { cut: 0.16, pierce: 0.12, blunt: 0.08 },
     hireCost: 220,
     look: { helmet: 'spired', cloth: '#5a4a3a', armor: '#8a7a5a', weapon: 'bow', shield: false },
-    description: 'Конный лучник, служивший и крестоносцам, и султанам.',
+    description: tr('Конный лучник, служивший и крестоносцам, и султанам.'),
   }),
-  outlaw('merc_varangian', 'Варяг', {
+  outlaw('merc_varangian', tr('Варяг'), {
     tier: 4,
     hp: 120,
     damage: 27,
@@ -372,7 +373,7 @@ const MERCS: TroopDef[] = [
     block: 0.3,
     hireCost: 260,
     look: { helmet: 'nasal', cloth: '#6a2a2a', armor: '#9aa0a8', weapon: 'axe', shield: true },
-    description: 'Северянин из бывшей стражи василевса. Секира и щит — вот и вся его вера.',
+    description: tr('Северянин из бывшей стражи василевса. Секира и щит — вот и вся его вера.'),
   }),
 ];
 
@@ -387,4 +388,4 @@ export function cavRecruitOf(faction: FactionId): string {
   return `${faction}_c1`;
 }
 
-export const DAMAGE_NAME: Record<DamageType, string> = { cut: 'рубящий', pierce: 'колющий', blunt: 'дробящий' };
+export const DAMAGE_NAME: Record<DamageType, string> = { cut: tr('рубящий'), pierce: tr('колющий'), blunt: tr('дробящий') };

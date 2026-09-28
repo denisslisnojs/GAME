@@ -5,6 +5,7 @@ import { SKILL_MAX, type SkillId } from '../data/skills';
 import { TROOPS, type TroopDef } from '../data/troops';
 import type { GameState } from './state';
 import { world } from './world';
+import { tr } from '../i18n';
 
 export interface CompanionState {
   id: string;
@@ -127,7 +128,7 @@ export function companionsAfterBattle(state: GameState, xp: number, down: string
     while (cs.xp >= companionXpToLevel(cs.level)) {
       cs.xp -= companionXpToLevel(cs.level);
       cs.level++;
-      out.push(`${def.name} достиг ${cs.level}-го уровня`);
+      out.push(tr`${def.name} достиг ${cs.level}-го уровня`);
     }
   }
   return out;
@@ -136,10 +137,10 @@ export function companionsAfterBattle(state: GameState, xp: number, down: string
 // ───────────────────────── нрав ─────────────────────────
 
 export function mood(loyalty: number): { text: string; color: string } {
-  if (loyalty >= 70) return { text: 'доволен', color: '#7ad06a' };
-  if (loyalty >= 40) return { text: 'спокоен', color: '#cfc7b2' };
-  if (loyalty >= 20) return { text: 'ворчит', color: '#e8c04a' };
-  return { text: 'готов уйти', color: '#e07a6a' };
+  if (loyalty >= 70) return { text: tr('доволен'), color: '#7ad06a' };
+  if (loyalty >= 40) return { text: tr('спокоен'), color: '#cfc7b2' };
+  if (loyalty >= 20) return { text: tr('ворчит'), color: '#e8c04a' };
+  return { text: tr('готов уйти'), color: '#e07a6a' };
 }
 
 /** Поступок героя: спутники радуются или ворчат. Возвращает реплики для летописи. */
@@ -148,7 +149,7 @@ export function companionDeed(state: GameState, deed: Deed): string[] {
   for (const { def, cs } of inParty(state)) {
     if (def.dislikes.includes(deed)) {
       cs.loyalty -= deed === 'defeat' || deed === 'retreat' ? 7 : 12;
-      out.push(`${def.name} недоволен: «${capital(DISLIKE_LINE[deed])}».`);
+      out.push(tr`${def.name} недоволен: «${capital(DISLIKE_LINE[deed])}».`);
     } else if (def.likes.includes(deed)) {
       cs.loyalty = Math.min(100, cs.loyalty + (deed === 'victory' ? 2 : 5));
       if (deed !== 'victory' || Math.random() < 0.25) out.push(`${def.name}: «${capital(LIKE_LINE[deed])}!»`);
@@ -169,16 +170,16 @@ function checkLeaving(state: GameState): string[] {
     cs.where = randomTown(def.culture);
     cs.movedAt = state.time;
     cs.loyalty = 40;
-    out.push(`${def.name} покинул отряд: «С меня хватит. Ищи себе других людей».`);
+    out.push(tr`${def.name} покинул отряд: «С меня хватит. Ищи себе других людей».`);
   }
   return out;
 }
 
 const QUARREL = [
-  (a: string, b: string) => `${a} и ${b} повздорили у костра — едва не дошло до ножей.`,
-  (a: string, b: string) => `${a} ворчит: «Или уйдёт ${b}, или уйду я».`,
-  (a: string, b: string) => `${a} и ${b} третий день не разговаривают. Отряд притих.`,
-  (a: string, b: string) => `${b} швырнул миску в сторону, где сидел ${a}. Пришлось разнимать.`,
+  (a: string, b: string) => tr`${a} и ${b} повздорили у костра — едва не дошло до ножей.`,
+  (a: string, b: string) => tr`${a} ворчит: «Или уйдёт ${b}, или уйду я».`,
+  (a: string, b: string) => tr`${a} и ${b} третий день не разговаривают. Отряд притих.`,
+  (a: string, b: string) => tr`${b} швырнул миску в сторону, где сидел ${a}. Пришлось разнимать.`,
 ];
 
 /** Раз в день: жалованье по воскресеньям, ссоры соперников, переезды свободных спутников. */
@@ -200,10 +201,10 @@ export function companionsDaily(state: GameState): string[] {
     const total = party.reduce((s, { def }) => s + def.wage, 0);
     if (state.gold >= total) {
       state.gold -= total;
-      out.push(`Спутникам выплачено жалованье: ${total} ¤.`);
+      out.push(tr`Спутникам выплачено жалованье: ${total} ¤.`);
     } else {
       for (const { cs } of party) cs.loyalty -= 15;
-      out.push(`Нечем платить спутникам (${total} ¤) — они ропщут.`);
+      out.push(tr`Нечем платить спутникам (${total} ¤) — они ропщут.`);
     }
   }
   // Соперники в одном отряде ссорятся
@@ -221,7 +222,7 @@ export function companionsDaily(state: GameState): string[] {
   for (const { def, cs } of party) {
     if (cs.woundedUntil && cs.woundedUntil <= state.time) {
       cs.woundedUntil = undefined;
-      out.push(`${def.name} оправился от ран.`);
+      out.push(tr`${def.name} оправился от ран.`);
     }
   }
   out.push(...checkLeaving(state));

@@ -13,6 +13,7 @@ import { companionDeed, companionsAfterBattle, partySkill } from './companions';
 import { COMPANION_BY_ID, type Deed } from '../data/companions';
 import { maybeCaptureLord, onDefeat, takePrisoners } from './prisoners';
 import { diff } from './difficulty';
+import { lc, tr } from '../i18n';
 
 export interface AppliedResult {
   won: boolean;
@@ -159,7 +160,7 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies
   res.heroXp = Math.round(tierXp + (won ? 20 : 5));
   res.levelUp = gainHeroXp(state, res.heroXp);
   res.party = [
-    ...ours.companionsDown.map((id) => `${companionName(id)} ранен и несколько дней не сможет сражаться.`),
+    ...ours.companionsDown.map((id) => tr`${companionName(id)} ранен и несколько дней не сможет сражаться.`),
     ...companionsAfterBattle(state, res.heroXp, ours.companionsDown),
     ...companionDeed(state, won ? 'victory' : 'defeat'),
   ];
@@ -212,17 +213,17 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty, a
     onPartyDefeated(state, party);
     if (party.kind === 'caravan') {
       deed(res, state, 'caravan');
-      news(state, `${state.hero.name} разграбил караван державы «${FACTIONS[party.faction as FactionId].short}».`, 'player');
-      res.headline = 'Караван разграблен! Товары погружены в ваш обоз.';
+      news(state, tr`${state.hero.name} разграбил караван державы «${FACTIONS[party.faction as FactionId].short}».`, 'player');
+      res.headline = tr('Караван разграблен! Товары погружены в ваш обоз.');
     }
     if (party.kind === 'lord') {
       deed(res, state, 'lord');
       defeatLord(state, party, 'player');
-      res.headline = maybeCaptureLord(state, party) ? `${party.name} разбит и взят в плен! Выкуп можно получить в любой таверне.` : `${party.name} разбит и бежал!`;
+      res.headline = maybeCaptureLord(state, party) ? tr`${party.name} разбит и взят в плен! Выкуп можно получить в любой таверне.` : tr`${party.name} разбит и бежал!`;
     } else removeParty(state, party.id);
   } else {
     party.calmUntil = state.time + 1.5;
-    if (party.kind === 'lord') news(state, `${party.name} разбил отряд ${state.hero.name}.`, 'player');
+    if (party.kind === 'lord') news(state, tr`${party.name} разбил отряд ${state.hero.name}.`, 'player');
   }
   return res;
 }
@@ -250,9 +251,9 @@ export function applySiege(state: GameState, battle: Battle, s: Settlement, garr
     capture(state, s, state.hero.faction, true);
     (state.capturedByHero ??= []).push(s.id);
     state.stats!.captured = (state.stats!.captured ?? 0) + 1;
-    res.headline = `${s.name} взят! Крепость отходит государю — ${FACTIONS[state.hero.faction].rulerTitle.toLowerCase()} ${FACTIONS[state.hero.faction].ruler}.`;
+    res.headline = tr`${s.name} взят! Крепость отходит государю — ${lc(FACTIONS[state.hero.faction].rulerTitle)} ${FACTIONS[state.hero.faction].ruler}.`;
   } else {
-    news(state, `Гарнизон отбил штурм: ${placeName(s)} устоял. ${state.hero.name} отступает.`, 'player');
+    news(state, tr`Гарнизон отбил штурм: ${placeName(s)} устоял. ${state.hero.name} отступает.`, 'player');
   }
   return res;
 }
@@ -272,12 +273,12 @@ export function applyDefense(state: GameState, battle: Battle, s: Settlement, at
       }
     const ruler = (state.lords ?? []).find((l) => l.faction === state.hero.faction && l.lord!.rank === 3);
     if (ruler) addRelation(state, `lord:${ruler.lord!.name}`, 6);
-    news(state, `${state.hero.name} отстоял ${placeName(s)}: осада снята!`, 'player');
-    res.headline = `Осада снята! ${s.name} устоял, враг бежит.`;
+    news(state, tr`${state.hero.name} отстоял ${placeName(s)}: осада снята!`, 'player');
+    res.headline = tr`Осада снята! ${s.name} устоял, враг бежит.`;
     deed(res, state, 'lord');
   } else {
     capture(state, s, attacker, false);
-    res.headline = `${s.name} пал. Крепость в руках врага.`;
+    res.headline = tr`${s.name} пал. Крепость в руках врага.`;
   }
   return res;
 }
@@ -301,8 +302,8 @@ export function applyRaid(state: GameState, battle: Battle, s: Settlement, milit
     state.settlements[s.id].recruits = {};
     onVillageRaided(state, s);
     deed(res, state, 'raid');
-    news(state, `${state.hero.name} разорил ${placeName(s)}.`, 'player');
-    res.headline = `${s.name} разорена. Крестьяне разбежались.`;
+    news(state, tr`${state.hero.name} разорил ${placeName(s)}.`, 'player');
+    res.headline = tr`${s.name} разорена. Крестьяне разбежались.`;
   }
   return res;
 }
