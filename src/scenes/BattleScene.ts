@@ -323,12 +323,48 @@ export class BattleScene extends Phaser.Scene {
       } else this.setZoom(this.zoomMul * (dy > 0 ? 0.9 : 1.1));
     });
     this.input.keyboard?.on('keydown-SPACE', () => (this.paused = !this.paused));
+    // Клавиатура для героя: WASD/стрелки — ход, J — удар, K — блок, C — взять/отдать управление
+    const kb = this.input.keyboard;
+    if (kb) {
+      const keys = kb.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,J,K') as Record<string, Phaser.Input.Keyboard.Key>;
+      this.keys = keys;
+      kb.on('keydown-C', () => this.hud?.setControl(!this.battle.heroCtl.on));
+      kb.on('keydown-J', () => {
+        if (this.battle.heroCtl.on) this.battle.heroCtl.tap = true;
+      });
+    }
+  }
+
+  private keys: Record<string, Phaser.Input.Keyboard.Key> | null = null;
+  private keyDriven = false;
+
+  /** Клавиши двигают героя, пока управление у игрока (сенсорный стик не трогаем). */
+  private readKeys() {
+    const c = this.battle.heroCtl;
+    const k = this.keys;
+    if (!c.on || !k) return;
+    const x = (k.D.isDown || k.RIGHT.isDown ? 1 : 0) - (k.A.isDown || k.LEFT.isDown ? 1 : 0);
+    const y = (k.S.isDown || k.DOWN.isDown ? 1 : 0) - (k.W.isDown || k.UP.isDown ? 1 : 0);
+    const any = x || y || k.J.isDown || k.K.isDown;
+    if (any) {
+      const l = Math.hypot(x, y) || 1;
+      c.mx = x / l;
+      c.my = y / l;
+      c.attack = k.J.isDown;
+      c.block = k.K.isDown;
+      this.keyDriven = true;
+    } else if (this.keyDriven) {
+      c.mx = c.my = 0;
+      c.attack = c.block = false;
+      this.keyDriven = false;
+    }
   }
 
   // ───────────────────────── кадр ─────────────────────────
 
   update(_t: number, deltaMs: number) {
     const dtReal = Math.min(0.05, deltaMs / 1000);
+    this.readKeys();
     const dt = this.paused ? 0 : dtReal * this.speed;
     if (dt > 0) {
       // Мелкие шаги для устойчивости симуляции
@@ -357,6 +393,15 @@ export class BattleScene extends Phaser.Scene {
     const cam = this.cameras.main;
     this.clampScrollX();
     if (this.time.now < this.dragUntil) return;
+    // Управляемый герой — в центре кадра, чуть впереди по взгляду
+    if (this.battle.heroCtl.on) {
+      const hero = this.battle.units.find((u) => u.isHero && u.side === this.battle.playerSide && u.state !== 'dead' && u.state !== 'fled');
+      if (hero) {
+        const target = hero.x + hero.facing * 120 - cam.width / 2;
+        cam.scrollX += (target - cam.scrollX) * Math.min(1, dt * 3);
+        return;
+      }
+    }
     const alive = this.battle.units.filter((u) => u.state !== 'dead' && u.state !== 'fled');
     if (!alive.length) return;
     // Центр — между передними линиями сторон
@@ -455,6 +500,18 @@ export class BattleScene extends Phaser.Scene {
       }
       if (u.isHero && this.heroLabel && u.side === b.playerSide) {
         this.heroLabel.setPosition(u.x, u.y - (cav ? 112 : 92));
+        // Блок: золотая дуга щита перед героем
+        if (u.blocking) {
+          const a0 = u.facing > 0 ? -0.9 : Math.PI - 0.9;
+          bars.lineStyle(4, 0x1a1410, 0.8);
+          bars.beginPath();
+          bars.arc(u.x, ry - (cav ? 56 : 40), cav ? 34 : 26, a0, a0 + 1.8);
+          bars.strokePath();
+          bars.lineStyle(2, 0xe8c04a, 1);
+          bars.beginPath();
+          bars.arc(u.x, ry - (cav ? 56 : 40), cav ? 34 : 26, a0, a0 + 1.8);
+          bars.strokePath();
+        }
       }
     }
     if (this.heroLabel) {

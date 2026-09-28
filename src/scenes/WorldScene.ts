@@ -34,11 +34,16 @@ type Pt = { x: number; y: number };
 const MIN_ZOOM_ABS = 0.12;
 const MAX_ZOOM = 2.5;
 const TYPE_NAME = { town: 'Город', castle: 'Замок', village: 'Деревня' } as const;
+/** Масштаб фигурок отрядов на карте относительно пиксель-арта поселений: мельче, чтобы не загромождать карту. */
+const PARTY_K = 0.6;
+const LORD_K = 0.56;
+const PLAYER_K = 0.68;
 
 export class WorldScene extends Phaser.Scene implements GameCtx {
   state!: GameState;
   private mode: 'menu' | 'play' = 'menu';
-  private paused = false;
+  /** «Ждать»: время идёт, хотя отряд стоит (как лагерь в Mount & Blade). */
+  private waiting = false;
   private speed = 1;
   private modals = 0;
   private hud: Hud | null = null;
@@ -118,8 +123,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       this.labels.push({ t, s });
     }
 
-    this.party = this.add.sprite(0, 0, 'rider_aurelia_player_0').setOrigin(0.5, 0.9).setScale(ART_SCALE).setVisible(false);
-    this.ring = this.add.ellipse(0, 0, 90, 34).setStrokeStyle(5, 0xffd24a, 0.9).setVisible(false);
+    this.party = this.add.sprite(0, 0, 'rider_aurelia_player_0').setOrigin(0.5, 0.9).setScale(ART_SCALE * PLAYER_K).setVisible(false);
+    this.ring = this.add.ellipse(0, 0, 62, 24).setStrokeStyle(4, 0xffd24a, 0.9).setVisible(false);
 
     this.setupInput();
     this.scale.on('resize', () => this.clampZoom());
@@ -212,7 +217,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       if (this.mode === 'play' && color) this.hud?.news(text, color);
     });
     this.mode = 'play';
-    this.paused = false;
+    this.waiting = false;
     this.speed = 1;
     this.modals = 0;
     this.path = [];
@@ -225,13 +230,12 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.party.setVisible(true).setPosition(state.party.x, state.party.y);
     this.updatePartyTexture(0);
     const cam = this.cameras.main;
-    cam.setZoom(Math.max(this.minZoom(), 0.9));
+    cam.setZoom(Math.max(this.minZoom(), 0.75));
     cam.centerOn(state.party.x, state.party.y);
     this.hud = new Hud(state, {
-      togglePause: () => this.togglePause(),
-      setSpeed: (s) => {
-        this.speed = s;
-        this.paused = false;
+      toggleWait: () => this.toggleWait(),
+      cycleSpeed: () => {
+        this.speed = this.speed === 1 ? 2 : this.speed === 2 ? 4 : 1;
         this.updateHud();
       },
       centerParty: () => this.cameras.main.pan(this.party.x, this.party.y, 400, 'Sine.easeInOut'),
@@ -304,10 +308,24 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     });
   }
 
-  private togglePause() {
+  /** Время идёт, только пока отряд в пути или герой ждёт; иначе мир замирает. */
+  private timeFlows(): boolean {
+    return this.modals === 0 && (this.path.length > 0 || this.waiting || !!this.targetParty);
+  }
+
+  private toggleWait() {
     if (this.mode !== 'play') return;
-    this.paused = !this.paused;
+    this.waiting = !this.waiting;
+    if (this.waiting) this.stopMoving();
     this.updateHud();
+  }
+
+  private stopMoving() {
+    this.path = [];
+    this.targetSettlement = null;
+    this.targetParty = null;
+    this.pathGfx.clear();
+    this.marker.clear();
   }
 
   private refreshOwnership() {
@@ -384,7 +402,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       this.zoomAt(cam.zoom * (dy > 0 ? 0.87 : 1.15), p.x, p.y);
     });
 
-    this.input.keyboard?.on('keydown-SPACE', () => this.togglePause());
+    this.input.keyboard?.on('keydown-SPACE', () => this.toggleWait());
     this.input.keyboard?.on('keydown-ONE', () => { this.speed = 1; this.updateHud(); });
     this.input.keyboard?.on('keydown-TWO', () => { this.speed = 2; this.updateHud(); });
     this.input.keyboard?.on('keydown-THREE', () => { this.speed = 4; this.updateHud(); });
@@ -529,7 +547,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const cells = smoothPath(world.map.cost, isWaterCell, raw);
     this.path = cells.slice(1).map((i) => cellCenterWorld(i % GRID_W, (i / GRID_W) | 0));
     this.targetSettlement = target;
-    if (this.paused) this.paused = false;
+    this.waiting = false;
     this.drawPath();
     this.updateHud();
   }
@@ -589,7 +607,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
   update(_t: number, deltaMs: number) {
     if (this.mode !== 'play') return;
-    const running = !this.paused && this.modals === 0;
+    const running = this.timeFlows();
     const moving = running && this.path.length > 0;
 
     if (running) {
@@ -725,9 +743,9 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     for (const p of list) {
       let v = this.partySprites.get(p.id);
       if (!v) {
-        const s = this.add.sprite(p.x, p.y, this.partyTexture(p, 0)).setOrigin(0.5, 0.9).setScale(ART_SCALE);
+        const s = this.add.sprite(p.x, p.y, this.partyTexture(p, 0)).setOrigin(0.5, 0.9).setScale(ART_SCALE * PARTY_K);
         const label = this.add
-          .text(p.x, p.y + 6, '', { fontFamily: '"Kurale", Georgia, serif', fontSize: p.kind === 'lord' ? '14px' : '13px', color: '#e8e0c8', stroke: '#1a1410', strokeThickness: 4 })
+          .text(p.x, p.y + 6, '', { fontFamily: '"Kurale", Georgia, serif', fontSize: p.kind === 'lord' ? '12.5px' : '11.5px', color: '#e8e0c8', stroke: '#1a1410', strokeThickness: 3 })
           .setOrigin(0.5, 0)
           .setResolution(Math.min(3, window.devicePixelRatio || 1))
           .setDepth(9990);
@@ -741,7 +759,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         v.label.setColor(color);
       }
       const r = partyRuntime(p);
-      if (r.moving && !this.paused && this.modals === 0) {
+      if (r.moving && this.timeFlows()) {
         v.frameT += deltaMs * this.speed;
         if (v.frameT > 200) {
           v.frameT = 0;
@@ -749,8 +767,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         }
       }
       v.s.setTexture(this.partyTexture(p, v.frame)).setPosition(p.x, p.y).setFlipX(r.facing < 0).setDepth(p.y);
-      v.s.setScale(p.kind === 'lord' ? ART_SCALE * 0.85 : ART_SCALE);
-      v.label.setText(`${p.name} · ${partyCount(p)}`).setPosition(p.x, p.y + 8).setScale(k);
+      v.s.setScale(ART_SCALE * (p.kind === 'lord' ? LORD_K : PARTY_K));
+      v.label.setText(`${p.name} · ${partyCount(p)}`).setPosition(p.x, p.y + 4).setScale(k);
     }
     // Подписи отрядов не налезают на подписи городов и друг на друга: сначала лорды, потом ближние к игроку.
     // Раскладка раз в 150 мс — дешевле для телефона.
@@ -779,7 +797,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     let best: MapParty | null = null;
     let bestD = Infinity;
     for (const p of [...(this.state?.parties ?? []), ...(this.state ? activeLords(this.state) : [])]) {
-      const d = Math.hypot(p.x - x, p.y - 40 - y);
+      const d = Math.hypot(p.x - x, p.y - 24 - y);
       if (d < r && d < bestD) {
         best = p;
         bestD = d;
@@ -810,6 +828,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   }
 
   private encounter(p: MapParty) {
+    this.waiting = false;
     this.path = [];
     this.targetSettlement = null;
     this.pathGfx.clear();
@@ -1101,6 +1120,6 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const t = world.map.terrain[cy * GRID_W + cx];
     const cost = TERRAIN_COST[t];
     const speedWord = cost < 0.95 ? 'быстро' : cost < 1.1 ? 'обычно' : cost < 2 ? 'медленно' : 'очень медленно';
-    this.hud.update(this.state, this.paused || this.modals > 0, this.speed, `${TERRAIN_NAME[t] ?? ''} · ${speedWord}`);
+    this.hud.update(this.state, this.path.length > 0 ? 'march' : this.waiting ? 'wait' : 'still', this.speed, `${TERRAIN_NAME[t] ?? ''} · ${speedWord}`);
   }
 }

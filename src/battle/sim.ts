@@ -59,6 +59,20 @@ export interface BUnit {
   ammo: number;
   /** Стрелок на стене (осада). */
   onWall: boolean;
+  /** Герой под управлением игрока держит блок. */
+  blocking?: boolean;
+}
+
+/** Ручное управление героем игрока: направление движения (−1..1), удар, блок. */
+export interface HeroControl {
+  on: boolean;
+  mx: number;
+  my: number;
+  /** Удар зажат: бить, как только готов. */
+  attack: boolean;
+  /** Одиночное нажатие удара ждёт готовности оружия. */
+  tap: boolean;
+  block: boolean;
 }
 
 export interface Projectile {
@@ -133,6 +147,7 @@ export class Battle {
   winner: Side | null = null;
   routed: [boolean, boolean] = [false, false];
   heroDown = false;
+  heroCtl: HeroControl = { on: false, mx: 0, my: 0, attack: false, tap: false, block: false };
   private uid = 1;
   private aiCavDelay = 3;
   /** Осадный бой: сторона 1 обороняет стену. */
@@ -353,7 +368,11 @@ export class Battle {
       u.flash = Math.max(0, u.flash - dt);
       u.cd -= dt;
       u.anim += dt;
-      this.think(u, dt);
+      if (u.isHero && u.side === this.playerSide && this.heroCtl.on && !this.routed[u.side]) this.manual(u, dt);
+      else {
+        u.blocking = false;
+        this.think(u, dt);
+      }
     }
     this.updateProjectiles(dt);
     this.reinforce();
@@ -497,6 +516,72 @@ export class Battle {
     const gx = t.x + side * reach * 0.8 - u.x;
     const gy = dyRaw;
     this.steer(u, gx, gy, dt, 1);
+  }
+
+  /** Ближайший враг в пределах досягаемости (для ручного удара) — в первую очередь спереди. */
+  private nearestFoe(u: BUnit, maxD: number): BUnit | null {
+    let best: BUnit | null = null;
+    let bestD = maxD;
+    for (const e of this.units) {
+      if (e.side === u.side || e.state === 'dead' || e.state === 'fled') continue;
+      if (e.onWall && !this.breached && u.troop.role !== 'ranged') continue;
+      let d = ed(e.x - u.x, e.y - u.y);
+      if ((e.x - u.x) * u.facing < 0) d += 18; // за спиной — чуть дальше
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  /** Герой под рукой игрока: ходит по стику, бьёт и блокирует по кнопкам. */
+  private manual(u: BUnit, dt: number) {
+    const c = this.heroCtl;
+    const ranged = u.troop.role === 'ranged' && u.ammo > 0;
+    u.target = null;
+    // Замах идёт — удар по тому, кто окажется рядом в момент удара
+    if (u.swing > 0) {
+      u.blocking = false;
+      u.swing -= dt;
+      u.state = 'attack';
+      if (u.swing <= 0) {
+        const t = this.nearestFoe(u, this.reach(u) + 12);
+        if (t) this.strike(u, t);
+        else {
+          u.cd = u.troop.attackTime * 0.8;
+          u.anim = 0;
+        }
+      }
+      return;
+    }
+    u.blocking = c.block;
+    if ((c.attack || c.tap) && !c.block && u.cd <= 0) {
+      c.tap = false;
+      if (ranged) {
+        const t = this.nearestFoe(u, u.troop.range * METER);
+        if (t) {
+          if (Math.abs(t.x - u.x) > 2) u.facing = t.x > u.x ? 1 : -1;
+          this.shoot(u, t);
+          return;
+        }
+      } else {
+        const t = this.nearestFoe(u, this.reach(u) + 30);
+        if (t && Math.abs(t.x - u.x) > 2) u.facing = t.x > u.x ? 1 : -1;
+        this.startSwing(u, 0.22);
+        return;
+      }
+    }
+    const mag = Math.hypot(c.mx, c.my);
+    if (mag > 0.15) {
+      const facing = u.facing;
+      this.steer(u, c.mx * 100, (c.my * 100) / Y_SCALE, dt, (c.block ? 0.45 : 1) * Math.min(1, mag));
+      if (c.block) u.facing = facing; // под щитом не разворачиваемся
+      return;
+    }
+    if (u.troop.line === 'cavalry') u.chargeDist = Math.max(0, u.chargeDist - dt * 200);
+    this.separate(u, dt, 0.3);
+    u.state = u.state === 'attack' && u.anim < 0.4 ? 'attack' : 'idle';
   }
 
   /** Отталкивание от соседей, чтобы бойцы не слипались в кучу. Возвращает вектор. */
@@ -681,6 +766,12 @@ export class Battle {
     }
     // Блок щитом (если смотрит на атакующего)
     const facingAttacker = (a.x - d.x) * d.facing >= 0;
+    // Герой в блоке: щит держит почти всё спереди, без щита — парирует оружием
+    const held = d.blocking && facingAttacker ? (t.block > 0 ? 0.92 : ranged ? 0.2 : 0.7) : 0;
+    if (held && Math.random() < held) {
+      this.events.push({ kind: 'block', x: d.x, y: d.y, side: d.side });
+      return;
+    }
     if (t.block > 0 && facingAttacker && d.swing <= 0 && Math.random() < t.block * (ranged ? 0.8 : 1)) {
       this.events.push({ kind: 'block', x: d.x, y: d.y, side: d.side });
       return;
@@ -763,6 +854,7 @@ export class Battle {
   /** Прокрутить бой до конца без картинки (автобой). */
   runToEnd(maxTime = 420) {
     const dt = 0.1;
+    this.heroCtl.on = false;
     const ps = this.playerSide;
     this.orders[ps] = { hero: 'attack', inf: 'attack', ranged: 'attack', cav: 'attack' };
     let guard = 0;

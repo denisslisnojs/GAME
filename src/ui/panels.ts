@@ -28,6 +28,7 @@ import { openFief, openHost } from './nobles';
 import { world, type Settlement } from '../game/world';
 import { btn, h, img, openModal, panel, plural, sfxCoins, stars, toast } from './dom';
 import { openHero, openShop } from './heroUi';
+import { openTroopTree } from './troopTree';
 import { heroPortraitURL } from '../gfx/icons';
 
 export interface GameCtx {
@@ -379,7 +380,11 @@ export function openParty(ctx: GameCtx) {
     if (!troops.length) body.append(h('div', { class: 'muted', style: 'padding:8px' }, 'Отряд пуст. Наймите воинов в деревнях и городах.'));
   };
 
-  const content = panel('modal', header('Отряд', sub, () => close(), emblemURL(state.hero.faction)), body);
+  const head = header('Отряд', sub, () => close(), emblemURL(state.hero.faction));
+  const closeBtn = head.lastElementChild as HTMLElement;
+  closeBtn.style.marginLeft = '6px';
+  head.insertBefore(btn('Древо воинов', () => openTroopTree(state), 'small', false, 'Как растут воины'), closeBtn).setAttribute('style', 'margin-left:auto');
+  const content = panel('modal', head, body);
   render();
   close = openModal(content);
 }

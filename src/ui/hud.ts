@@ -5,8 +5,8 @@ import { dateString, timeOfDay, type GameState } from '../game/state';
 import { btn, h, uiRoot } from './dom';
 
 export interface HudActions {
-  togglePause(): void;
-  setSpeed(s: number): void;
+  toggleWait(): void;
+  cycleSpeed(): void;
   centerParty(): void;
   openParty(): void;
   openRealms(): void;
@@ -15,32 +15,31 @@ export interface HudActions {
   openChronicle(): void;
 }
 
+/** Состояние времени: отряд в пути, герой ждёт, или мир стоит. */
+export type Flow = 'march' | 'wait' | 'still';
+
 export class Hud {
   private root: HTMLElement;
-  private date = h('span', { class: 'big' });
-  private tod = h('span', { class: 'muted' });
-  private gold = h('span', { class: 'gold big' });
-  private men = h('span', { class: 'big' });
-  private terrain = h('span', {});
-  private pauseBtn: HTMLButtonElement;
+  private date = h('span', {});
+  private gold = h('span', { class: 'gold' });
+  private men = h('span', {});
+  private terrain = h('span', { class: 'muted' });
+  private waitBtn: HTMLButtonElement;
+  private speedBtn: HTMLButtonElement;
   private partyBtn: HTMLButtonElement;
   private partyBadge = h('span', { class: 'badge-dot' });
   private heroBadge = h('span', { class: 'badge-dot' });
   private heroLine = h('span', {});
-  private heroImg = h('img', { class: 'px emblem', style: 'width:32px;height:32px' }) as HTMLImageElement;
-  private speedBtns: HTMLButtonElement[] = [];
-  private pauseBanner = h('div', { class: 'pause-banner' }, 'ПАУЗА');
+  private heroImg = h('img', { class: 'px emblem', style: 'width:28px;height:28px' }) as HTMLImageElement;
   private feed = h('div', { class: 'news-feed' });
   private night = h('div', { class: 'passthrough', style: 'position:fixed;inset:0;pointer-events:none;background:#10183a;opacity:0;transition:opacity 1s' });
 
   constructor(state: GameState, a: HudActions) {
     const f = FACTIONS[state.hero.faction];
-    this.pauseBtn = btn('❚❚', () => a.togglePause(), '', false, 'Пауза (пробел)');
+    this.waitBtn = btn('⌛ Ждать', () => a.toggleWait(), '', false, 'Ждать на месте: время идёт (пробел)');
+    this.speedBtn = btn('×1', () => a.cycleSpeed(), 'small', false, 'Скорость времени');
     this.partyBtn = btn('Отряд', () => a.openParty());
     this.partyBtn.append(this.partyBadge);
-    for (const s of [1, 2, 4]) {
-      this.speedBtns.push(btn(`×${s}`, () => a.setSpeed(s), 'small'));
-    }
     this.root = h(
       'div',
       { class: 'passthrough', style: 'position:fixed;inset:0' },
@@ -48,15 +47,18 @@ export class Hud {
       h(
         'div',
         { class: 'hud-top' },
-        h('div', { class: 'hud-box', onclick: () => a.openHero(), style: 'cursor:pointer', title: 'Герой и снаряжение' }, this.heroImg, h('div', { class: 'col', style: 'gap:0' }, h('span', { class: 'big' }, state.hero.name, this.heroBadge), h('span', { class: 'muted', style: `font-size:12px;color:${f.css}` }, this.heroLine))),
-        h('div', { class: 'hud-box' }, this.date, this.tod),
-        h('div', { class: 'hud-box' }, this.gold, h('span', { class: 'muted' }, '·'), this.men),
+        h(
+          'div',
+          { class: 'hud-box', onclick: () => a.openHero(), style: 'cursor:pointer', title: 'Герой и снаряжение' },
+          this.heroImg,
+          h('div', { class: 'col', style: 'gap:0' }, h('span', {}, state.hero.name, this.heroBadge), h('span', { class: 'muted small', style: `color:${f.css}` }, this.heroLine)),
+        ),
+        h('div', { class: 'hud-box col', style: 'gap:0;align-items:flex-end' }, h('span', { class: 'row', style: 'gap:6px' }, this.gold, h('span', { class: 'muted' }, '·'), this.men), h('span', { class: 'muted small' }, this.date)),
       ),
-      h('div', { class: 'hud-left' }, h('div', { class: 'hud-box', style: 'font-size:13px' }, this.terrain)),
+      h('div', { class: 'hud-left' }, h('div', { class: 'hud-group' }, this.waitBtn, this.speedBtn), h('div', { class: 'hud-terrain' }, this.terrain)),
       h(
         'div',
         { class: 'hud-bottom' },
-        h('div', { class: 'hud-group' }, this.pauseBtn, ...this.speedBtns),
         h(
           'div',
           { class: 'hud-group' },
@@ -67,19 +69,16 @@ export class Hud {
           btn('☰', () => a.openMenu(), 'icon', false, 'Меню'),
         ),
       ),
-      this.pauseBanner,
       this.feed,
     );
     uiRoot().append(this.root);
   }
 
-  update(state: GameState, paused: boolean, speed: number, terrain: string) {
-    this.date.textContent = dateString(state.time);
-    this.tod.textContent = timeOfDay(state.time);
+  update(state: GameState, flow: Flow, speed: number, terrain: string) {
+    this.date.textContent = `${dateString(state.time)}, ${timeOfDay(state.time)}`;
     this.gold.textContent = `${state.gold} ¤`;
-    const n = partySize(state);
-    this.men.textContent = `${n} ⚔`;
-    this.terrain.textContent = terrain;
+    this.men.textContent = `${partySize(state)} ⚔`;
+    this.terrain.textContent = flow === 'still' ? `${terrain} · время стоит` : terrain;
     const pts = state.hero.points ?? 0;
     this.heroBadge.textContent = pts ? `+${pts}` : '';
     this.heroBadge.style.display = pts ? '' : 'none';
@@ -89,10 +88,9 @@ export class Hud {
     const ready = totalReady(state);
     this.partyBadge.textContent = ready ? `↑${ready}` : '';
     this.partyBadge.style.display = ready ? '' : 'none';
-    this.pauseBtn.textContent = paused ? '▶' : '❚❚';
-    this.pauseBtn.classList.toggle('active', paused);
-    this.speedBtns.forEach((b, i) => b.classList.toggle('active', [1, 2, 4][i] === speed));
-    this.pauseBanner.style.display = paused ? '' : 'none';
+    this.waitBtn.textContent = flow === 'wait' ? '■ Стоп' : '⌛ Ждать';
+    this.waitBtn.classList.toggle('active', flow === 'wait');
+    this.speedBtn.textContent = `×${speed}`;
     // Ночь: плавно темнеет с 20 до 5 часов
     const hr = (state.time % 1) * 24;
     let dark = 0;
@@ -103,13 +101,13 @@ export class Hud {
     this.night.style.opacity = dark.toFixed(3);
   }
 
-  /** Лента вестей под плашкой героя: последние 3, гаснут сами. */
+  /** Лента вестей под плашкой героя: последние 2, гаснут сами. */
   news(text: string, color: string) {
     const item = h('div', { class: 'news-item', style: `border-left-color:${color}` }, text);
     this.feed.prepend(item);
-    while (this.feed.children.length > 3) this.feed.lastElementChild?.remove();
-    setTimeout(() => item.classList.add('fade'), 7000);
-    setTimeout(() => item.remove(), 8000);
+    while (this.feed.children.length > 2) this.feed.lastElementChild?.remove();
+    setTimeout(() => item.classList.add('fade'), 5000);
+    setTimeout(() => item.remove(), 6000);
   }
 
   setVisible(v: boolean) {

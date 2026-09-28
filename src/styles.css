@@ -466,21 +466,29 @@ input.text:focus {
   box-shadow:
     inset 0 0 0 2px #45494e,
     0 3px 0 rgba(0, 0, 0, 0.35);
-  padding: 5px 10px;
+  padding: 3px 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 6px;
+  font-size: 13.5px;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
-.hud-box img.emblem {
-  width: 26px;
-  height: 29px;
+.hud-box .small {
+  font-size: 11.5px;
 }
 
 .hud-box .big {
-  font-size: 16px;
+  font-size: 15px;
+}
+
+.hud-terrain {
+  align-self: flex-end;
+  font-size: 11.5px;
+  padding: 2px 6px;
+  background: rgba(20, 21, 23, 0.6);
+  pointer-events: none;
 }
 
 .hud-bottom {
@@ -502,17 +510,19 @@ input.text:focus {
 
 .hud-group {
   display: flex;
-  gap: 4px;
-  background: rgba(20, 21, 23, 0.8);
+  gap: 3px;
+  background: rgba(20, 21, 23, 0.72);
   border: 2px solid #0e0f10;
-  padding: 4px;
+  padding: 3px;
   box-shadow: inset 0 0 0 1px #45494e;
 }
 
 .hud-group .btn {
-  min-width: 44px;
-  height: 44px;
-  padding: 0 10px;
+  min-width: 38px;
+  height: 36px;
+  min-height: 0;
+  padding: 0 9px;
+  font-size: 13.5px;
 }
 
 .map-label {
@@ -774,8 +784,9 @@ input.text:focus {
     padding: 6px 12px;
   }
   .hud-group .btn {
-    min-width: 40px;
-    height: 40px;
+    min-width: 36px;
+    height: 34px;
+    padding: 0 8px;
   }
 }
 
@@ -1210,22 +1221,22 @@ input.text:focus {
 
 .news-feed {
   position: fixed;
-  top: 64px;
+  top: 48px;
   left: calc(8px + var(--safe-l));
-  width: min(420px, 46vw);
+  width: min(340px, 38vw);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   pointer-events: none;
   z-index: 5;
 }
 
 .news-item {
-  background: rgba(20, 18, 16, 0.78);
-  border-left: 4px solid #e8c04a;
-  padding: 4px 8px;
-  font-size: 12.5px;
-  line-height: 1.25;
+  background: rgba(20, 18, 16, 0.68);
+  border-left: 3px solid #e8c04a;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  line-height: 1.2;
   animation: toast-in 0.25s ease-out;
   transition: opacity 1s;
 }
@@ -1253,4 +1264,265 @@ input.text:focus {
   gap: 4px;
   pointer-events: auto;
   animation: toast-in 0.25s ease-out;
+}
+
+/* ───────────── Древо воинов ───────────── */
+
+.tree-tabs {
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.tree-tabs .btn.active {
+  background: linear-gradient(180deg, #d8b04a, #a8842a);
+  color: #1a1410;
+}
+
+.tree {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px minmax(0, 1fr) 54px minmax(0, 1fr) 54px minmax(0, 1fr);
+  grid-template-areas:
+    'n1 a1 n2 a2 m3 am m4'
+    'n1 a1 n2 a2 r3 ar r4';
+  gap: 6px 0;
+  align-items: center;
+}
+
+.tree-node {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 6px;
+  background: rgba(20, 21, 23, 0.6);
+  border: 2px solid #0e0f10;
+  box-shadow: inset 0 0 0 1px #45494e;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.tree-node.picked {
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.tree-node .name {
+  font-size: 13px;
+  line-height: 1.15;
+  white-space: normal;
+}
+
+.tree-node .stars {
+  font-size: 10px;
+}
+
+.tree-node .small,
+.tree-info .small {
+  font-size: 11.5px;
+}
+
+.tree-node .own {
+  color: var(--green);
+}
+
+.tree-fig {
+  flex: none;
+  width: 44px;
+  height: 58px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.tree-fig img {
+  max-width: 44px;
+  max-height: 58px;
+  image-rendering: pixelated;
+}
+
+.tree-arrow {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  position: relative;
+}
+
+.tree-arrow .line {
+  width: 30px;
+  height: 3px;
+  background: #b89a5a;
+  position: relative;
+}
+
+.tree-arrow .line::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: -4px;
+  border: 5px solid transparent;
+  border-left: 7px solid #b89a5a;
+  border-right: 0;
+}
+
+.tree-arrow .fork {
+  width: 30px;
+  height: 50%;
+  position: relative;
+  border: 3px solid #b89a5a;
+  border-right: 0;
+  margin-left: 12px;
+}
+
+.tree-arrow .fork::before {
+  content: '';
+  position: absolute;
+  left: -15px;
+  top: calc(50% - 1.5px);
+  width: 12px;
+  height: 3px;
+  background: #b89a5a;
+}
+
+.tree-arrow .fork i {
+  position: absolute;
+  right: -3px;
+  border: 5px solid transparent;
+  border-left: 7px solid #b89a5a;
+  border-right: 0;
+}
+
+.tree-arrow .fork i.up {
+  top: -6.5px;
+}
+
+.tree-arrow .fork i.down {
+  bottom: -6.5px;
+}
+
+.tree-arrow:has(.fork) .small {
+  position: absolute;
+  left: 0;
+  font-size: 10px;
+  padding: 0 2px;
+  background: #2a2c30;
+}
+
+.tree-arrow:has(.fork) .small.gold {
+  top: calc(50% - 22px);
+}
+
+.tree-arrow:has(.fork) .small.muted {
+  top: calc(50% + 6px);
+}
+
+.tree-arrow .small {
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.tree-info {
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: rgba(20, 21, 23, 0.5);
+  border-left: 3px solid var(--gold);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ───────────── Управление героем в бою ───────────── */
+
+.b-ctl {
+  position: fixed;
+  top: 54px;
+  left: calc(8px + var(--safe-l));
+  font-size: 13px;
+  min-height: 0;
+  padding: 5px 10px;
+}
+
+.b-ctl.active {
+  background: linear-gradient(180deg, #d8b04a, #a8842a);
+  color: #1a1410;
+}
+
+#ui .passthrough > .pad {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 124px;
+  height: 0;
+  pointer-events: none;
+}
+
+@media (max-height: 500px) {
+  #ui .passthrough > .pad {
+    bottom: 112px;
+  }
+}
+
+.joy {
+  position: absolute;
+  left: calc(18px + var(--safe-l));
+  bottom: 0;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232, 192, 74, 0.1), rgba(20, 18, 16, 0.45));
+  border: 2px solid rgba(232, 192, 74, 0.55);
+  pointer-events: auto;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.joy-knob {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f0d27a, #a8842a);
+  border: 2px solid #1a1410;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.pad-btns {
+  position: absolute;
+  right: calc(18px + var(--safe-r));
+  bottom: 0;
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.pad-btn {
+  pointer-events: auto;
+  touch-action: none;
+  border-radius: 50%;
+  width: 76px;
+  height: 76px;
+  min-height: 0;
+  padding: 0;
+  font-size: 15px;
+  opacity: 0.9;
+}
+
+.pad-btn.atk {
+  width: 88px;
+  height: 88px;
+  background: linear-gradient(180deg, #b84a3a, #7a2a20);
+}
+
+.pad-btn.blk {
+  background: linear-gradient(180deg, #4a6a9a, #2a4066);
+  margin-bottom: 30px;
+}
+
+.pad-btn.down {
+  filter: brightness(1.35);
+  transform: scale(0.94);
 }

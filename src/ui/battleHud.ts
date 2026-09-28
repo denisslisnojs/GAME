@@ -105,6 +105,9 @@ export class BattleHud {
   private selected: Group | 'all' = 'all';
   private totals: Record<string, number> = {};
   private bannerT = 0;
+  private ctlBtn: HTMLButtonElement | null = null;
+  private pad: HTMLElement | null = null;
+  private knob = h('div', { class: 'joy-knob' });
 
   constructor(
     private b: Battle,
@@ -214,10 +217,103 @@ export class BattleHud {
 
     if (o.arena) abilBox.style.display = 'none';
     const bottom = h('div', { class: 'b-bottom' }, cardsBox, ordersBox, abilBox, ctrl);
-    this.root = h('div', { class: 'passthrough battle-ui' }, top, bottom, this.bannerEl);
+    const extra: HTMLElement[] = [];
+    if (b.units.some((u) => u.isHero && u.side === ps)) {
+      this.ctlBtn = h('button', { class: 'btn b-ctl', title: 'Управлять героем самому: движение, удар, блок (WASD, J, K)' }, '⚔ Управлять героем') as HTMLButtonElement;
+      this.ctlBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sfxClick();
+        this.setControl(!this.b.heroCtl.on);
+      });
+      this.pad = this.buildPad();
+      extra.push(this.ctlBtn, this.pad);
+    }
+    this.root = h('div', { class: 'passthrough battle-ui' }, top, bottom, ...extra, this.bannerEl);
     uiRoot().append(this.root);
     this.select('all');
+    // Режим управления героем запоминается между боями
+    let remembered = false;
+    try {
+      remembered = localStorage.getItem('w1347_heroCtl') === '1';
+    } catch {
+      /* хранилище недоступно */
+    }
+    if (this.ctlBtn && remembered) this.setControl(true);
     this.update();
+  }
+
+  /** Включить или выключить ручное управление героем. */
+  setControl(on: boolean) {
+    const c = this.b.heroCtl;
+    c.on = on;
+    c.mx = c.my = 0;
+    c.attack = c.tap = c.block = false;
+    try {
+      localStorage.setItem('w1347_heroCtl', on ? '1' : '0');
+    } catch {
+      /* хранилище недоступно */
+    }
+    this.banner(on ? 'Герой под вашим началом!' : 'Герой снова в строю');
+    this.update();
+  }
+
+  /** Стик слева и кнопки «Удар» / «Блок» справа. */
+  private buildPad(): HTMLElement {
+    const c = this.b.heroCtl;
+    const joy = h('div', { class: 'joy' }, this.knob);
+    let id = -1;
+    const move = (e: PointerEvent) => {
+      const r = joy.getBoundingClientRect();
+      const R = r.width / 2;
+      let dx = (e.clientX - r.left - R) / R;
+      let dy = (e.clientY - r.top - R) / R;
+      const l = Math.hypot(dx, dy);
+      if (l > 1) {
+        dx /= l;
+        dy /= l;
+      }
+      c.mx = dx;
+      c.my = dy;
+      this.knob.style.transform = `translate(${dx * R * 0.6}px, ${dy * R * 0.6}px)`;
+    };
+    const release = () => {
+      id = -1;
+      c.mx = c.my = 0;
+      this.knob.style.transform = '';
+    };
+    joy.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      id = e.pointerId;
+      joy.setPointerCapture(e.pointerId);
+      move(e);
+    });
+    joy.addEventListener('pointermove', (e) => {
+      if (e.pointerId === id) move(e);
+    });
+    joy.addEventListener('pointerup', release);
+    joy.addEventListener('pointercancel', release);
+    const hold = (label: string, cls: string, down: () => void, up: () => void) => {
+      const el = h('button', { class: `btn pad-btn ${cls}` }, label) as HTMLButtonElement;
+      el.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        el.setPointerCapture(e.pointerId);
+        el.classList.add('down');
+        down();
+      });
+      const off = () => {
+        el.classList.remove('down');
+        up();
+      };
+      el.addEventListener('pointerup', off);
+      el.addEventListener('pointercancel', off);
+      return el;
+    };
+    const atk = hold('Удар', 'atk', () => {
+      c.attack = true;
+      c.tap = true;
+    }, () => (c.attack = false));
+    const blk = hold('Блок', 'blk', () => (c.block = true), () => (c.block = false));
+    return h('div', { class: 'pad' }, joy, h('div', { class: 'pad-btns' }, blk, atk));
   }
 
   private select(g: Group | 'all') {
@@ -267,6 +363,15 @@ export class BattleHud {
       v.el.disabled = !b.canUse(a);
       v.ch.textContent = `${st.charges}`;
       v.cd.style.height = st.cd > 0 ? `${(st.cd / 12) * 100}%` : '0';
+    }
+    if (this.ctlBtn && this.pad) {
+      const hero = b.units.find((u) => u.isHero && u.side === ps);
+      const alive = !!hero && hero.state !== 'dead' && hero.state !== 'fled' && b.winner === null && !b.routed[ps];
+      if (!alive && b.heroCtl.on) b.heroCtl.on = false;
+      this.ctlBtn.style.display = alive ? '' : 'none';
+      this.ctlBtn.classList.toggle('active', b.heroCtl.on);
+      this.ctlBtn.textContent = b.heroCtl.on ? '✋ Отдать приказам' : '⚔ Управлять героем';
+      this.pad.style.display = b.heroCtl.on ? '' : 'none';
     }
     this.pauseBtn.textContent = this.o.isPaused() ? '▶' : '❚❚';
     this.pauseBtn.classList.toggle('active', this.o.isPaused());

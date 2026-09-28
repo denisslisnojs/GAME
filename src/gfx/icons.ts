@@ -51,6 +51,32 @@ export function portraitURL(troopId: string): string {
   return memo(`p_${troopId}`, () => bust(troopLook(TROOPS[troopId])));
 }
 
+/** Воин во весь рост (кадр стойки), обрезанный по силуэту. */
+export function figureURL(troopId: string): string {
+  return memo(`f_${troopId}`, () => {
+    const sheet = drawUnitSheet(troopLook(TROOPS[troopId]));
+    const data = sheet.getContext('2d')!.getImageData(0, 0, FRAME_W, FRAME_H).data;
+    let x0 = FRAME_W;
+    let y0 = FRAME_H;
+    let x1 = 0;
+    let y1 = 0;
+    for (let y = 0; y < FRAME_H; y++) {
+      for (let x = 0; x < FRAME_W; x++) {
+        if (!data[(y * FRAME_W + x) * 4 + 3]) continue;
+        x0 = Math.min(x0, x);
+        x1 = Math.max(x1, x);
+        y0 = Math.min(y0, y);
+        y1 = Math.max(y1, y);
+      }
+    }
+    const c = document.createElement('canvas');
+    c.width = x1 - x0 + 1;
+    c.height = y1 - y0 + 1;
+    c.getContext('2d')!.drawImage(sheet, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+    return c;
+  });
+}
+
 /** Портрет героя в текущем снаряжении. */
 export function heroPortraitURL(state: GameState): string {
   const look = heroLook(state);
