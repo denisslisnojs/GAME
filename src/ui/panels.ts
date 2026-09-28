@@ -22,6 +22,7 @@ import type { Battle } from '../battle/sim';
 import { openArena } from './tournament';
 import { activeLords, isLooted, siegeDefenders, troopCount } from '../game/war';
 import { tourneyReady } from '../game/tournament';
+import { isPlagued } from '../game/plague';
 import { canTurnIn, hostOf, offerQuest, questsOf } from '../game/quests';
 import { openHost } from './nobles';
 import { world, type Settlement } from '../game/world';
@@ -124,6 +125,7 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
       s.type !== 'village' ? h('span', {}, `Гарнизон: ${troopCount(state.war?.garrisons[s.id] ?? [])}`) : null,
       state.war?.sieges[s.id] ? h('span', { style: 'color:var(--red)' }, `В осаде: ${FACTIONS[state.war.sieges[s.id].attacker].short}`) : null,
       isLooted(state, s.id) ? h('span', { style: 'color:var(--red)' }, 'Разорена') : null,
+      isPlagued(state, s) ? h('span', { style: 'color:#9ab87a' }, 'Мор! Рекрутов нет, отряд рядом болеет') : null,
     ),
   );
 

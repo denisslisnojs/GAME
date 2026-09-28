@@ -90,6 +90,7 @@ export function dailyTick(state: GameState) {
   for (const s of world.settlements) {
     const st = state.settlements[s.id];
     if ((state.war?.looted[s.id] ?? 0) > state.time) continue; // разорённая деревня не даёт рекрутов
+    if ((state.plague?.infected[s.type === 'village' ? s.parent ?? s.id : s.id] ?? 0) > state.time) continue; // мор
     for (const slot of recruitSlots(s)) {
       const cur = st.recruits[slot.id] ?? 0;
       st.recruits[slot.id] = Math.min(slot.max, cur + slot.perDay * (0.6 + Math.random() * 0.8));

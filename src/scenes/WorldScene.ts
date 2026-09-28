@@ -9,6 +9,7 @@ import { Battle, type Formation } from '../battle/sim';
 import type { BattleTerrain } from '../battle/background';
 import { applyBattle, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
 import { questsDaily } from '../game/quests';
+import { isPlagued, plagueDaily } from '../game/plague';
 import { activeLords, alliesNear, capture, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
 import { hasSave, loadGame, newGame, saveGame, type GameState } from '../game/state';
@@ -463,6 +464,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       ` · ${TYPE_NAME[s.type]} · `,
       h('span', { style: `color:${FACTIONS[owner].css}` }, FACTIONS[owner].short),
       rel === 'war' ? h('span', { style: 'color:#e07a6a' }, ' · война') : '',
+      isPlagued(this.state, s) ? h('span', { style: 'color:#9ab87a' }, ' · мор!') : '',
     );
     this.tooltip.style.left = `${p.x + 14}px`;
     this.tooltip.style.top = `${p.y + 14}px`;
@@ -582,6 +584,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         dailySpawn(this.state);
         warDaily(this.state);
         for (const msg of questsDaily(this.state)) this.hud?.news(msg, '#ffd24a');
+        for (const msg of plagueDaily(this.state)) this.hud?.news(msg, '#9ab87a');
         this.commit();
       }
       if (moving) this.moveParty(dtDays);
@@ -990,6 +993,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const want = new Map<string, string>();
     for (const id of Object.keys(w.sieges)) want.set(`siege:${id}`, `camp_${this.warMarkFrame}`);
     for (const [id, until] of Object.entries(w.looted)) if (until > this.state.time) want.set(`loot:${id}`, `smoke_${this.warMarkFrame}`);
+    for (const [id, until] of Object.entries(this.state.plague?.infected ?? {})) if (until > this.state.time) want.set(`plague:${id}`, `plague_${this.warMarkFrame}`);
     for (const [k, m] of this.warMarks) {
       if (!want.has(k)) {
         m.destroy();
@@ -1002,7 +1006,9 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         const s = world.byId.get(k.split(':')[1])!;
         m = k.startsWith('siege')
           ? this.add.sprite(s.x - TILE * 3.2, s.y + TILE * 1.6, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.7).setDepth(s.y + TILE)
-          : this.add.sprite(s.x, s.y - TILE * 0.2, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.9).setDepth(s.y + 2).setAlpha(0.85);
+          : k.startsWith('plague')
+            ? this.add.sprite(s.x + TILE * 2.2, s.y - TILE * 2.2, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.8).setDepth(s.y + 3).setAlpha(0.9)
+            : this.add.sprite(s.x, s.y - TILE * 0.2, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.9).setDepth(s.y + 2).setAlpha(0.85);
         this.warMarks.set(k, m);
       }
       m.setTexture(tex);

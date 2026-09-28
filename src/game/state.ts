@@ -7,6 +7,7 @@ import type { MapParty } from './parties';
 import type { WarState } from './war';
 import { spawnPointNear, world, type Settlement } from './world';
 import type { Quest } from './quests';
+import type { PlagueState } from './plague';
 
 export interface TroopStack {
   id: string;
@@ -80,6 +81,8 @@ export interface GameState {
   fiefs?: string[];
   /** Крепости, взятые самим героем. */
   capturedByHero?: string[];
+  /** Чёрная смерть. */
+  plague?: PlagueState;
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {

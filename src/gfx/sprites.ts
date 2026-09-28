@@ -744,3 +744,26 @@ export function drawSmoke(frame: 0 | 1): HTMLCanvasElement {
   P.p(14, 23, '#d04a20');
   return P.canvas;
 }
+
+/** Мор над городом: тёмное облако миазмов и череп, 2 кадра. */
+export function drawPlague(frame: 0 | 1): HTMLCanvasElement {
+  const P = new Pix(24, 22);
+  const puffs = frame ? [[6, 8, 5], [12, 6, 6], [18, 9, 5], [11, 12, 5]] : [[7, 9, 5], [12, 7, 6], [17, 8, 5], [12, 12, 5]];
+  for (const [cx, cy, r] of puffs) {
+    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
+      if (x * x + y * y > r * r) continue;
+      P.p(cx + x, cy + y, (x + y + frame) % 4 === 0 ? '#3a4a2e' : x + y < -2 ? '#56663e' : '#2e3a26');
+    }
+  }
+  P.pattern(8, 5, [
+    '.wwwww.',
+    'wwwwwww',
+    'wkwwwkw',
+    'wkwwwkw',
+    'wwwkwww',
+    '.wwwww.',
+    '.w.w.w.',
+  ], { w: '#e8e2cc', k: '#1a1410' });
+  P.outline('#141810');
+  return P.canvas;
+}
