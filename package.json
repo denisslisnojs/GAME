@@ -1,0 +1,31 @@
+{
+  "name": "warfare-1347",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "android:init": "npx cap add android && node scripts/android-setup.mjs",
+    "android:sync": "npm run build && npx cap sync android",
+    "build:land": "node scripts/build-land.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@fontsource/kurale": "^5.3.0",
+    "@fontsource/ruslan-display": "^5.3.0",
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@types/geojson": "^7946.0.16",
+    "@types/topojson-client": "^3.1.5",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}

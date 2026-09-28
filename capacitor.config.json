@@ -1,0 +1,8 @@
+{
+  "appId": "com.warfare1347.game",
+  "appName": "Warfare 1347",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#14110f"
+  }
+}
