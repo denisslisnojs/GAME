@@ -12,6 +12,7 @@ import { KIND_INFO, spawn, type MapParty } from './parties';
 import type { GameState } from './state';
 import { activeLords, isLooted, news } from './war';
 import { world, type Settlement } from './world';
+import { onPrologueGangDefeated } from './prologue';
 import { tr } from '../i18n';
 
 export type QuestKind = 'bandits' | 'deliver' | 'raid' | 'troops' | 'hunt';
@@ -302,6 +303,7 @@ export function abandonQuest(state: GameState, q: Quest) {
 // ───────────────────────── события для поручений ─────────────────────────
 
 export function onPartyDefeated(state: GameState, p: MapParty) {
+  onPrologueGangDefeated(state, p);
   for (const q of state.quests ?? []) if (q.kind === 'bandits' && q.partyId === p.id) q.done = true;
   for (const q of state.quests ?? []) if (q.kind === 'hunt' && q.lordId === p.id) q.done = true;
 }

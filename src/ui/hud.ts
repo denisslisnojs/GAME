@@ -4,6 +4,7 @@ import { partySize, totalReady } from '../game/logic';
 import { dateString, timeOfDay, type GameState } from '../game/state';
 import { btn, h, uiRoot } from './dom';
 import { TUTORIAL, tutorialStep } from '../game/tutorial';
+import { prologueObjective, prologueTarget } from '../game/prologue';
 import { tr } from '../i18n';
 
 export interface HudActions {
@@ -16,6 +17,8 @@ export interface HudActions {
   openHero(): void;
   openChronicle(): void;
   skipTutorial(): void;
+  /** Показать на карте цель пролога. */
+  showTarget(): void;
 }
 
 /** Состояние времени: отряд в пути, герой ждёт, или мир стоит. */
@@ -37,6 +40,7 @@ export class Hud {
   private feed = h('div', { class: 'news-feed' });
   private tutText = h('span', {});
   private tut: HTMLElement;
+  private tutGo: HTMLButtonElement;
   private night = h('div', { class: 'passthrough', style: 'position:fixed;inset:0;pointer-events:none;background:#10183a;opacity:0;transition:opacity 1s' });
 
   constructor(state: GameState, a: HudActions) {
@@ -44,7 +48,8 @@ export class Hud {
     this.waitBtn = btn(tr('⌛ Ждать'), () => a.toggleWait(), '', false, tr('Ждать на месте: время идёт (пробел)'));
     this.speedBtn = btn('×1', () => a.cycleSpeed(), 'small', false, tr('Скорость времени'));
     this.partyBtn = btn(tr('Отряд'), () => a.openParty());
-    this.tut = h('div', { class: 'tut-card' }, this.tutText, btn('✕', () => a.skipTutorial(), 'small ghost', false, tr('Пропустить обучение')));
+    this.tutGo = btn('◎', () => a.showTarget(), 'small', false, tr('Показать на карте'));
+    this.tut = h('div', { class: 'tut-card' }, this.tutText, this.tutGo, btn('✕', () => a.skipTutorial(), 'small ghost', false, tr('Пропустить обучение')));
     this.partyBtn.append(this.partyBadge);
     this.root = h(
       'div',
@@ -96,9 +101,15 @@ export class Hud {
     this.partyBadge.textContent = ready ? `↑${ready}` : '';
     this.partyBadge.style.display = ready ? '' : 'none';
     this.waitBtn.textContent = flow === 'wait' ? tr('■ Стоп') : tr('⌛ Ждать');
-    const step = tutorialStep(state);
-    this.tut.style.display = step ? '' : 'none';
-    if (step) {
+    const obj = prologueObjective(state);
+    const step = obj ? null : tutorialStep(state);
+    this.tut.style.display = obj || step ? '' : 'none';
+    this.tut.classList.toggle('prologue', !!obj);
+    this.tutGo.style.display = obj && prologueTarget(state) ? '' : 'none';
+    if (obj) {
+      const txt = tr`Пролог ${obj.n}/${obj.total}: ${obj.text}`;
+      if (this.tutText.textContent !== txt) this.tutText.textContent = txt;
+    } else if (step) {
       const txt = tr`Обучение ${(state.tutorial?.step ?? 0) + 1}/${TUTORIAL.length}: ${step.text} (+${step.reward} ¤)`;
       if (this.tutText.textContent !== txt) this.tutText.textContent = txt;
     }
@@ -112,6 +123,13 @@ export class Hud {
       dark = Math.sin((x / 11) * Math.PI) * 0.32;
     }
     this.night.style.opacity = dark.toFixed(3);
+  }
+
+  /** Новая цель пролога: карточка вспыхивает. */
+  flashObjective() {
+    this.tut.classList.remove('flash');
+    void this.tut.offsetWidth;
+    this.tut.classList.add('flash');
   }
 
   /** Лента вестей под плашкой героя: последние 2, гаснут сами. */

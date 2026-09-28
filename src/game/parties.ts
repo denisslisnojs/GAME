@@ -34,6 +34,8 @@ export interface MapParty {
   lord?: LordInfo;
   /** Отряд, за которым охотится поручение. */
   questId?: number;
+  /** Стоит лагерем: не бродит и не бежит (шайка из пролога). */
+  camp?: boolean;
   /** Караван: город назначения. */
   dest?: string;
 }
@@ -299,6 +301,13 @@ export function updateParties(state: GameState, dtDays: number, targetId: number
   for (const p of parties) {
     const r = rt(p);
     const dCells = Math.hypot(p.x - px, p.y - py) / TILE;
+    if (p.camp) {
+      // Лагерь: ждут на месте, пока к ним не придут
+      r.moving = false;
+      r.path = [];
+      if (!met && state.time >= p.calmUntil && dCells < 1.3 && (p.id === targetId || dCells < 0.7)) met = p;
+      continue;
+    }
     const calm = state.time < p.calmUntil;
     const sight = p.kind === 'patrol' ? 11 : 9;
     const ratio = powerRatio(state, p);

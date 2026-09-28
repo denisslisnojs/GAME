@@ -43,6 +43,8 @@ import { btn, h, openModal, panel, toast, uiRoot } from '../ui/dom';
 import { Hud } from '../ui/hud';
 import { openParty, openRealms, openSettlement, type BattleView, type GameCtx } from '../ui/panels';
 import { showAchievements, showCreation, showMainMenu, showSettings, showSlots } from '../ui/screens';
+import { initPrologue, prologueStep, prologueTarget, prologueTick, skipPrologue } from '../game/prologue';
+import { openPrologueIntro, openPrologueVictory, prologueOnArrive } from '../ui/prologue';
 import { tr } from '../i18n';
 
 type Pt = { x: number; y: number };
@@ -75,6 +77,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   private targetSettlement: Settlement | null = null;
   private pathGfx!: Phaser.GameObjects.Graphics;
   private marker!: Phaser.GameObjects.Graphics;
+  /** Золотая стрелка над целью пролога. */
+  private questMark!: Phaser.GameObjects.Graphics;
 
   private settleSprites = new Map<string, Phaser.GameObjects.Image>();
   private partySprites = new Map<number, { s: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; frameT: number; frame: number; color: string }>();
@@ -122,6 +126,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
     this.pathGfx = this.add.graphics().setDepth(-5);
     this.marker = this.add.graphics().setDepth(9000);
+    this.questMark = this.add.graphics().setDepth(9500);
 
     for (const s of world.settlements) {
       const img = this.add
@@ -229,7 +234,9 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
               const s = newGame(name, faction);
               s.slot = slot;
               s.difficulty = difficulty;
-              s.tutorial = tutorial ? { step: 0 } : { step: 0, off: true };
+              // Обучение теперь — стартовое поручение (пролог)
+              s.tutorial = { step: 0, off: true };
+              if (tutorial) initPrologue(s);
               saveGame(s);
               this.startGame(s);
               toast(tr`${FACTIONS[faction].rulerTitle} ${FACTIONS[faction].ruler} принял вашу присягу`, 4000);
@@ -287,13 +294,20 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       openChronicle: () => this.modal(() => openChronicle(this.state)),
       skipTutorial: () => {
         this.state.tutorial = { step: this.state.tutorial?.step ?? 0, off: true };
+        skipPrologue(this.state);
         this.commit();
+      },
+      showTarget: () => {
+        const t = prologueTarget(this.state);
+        if (t) this.cameras.main.pan(t.x, t.y, 500, 'Sine.easeInOut');
       },
     });
     this.updateLabels();
     this.updateHud();
     resetHints();
     hint(state, 'start');
+    // Пролог: гонец с вестью о беде
+    if (prologueStep(state) === 'intro') this.time.delayedCall(500, () => this.modal(() => openPrologueIntro(this)));
     // Фон боя для местности вокруг отряда рисуется заранее, в свободное время
     prewarmBattleTerrain(this.textures, [this.battleTerrain()]);
   }
@@ -641,12 +655,15 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       toast(tr`${s.name}: владения врага`);
       hint(this.state, 'enemy');
     }
-    this.modal(() =>
-      openSettlement(this, s, () => {
-        this.state.visiting = undefined;
-        this.commit();
-      }),
-    );
+    const open = () =>
+      this.modal(() =>
+        openSettlement(this, s, () => {
+          this.state.visiting = undefined;
+          this.commit();
+        }),
+      );
+    // Пролог: сюжетная сцена перед входом
+    if (!prologueOnArrive(this, s, open)) open();
   }
 
   // ───────────────────────── кадр ─────────────────────────
@@ -717,6 +734,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.party.setDepth(this.party.y + 60);
     this.ringT += deltaMs / 1000;
     this.ring.setVisible(true).setPosition(this.party.x, this.party.y - 2).setDepth(this.party.y + 59).setScale(1 + Math.sin(this.ringT * 3) * 0.08).setAlpha(0.65 + Math.sin(this.ringT * 3) * 0.25);
+    this.drawQuestMark();
 
     this.hudTimer += deltaMs;
     if (this.hudTimer > 120) {
@@ -728,6 +746,17 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       if (st.time > 1.5) hint(st, 'war');
       if (st.quests?.length) hint(st, 'quest');
       if (st.plague?.started) hint(st, 'plague');
+      if (this.modals === 0 && !this.inBattle) {
+        for (const ev of prologueTick(st)) {
+          if (ev.kind === 'victory') this.modal(() => openPrologueVictory(this));
+          else {
+            toast(tr('✔ Пролог: цель выполнена'), 2200);
+            this.hud?.flashObjective();
+            sfx.play('horn');
+          }
+          this.commit();
+        }
+      }
       for (const r of tutorialTick(st)) {
         toast(tr`Обучение: шаг выполнен! +${r.done.reward} ¤`, 3000);
         if (r.finished) toast(tr('Обучение пройдено. Дальше — сами. Удачи!'), 4000);
@@ -751,6 +780,55 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       music.setCulture(near.culture);
       this.updateSeason();
     }
+  }
+
+  /** Золотая стрелка над целью пролога; если цель за краем экрана — указатель у края. */
+  private drawQuestMark() {
+    const g = this.questMark;
+    g.clear();
+    const t = prologueTarget(this.state);
+    if (!t) return;
+    const cam = this.cameras.main;
+    const k = Phaser.Math.Clamp(1 / cam.zoom, 0.7, 4);
+    const v = cam.worldView;
+    const m = 34 * k;
+    const inside = t.x > v.x + m && t.x < v.right - m && t.y - 90 * k > v.y && t.y < v.bottom - m;
+    if (inside) {
+      const bob = Math.sin(this.ringT * 4) * 5 * k;
+      const place = typeof t.id === 'string' ? world.byId.get(t.id) : undefined;
+      const lift = !place ? 44 : place.type === 'village' ? 50 : 84;
+      const x = t.x;
+      const y = t.y - lift * k + bob;
+      g.lineStyle(3 * k, 0xffd24a, 0.8 + Math.sin(this.ringT * 4) * 0.2);
+      g.strokeEllipse(t.x, t.y, 64 * k, 26 * k);
+      g.fillStyle(0x1a1410, 1);
+      g.fillTriangle(x - 14 * k, y - 3 * k, x + 14 * k, y - 3 * k, x, y + 17 * k);
+      g.fillRect(x - 7 * k, y - 21 * k, 14 * k, 20 * k);
+      g.fillStyle(0xffd24a, 1);
+      g.fillTriangle(x - 10 * k, y - 1 * k, x + 10 * k, y - 1 * k, x, y + 12 * k);
+      g.fillRect(x - 4 * k, y - 18 * k, 8 * k, 18 * k);
+      return;
+    }
+    // Указатель у края экрана в сторону цели
+    const cx = v.centerX;
+    const cy = v.centerY;
+    const dx = t.x - cx;
+    const dy = t.y - cy;
+    const sx = (v.width / 2 - m) / Math.max(1, Math.abs(dx));
+    const sy = (v.height / 2 - m * 1.6) / Math.max(1, Math.abs(dy));
+    const sc = Math.min(sx, sy);
+    const px = cx + dx * sc;
+    const py = cy + dy * sc;
+    const a = Math.atan2(dy, dx);
+    const pulse = 1 + Math.sin(this.ringT * 5) * 0.12;
+    const tip = (r: number, ang: number) => ({ x: px + Math.cos(a + ang) * r * k * pulse, y: py + Math.sin(a + ang) * r * k * pulse });
+    const p1 = tip(22, 0);
+    const p2 = tip(16, 2.4);
+    const p3 = tip(16, -2.4);
+    g.fillStyle(0x1a1410, 0.9);
+    g.fillCircle(px, py, 15 * k);
+    g.fillStyle(0xffd24a, 1);
+    g.fillTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
   }
 
   private moveParty(dtDays: number) {

@@ -12,6 +12,7 @@ import { portraitURL } from '../gfx/icons';
 import { companionRumors, diceLeft, hireMercs, mercsAt, rollDice } from '../game/tavern';
 import { rumor } from './nobles';
 import { lordRansom, ransomLord, ransomPrice, sellPrisoners } from '../game/prisoners';
+import { prologueOnTavern } from './prologue';
 import { tr } from '../i18n';
 
 const DIE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
@@ -24,6 +25,8 @@ export function skillLine(skills: Partial<Record<SkillId, number>>): string {
 }
 
 export function openTavern(ctx: GameCtx, s: Settlement) {
+  // Пролог: в таверне ждёт проводник — сначала разговор с ним
+  if (prologueOnTavern(ctx, s, () => openTavern(ctx, s))) return;
   const { state } = ctx;
   (state.flags ??= {}).tavern = true;
   let close = () => {};

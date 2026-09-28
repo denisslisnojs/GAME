@@ -8,6 +8,7 @@ import type { WarState } from './war';
 import { spawnPointNear, world, type Settlement } from './world';
 import type { Quest } from './quests';
 import type { PlagueState } from './plague';
+import type { PrologueState } from './prologue';
 import { initCompanions, type CompanionState } from './companions';
 import type { SkillId } from '../data/skills';
 import type { CaptiveLord } from './prisoners';
@@ -128,6 +129,8 @@ export interface GameState {
   difficulty?: Difficulty;
   /** Обучение: номер текущего шага или отключено. */
   tutorial?: { step: number; off?: boolean };
+  /** Стартовое поручение-обучение. */
+  prologue?: PrologueState;
   /** Разовые отметки (для обучения и достижений). */
   flags?: Record<string, boolean>;
 }

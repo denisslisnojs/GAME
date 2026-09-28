@@ -2,6 +2,7 @@
 
 import type { GameState } from '../game/state';
 import { btn, h, openModal, panel, uiRoot } from './dom';
+import { prologueActive } from '../game/prologue';
 import { tr } from '../i18n';
 
 const HINTS: Record<string, { title: string; text: string }> = {
@@ -19,9 +20,16 @@ const HINTS: Record<string, { title: string; text: string }> = {
 const queue: string[] = [];
 let showing = false;
 
+/** Этому учит пролог — отдельная подсказка не нужна. */
+const TAUGHT_BY_PROLOGUE = ['settle', 'battle', 'upgrade', 'points', 'quest'];
+
 export function hint(state: GameState, id: keyof typeof HINTS) {
   const seen = (state.hints ??= []);
   if (seen.includes(id) || queue.includes(id)) return;
+  if (prologueActive(state) && TAUGHT_BY_PROLOGUE.includes(id)) {
+    seen.push(id);
+    return;
+  }
   queue.push(id);
   next(state);
 }
