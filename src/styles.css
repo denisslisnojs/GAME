@@ -1251,7 +1251,6 @@ input.text:focus {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  z-index: 40;
   pointer-events: auto;
   animation: toast-in 0.25s ease-out;
 }

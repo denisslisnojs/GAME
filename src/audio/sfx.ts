@@ -1,9 +1,9 @@
 // Звуковые эффекты боя, синтезируемые на лету (без файлов).
 import { getSfxVolume } from '../ui/dom';
 
-type Kind = 'hit' | 'crit' | 'block' | 'whoosh' | 'death' | 'bow' | 'charge' | 'horn' | 'stakes';
+type Kind = 'hit' | 'crit' | 'block' | 'whoosh' | 'death' | 'bow' | 'charge' | 'horn' | 'stakes' | 'cheer';
 
-const MIN_GAP: Record<Kind, number> = { hit: 45, crit: 80, block: 70, whoosh: 90, death: 120, bow: 70, charge: 200, horn: 800, stakes: 300 };
+const MIN_GAP: Record<Kind, number> = { hit: 45, crit: 80, block: 70, whoosh: 90, death: 120, bow: 70, charge: 200, horn: 800, stakes: 300, cheer: 900 };
 
 class Sfx {
   private ctx: AudioContext | null = null;
@@ -74,10 +74,84 @@ class Sfx {
       case 'horn':
         this.horn(t);
         break;
+      case 'cheer':
+        // Трибуны ревут: несколько полос шума с нарастанием и «голоса» — скользящие тоны
+        for (const [f, a] of [[700, 0.09], [1200, 0.07], [2000, 0.04]] as [number, number][]) this.swell(t, 1.4, f, a);
+        for (let i = 0; i < 6; i++) {
+          const f0 = 300 + Math.random() * 250;
+          this.tone(t + Math.random() * 0.4, 'triangle', f0, f0 * (1.3 + Math.random() * 0.4), 0.5 + Math.random() * 0.4, 0.012);
+        }
+        break;
       case 'stakes':
         for (let i = 0; i < 3; i++) this.tone(t + i * 0.08, 'triangle', 320, 180, 0.06, 0.12);
         break;
     }
+  }
+
+  private swell(t: number, dur: number, freq: number, amp: number) {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 1.4;
+    f.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(amp, t + dur * 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f);
+    f.connect(g);
+    g.connect(this.out);
+    src.start(t, Math.random() * 0.5);
+    src.stop(t + dur + 0.05);
+  }
+
+  private crowd: { src: AudioBufferSourceNode; g: GainNode } | null = null;
+
+  /** Гул трибун на ристалище (петля, пока не остановят). */
+  crowdStart() {
+    const vol = getSfxVolume();
+    const ctx = this.ensure();
+    if (!ctx || vol <= 0 || this.crowd) return;
+    void ctx.resume();
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 0.9;
+    f.frequency.value = 520;
+    const g = ctx.createGain();
+    g.gain.value = 0.0001;
+    g.gain.linearRampToValueAtTime(0.05, ctx.currentTime + 1.5);
+    // Медленное «дыхание» толпы
+    const lfo = ctx.createOscillator();
+    const lg = ctx.createGain();
+    lfo.frequency.value = 0.23;
+    lg.gain.value = 0.018;
+    lfo.connect(lg);
+    lg.connect(g.gain);
+    lfo.start();
+    src.connect(f);
+    f.connect(g);
+    g.connect(this.out);
+    this.out.gain.value = vol * 0.9;
+    src.start();
+    this.crowd = { src, g };
+    src.onended = () => lfo.stop();
+  }
+
+  crowdStop() {
+    if (!this.crowd || !this.ctx) return;
+    const { src, g } = this.crowd;
+    const t = this.ctx.currentTime;
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(g.gain.value, t);
+    g.gain.linearRampToValueAtTime(0.0001, t + 0.8);
+    src.stop(t + 0.9);
+    this.crowd = null;
   }
 
   private tone(t: number, type: OscillatorType, f0: number, f1: number, dur: number, amp: number) {

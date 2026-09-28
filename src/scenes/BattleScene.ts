@@ -90,7 +90,9 @@ export class BattleScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.fitCamera, this);
       this.hud?.destroy();
+      sfx.crowdStop();
     });
+    if (this.cfg.arena) sfx.crowdStart();
 
     // Фон
     const t = this.cfg.terrain;
@@ -259,7 +261,10 @@ export class BattleScene extends Phaser.Scene {
     this.hud.update();
 
     if (this.battle.winner !== null && !this.finished) {
-      if (this.endTimer < 0) this.endTimer = 2.8;
+      if (this.endTimer < 0) {
+        this.endTimer = 2.8;
+        if (this.cfg.arena) setTimeout(() => sfx.play('cheer'), 950);
+      }
       this.endTimer -= dtReal;
       if (this.endTimer <= 0) {
         this.finished = true;
@@ -462,6 +467,7 @@ export class BattleScene extends Phaser.Scene {
         case 'death':
           this.burst(e.x, e.y - 20, 0x7a1a1a, 6, 60);
           sfx.play('death');
+          if (this.cfg.arena) sfx.play('cheer');
           break;
         case 'shoot':
           sfx.play('bow');
