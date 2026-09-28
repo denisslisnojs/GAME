@@ -2,6 +2,7 @@ import type { FactionId } from '../data/factions';
 import { GOODS, SELL_RATIO, type GoodId } from '../data/goods';
 import { TROOPS } from '../data/troops';
 import { heroStats } from './hero';
+import { partySkill } from './companions';
 import { recruitSlots, type GameState } from './state';
 import { world, type Settlement } from './world';
 
@@ -56,18 +57,21 @@ export function dismiss(state: GameState, troopId: string, count: number) {
   if (stack.count <= 0) state.party.troops = state.party.troops.filter((t) => t !== stack);
 }
 
-export function buyPrice(g: GoodId): number {
-  return GOODS[g].price;
+/** Цена покупки с учётом умения «Торговля». */
+export function buyPrice(g: GoodId, state?: GameState): number {
+  const k = state ? 1 - partySkill(state, 'trade') * 0.03 : 1;
+  return Math.max(1, Math.round(GOODS[g].price * k));
 }
 
-export function sellPrice(g: GoodId): number {
-  return Math.floor(GOODS[g].price * SELL_RATIO);
+export function sellPrice(g: GoodId, state?: GameState): number {
+  const k = state ? 1 + partySkill(state, 'trade') * 0.03 : 1;
+  return Math.floor(GOODS[g].price * SELL_RATIO * k);
 }
 
 export function buy(state: GameState, g: GoodId, n: number): number {
-  const k = Math.min(n, Math.floor(state.gold / buyPrice(g)));
+  const k = Math.min(n, Math.floor(state.gold / buyPrice(g, state)));
   if (k <= 0) return 0;
-  state.gold -= k * buyPrice(g);
+  state.gold -= k * buyPrice(g, state);
   state.cargo[g] = (state.cargo[g] ?? 0) + k;
   return k;
 }
@@ -75,7 +79,7 @@ export function buy(state: GameState, g: GoodId, n: number): number {
 export function sell(state: GameState, g: GoodId, n: number): number {
   const k = Math.min(n, state.cargo[g] ?? 0);
   if (k <= 0) return 0;
-  state.gold += k * sellPrice(g);
+  state.gold += k * sellPrice(g, state);
   state.cargo[g] = (state.cargo[g] ?? 0) - k;
   if (!state.cargo[g]) delete state.cargo[g];
   return k;

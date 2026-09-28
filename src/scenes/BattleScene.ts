@@ -82,6 +82,7 @@ export class BattleScene extends Phaser.Scene {
   private drops: { x: number; y: number; v: number; s: number }[] = [];
   private stakeImgs: Phaser.GameObjects.Image[] = [];
   private heroLabel: Phaser.GameObjects.Text | null = null;
+  private compLabels = new Map<number, Phaser.GameObjects.Text>();
   private floats: { t: Phaser.GameObjects.Text; life: number }[] = [];
   private particles: Particle[] = [];
   private smokePuffs: Particle[] = [];
@@ -110,6 +111,7 @@ export class BattleScene extends Phaser.Scene {
     this.smokePuffs = [];
     this.stakeImgs = [];
     this.heroLabel = null;
+    this.compLabels = new Map();
     this.speed = 1;
     this.paused = false;
     this.endTimer = -1;
@@ -258,6 +260,15 @@ export class BattleScene extends Phaser.Scene {
           .text(u.x, u.y - 110, '★', { fontFamily: 'Kurale, Georgia, serif', fontSize: '22px', color: '#e8c04a', stroke: '#1a1410', strokeThickness: 4 })
           .setOrigin(0.5, 1)
           .setDepth(5500);
+      }
+      if (u.compId && u.side === this.battle.playerSide) {
+        this.compLabels.set(
+          u.uid,
+          this.add
+            .text(u.x, u.y - 100, u.troop.name.split(' ')[0], { fontFamily: 'Kurale, Georgia, serif', fontSize: '13px', color: '#d8b8f0', stroke: '#1a1410', strokeThickness: 3 })
+            .setOrigin(0.5, 1)
+            .setDepth(5400),
+        );
       }
     }
     return s;
@@ -498,6 +509,8 @@ export class BattleScene extends Phaser.Scene {
         bars.fillStyle(u.side === b.playerSide ? 0x5aa04a : 0xc24040, 1);
         bars.fillRect(u.x - w / 2, top, Math.max(1, (w * u.hp) / u.maxHp), 3);
       }
+      const cl = this.compLabels.get(u.uid);
+      if (cl) cl.setPosition(u.x, ry - (cav ? 108 : 88));
       if (u.isHero && this.heroLabel && u.side === b.playerSide) {
         this.heroLabel.setPosition(u.x, u.y - (cav ? 112 : 92));
         // Блок: золотая дуга щита перед героем
@@ -513,6 +526,10 @@ export class BattleScene extends Phaser.Scene {
           bars.strokePath();
         }
       }
+    }
+    for (const [uid, cl] of this.compLabels) {
+      const u = b.units.find((x) => x.uid === uid);
+      cl.setVisible(!!u && u.state !== 'dead' && u.state !== 'fled');
     }
     if (this.heroLabel) {
       const hero = b.units.find((u) => u.isHero && u.side === b.playerSide);

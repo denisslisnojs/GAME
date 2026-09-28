@@ -8,6 +8,8 @@ import type { WarState } from './war';
 import { spawnPointNear, world, type Settlement } from './world';
 import type { Quest } from './quests';
 import type { PlagueState } from './plague';
+import { initCompanions, type CompanionState } from './companions';
+import type { SkillId } from '../data/skills';
 
 export interface TroopStack {
   id: string;
@@ -39,6 +41,10 @@ export interface Hero {
   equip?: Partial<Record<Slot, string>>;
   /** Снаряжение в сумке. */
   bag?: string[];
+  /** Ступени умений (0…5). */
+  skills?: Partial<Record<SkillId, number>>;
+  /** Нераспределённые очки умений. */
+  skillPoints?: number;
 }
 
 export interface SettlementState {
@@ -85,6 +91,8 @@ export interface GameState {
   plague?: PlagueState;
   /** Показанные подсказки. */
   hints?: string[];
+  /** Спутники: где сидят и кто в отряде. */
+  companions?: CompanionState[];
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {
@@ -110,9 +118,9 @@ export function newGame(name: string, faction: FactionId): GameState {
   }
   const capital = world.byId.get(FACTIONS[faction].capital)!;
   const spawn = spawnPointNear(capital);
-  return {
+  const state: GameState = {
     version: 1,
-    hero: { name, faction, level: 1, xp: 0, attrs: { str: 3, agi: 3, vit: 3, lead: 3 }, points: 3, equip: { ...START_KIT[faction] }, bag: [] },
+    hero: { name, faction, level: 1, xp: 0, attrs: { str: 3, agi: 3, vit: 3, lead: 3 }, points: 3, equip: { ...START_KIT[faction] }, bag: [], skills: {}, skillPoints: 2 },
     gold: 500,
     time: 0.33, // 8 утра
     lastDay: 0,
@@ -128,6 +136,8 @@ export function newGame(name: string, faction: FactionId): GameState {
     settlements,
     wars: INITIAL_WARS.map(([a, b]) => [a, b]),
   };
+  initCompanions(state);
+  return state;
 }
 
 export function saveGame(state: GameState) {
@@ -149,6 +159,9 @@ export function loadGame(): GameState | null {
     s.hero.points ??= 3 + (s.hero.level - 1) * 2;
     s.hero.equip ??= { ...START_KIT[s.hero.faction] };
     s.hero.bag ??= [];
+    s.hero.skills ??= {};
+    s.hero.skillPoints ??= 1 + s.hero.level;
+    initCompanions(s);
     // Поселения, добавленные в новых версиях, получают состояние по умолчанию
     for (const st of world.settlements) {
       if (!s.settlements[st.id]) s.settlements[st.id] = { owner: st.culture, recruits: {} };

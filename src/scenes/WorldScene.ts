@@ -11,8 +11,9 @@ import type { BattleTerrain } from '../battle/background';
 import { prewarmBattleTerrain } from './BattleScene';
 import { applyBattle, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
 import { questsDaily } from '../game/quests';
+import { companionDeed, companionsDaily, partySkill, trainingDaily } from '../game/companions';
 import { isPlagued, plagueDaily } from '../game/plague';
-import { activeLords, alliesNear, capture, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
+import { activeLords, alliesNear, capture, news, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
 import { hasSave, loadGame, newGame, saveGame, type GameState } from '../game/state';
 import { heroLook } from '../game/hero';
@@ -213,7 +214,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.state = state;
     initWar(state);
     onNews((text, kind) => {
-      const color = { war: '#e07a6a', peace: '#7ad06a', capture: '#e8c04a' }[kind as string];
+      const color = { war: '#e07a6a', peace: '#7ad06a', capture: '#e8c04a', party: '#c8a0e8' }[kind as string];
       if (this.mode === 'play' && color) this.hud?.news(text, color);
     });
     this.mode = 'play';
@@ -620,6 +621,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         warDaily(this.state);
         for (const msg of questsDaily(this.state)) this.hud?.news(msg, '#ffd24a');
         for (const msg of plagueDaily(this.state)) this.hud?.news(msg, '#9ab87a');
+        for (const msg of companionsDaily(this.state)) news(this.state, msg, 'party');
+        trainingDaily(this.state, partySkill(this.state, 'training'));
         this.commit();
       }
       if (moving) this.moveParty(dtDays);
@@ -676,7 +679,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   private moveParty(dtDays: number) {
     const { cx, cy } = worldToCell(this.party.x, this.party.y);
     const cellCost = Math.min(3, TERRAIN_COST[world.map.terrain[cy * GRID_W + cx]] ?? 1);
-    let remaining = (PARTY_SPEED * TILE * dtDays) / (isFinite(cellCost) ? cellCost : 1);
+    let remaining = (PARTY_SPEED * TILE * dtDays * (1 + partySkill(this.state, 'pathfinding') * 0.04)) / (isFinite(cellCost) ? cellCost : 1);
     let consumed = false;
     while (remaining > 0 && this.path.length) {
       const wp = this.path[0];
@@ -855,6 +858,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         auto: (f) => this.startBattle(p, f, true, allies, others),
         retreat: () => {
           const { lost } = retreat(this.state, p);
+          for (const msg of companionDeed(this.state, 'retreat')) news(this.state, msg, 'party');
           if (lost.length) toast(`Отступили, но потеряли ${lost.reduce((s, l) => s + l.n, 0)} воинов арьергарда`, 3500);
           else toast('Вы ушли от погони');
           this.commit();

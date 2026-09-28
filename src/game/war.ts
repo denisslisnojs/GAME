@@ -18,7 +18,7 @@ export type Troops = { id: string; count: number }[];
 export interface NewsItem {
   t: number;
   text: string;
-  kind: 'war' | 'peace' | 'capture' | 'battle' | 'lord' | 'info' | 'player';
+  kind: 'war' | 'peace' | 'capture' | 'battle' | 'lord' | 'info' | 'player' | 'party';
 }
 
 export interface WarState {

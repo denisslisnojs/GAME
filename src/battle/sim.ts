@@ -28,6 +28,8 @@ export interface ArmyDef {
   /** key — ключ стека для подсчёта потерь (по умолчанию id воина). */
   troops: { id: string; count: number; key?: string }[];
   hero?: { name: string; level: number; def: TroopDef };
+  /** Спутники героя: бьются рядом с ним, не гибнут, а получают ранения. */
+  companions?: { id: string; def: TroopDef }[];
   formation: Formation;
   morale: number;
 }
@@ -61,6 +63,8 @@ export interface BUnit {
   onWall: boolean;
   /** Герой под управлением игрока держит блок. */
   blocking?: boolean;
+  /** Спутник героя (id). */
+  compId?: string;
 }
 
 /** Ручное управление героем игрока: направление движения (−1..1), удар, блок. */
@@ -179,6 +183,12 @@ export class Battle {
       const army = armies[side];
       const all: BUnit[] = [];
       if (army.hero) all.push(this.make(side, army.hero.def, 'hero', true));
+      for (const c of army.companions ?? []) {
+        const u = this.make(side, c.def, `comp:${c.id}`, false);
+        u.group = 'hero';
+        u.compId = c.id;
+        all.push(u);
+      }
       for (const t of army.troops) {
         const def = TROOPS[t.id];
         for (let i = 0; i < t.count; i++) all.push(this.make(side, def, t.key ?? t.id, false));
@@ -870,9 +880,14 @@ export class Battle {
     const bySt = new Map<string, { dead: number; survived: number; xp: number; troop: TroopDef }>();
     const all = [...this.units.filter((u) => u.side === side), ...this.reserves[side]];
     let heroDead = false;
+    const companionsDown: string[] = [];
     for (const u of all) {
       if (u.isHero) {
         heroDead = u.state === 'dead';
+        continue;
+      }
+      if (u.compId) {
+        if (u.state === 'dead') companionsDown.push(u.compId);
         continue;
       }
       const s = bySt.get(u.stackKey) ?? { dead: 0, survived: 0, xp: 0, troop: u.troop };
@@ -881,7 +896,7 @@ export class Battle {
       s.xp += u.xp;
       bySt.set(u.stackKey, s);
     }
-    return { stacks: bySt, heroDead };
+    return { stacks: bySt, heroDead, companionsDown };
   }
 }
 

@@ -146,7 +146,7 @@ export class BattleHud {
         { class: 'b-card', onclick: () => this.select(g.id) },
         h('img', { class: 'px face', src: rep ? portraitURL(rep) : g.id === 'hero' ? o.heroPortrait ?? portraitURL(`${o.heroFaction}_c3m`) : emblemURL(o.heroFaction) }),
         badge,
-        h('div', { class: 'lbl' }, g.name),
+        h('div', { class: 'lbl' }, g.id === 'hero' && this.totals.hero > 1 ? 'Свита' : g.name),
         count,
         bar,
       );

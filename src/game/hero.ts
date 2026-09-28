@@ -2,6 +2,7 @@ import { FACTIONS } from '../data/factions';
 import { ITEMS, SLOT_WEIGHT, type Item, type Slot } from '../data/items';
 import { TROOPS, type DamageType, type TroopDef } from '../data/troops';
 import { hex } from '../gfx/pixel';
+import { SKILL_MAX, type SkillId } from '../data/skills';
 import type { UnitLook } from '../gfx/units';
 import type { GameState, Hero, HeroAttrs } from './state';
 
@@ -48,16 +49,17 @@ export function heroStats(h: Hero): HeroStats {
   weight += shield?.weight ?? 0;
   for (const k of ['cut', 'pierce', 'blunt'] as DamageType[]) armor[k] = Math.min(0.8, armor[k]);
   const baseDmg = weapon?.damage ?? 8;
+  const sk = (id: keyof NonNullable<Hero['skills']>) => h.skills?.[id] ?? 0;
   return {
-    hp: Math.round(70 + a.vit * 12 + h.level * 6 + (horse?.hpBonus ?? 0)),
-    damage: Math.round(baseDmg * (1 + a.str * 0.05)),
+    hp: Math.round(70 + a.vit * 12 + h.level * 6 + (horse?.hpBonus ?? 0) + sk('athletics') * 5),
+    damage: Math.round(baseDmg * (1 + a.str * 0.05) * (1 + sk('weapon') * 0.04)),
     damageType: weapon?.damageType ?? 'blunt',
     attackTime: +((weapon?.attackTime ?? 1.2) * Math.max(0.7, 1 - a.agi * 0.012)).toFixed(2),
     crit: +Math.min(0.45, (weapon?.crit ?? 0.05) + a.agi * 0.008).toFixed(3),
     dodge: +Math.max(0.02, Math.min(0.35, 0.06 + a.agi * 0.012 - weight * 0.004)).toFixed(3),
-    block: shield?.block ?? 0,
+    block: shield ? Math.min(0.75, (shield.block ?? 0) + sk('shield') * 0.05) : 0,
     armor,
-    speed: horse ? (horse.speed ?? 1.8) * (1 - weight * 0.004) : 1.0 * (1 - weight * 0.006),
+    speed: horse ? (horse.speed ?? 1.8) * (1 - weight * 0.004) * (1 + sk('riding') * 0.05) : 1.0 * (1 - weight * 0.006) * (1 + sk('athletics') * 0.05),
     mounted: !!horse,
     weight,
     morale: a.lead * 3,
@@ -148,6 +150,14 @@ export function unequip(h: Hero, slot: Slot) {
   if (!old) return;
   delete h.equip[slot];
   h.bag.push(old);
+}
+
+export function addSkill(h: Hero, id: SkillId) {
+  if (!h.skillPoints || h.skillPoints <= 0) return;
+  h.skills ??= {};
+  if ((h.skills[id] ?? 0) >= SKILL_MAX) return;
+  h.skills[id] = (h.skills[id] ?? 0) + 1;
+  h.skillPoints--;
 }
 
 export function addPoint(h: Hero, k: keyof HeroAttrs) {

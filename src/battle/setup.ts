@@ -2,6 +2,7 @@ import { FACTIONS, type FactionId } from '../data/factions';
 import { TROOPS } from '../data/troops';
 import type { GameState } from '../game/state';
 import { heroStats, heroTroop } from '../game/hero';
+import { companionTroop, fightingCompanions, partySkill } from '../game/companions';
 import type { ArmyDef, Formation } from './sim';
 
 export function playerArmy(state: GameState, formation: Formation): ArmyDef {
@@ -10,8 +11,9 @@ export function playerArmy(state: GameState, formation: Formation): ArmyDef {
     culture: state.hero.faction,
     troops: state.party.troops.filter((t) => t.count > 0).map((t) => ({ id: t.id, count: t.count })),
     hero: { name: state.hero.name, level: state.hero.level, def: heroTroop(state) },
+    companions: fightingCompanions(state).map(({ def, cs }) => ({ id: def.id, def: companionTroop(def, cs) })),
     formation,
-    morale: 100 + heroStats(state.hero).morale,
+    morale: 100 + heroStats(state.hero).morale + partySkill(state, 'tactics') * 4,
   };
 }
 

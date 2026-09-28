@@ -1547,3 +1547,26 @@ input.text:focus {
     inset 0 2px 0 rgba(0, 0, 0, 0.35),
     inset 0 0 0 2px rgba(232, 192, 74, 0.7);
 }
+
+.pips {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: 6px;
+}
+
+.pips i {
+  width: 9px;
+  height: 9px;
+  background: #1a1b1d;
+  border: 1px solid #45494e;
+}
+
+.pips i.on {
+  background: var(--gold);
+  border-color: #8a6a1a;
+}
+
+.pips i.team {
+  background: #7a5aa0;
+  border-color: #4a3a5a;
+}

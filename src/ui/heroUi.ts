@@ -1,7 +1,9 @@
 import { ITEMS, SLOT_NAME, SLOTS, type Item } from '../data/items';
 import { DAMAGE_NAME } from '../data/troops';
 import { heroFigureURL, itemIconURL } from '../gfx/icons';
-import { addPoint, equipFromBag, equipped, heroLook, heroStats, unequip } from '../game/hero';
+import { addPoint, addSkill, equipFromBag, equipped, heroLook, heroStats, unequip } from '../game/hero';
+import { SKILL_MAX, SKILLS } from '../data/skills';
+import { partySkill, skillOwner } from '../game/companions';
 import { heroXpToLevel } from '../game/battleResult';
 import { buyItem, itemSellPrice, sellBagItem, SHOP_NAME, SHOP_SLOTS, shopStock, type ShopKind } from '../game/shop';
 import type { HeroAttrs } from '../game/state';
@@ -164,6 +166,18 @@ export function openHero(ctx: GameCtx) {
           btn('+', () => { addPoint(hero, a.k); ctx.commit(); render(); }, 'small primary', !hero.points),
         ),
       ),
+      h('div', { class: 'col-title', style: 'margin-top:8px' }, hero.skillPoints ? `Умения · свободных очков: ${hero.skillPoints}` : 'Умения'),
+      ...SKILLS.map((sk) => {
+        const mine = hero.skills?.[sk.id] ?? 0;
+        const team = sk.party ? partySkill(state, sk.id) : mine;
+        return h(
+          'div',
+          { class: 'row attr' },
+          h('span', { class: 'grow' }, h('b', {}, sk.name), sk.party ? h('span', { class: 'muted', style: 'font-size:11px' }, ' · отряда') : null, h('br'), h('span', { class: 'muted', style: 'font-size:11px' }, sk.hint + (sk.party && team > mine ? ` · в отряде ${team} (${skillOwner(state, sk.id)})` : ''))),
+          h('span', { class: 'pips' }, ...Array.from({ length: SKILL_MAX }, (_, i) => h('i', { class: i < mine ? 'on' : i < team ? 'team' : '' }))),
+          btn('+', () => { addSkill(hero, sk.id); ctx.commit(); render(); }, 'small primary', !hero.skillPoints || mine >= SKILL_MAX),
+        );
+      }),
       h(
         'div',
         { class: 'stats', style: 'margin-top:6px' },

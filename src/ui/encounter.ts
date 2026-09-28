@@ -130,10 +130,11 @@ export function openBattleResult(state: GameState, r: AppliedResult, enemyName: 
   const xp = h(
     'div',
     { class: 'army-list' },
-    h('div', {}, `Опыт героя: +${r.heroXp}`, r.levelUp ? h('b', { class: 'gold' }, ` · новый уровень ${state.hero.level}! +${r.levelUp * 2} очка характеристик`) : ''),
+    h('div', {}, `Опыт героя: +${r.heroXp}`, r.levelUp ? h('b', { class: 'gold' }, ` · новый уровень ${state.hero.level}! +${r.levelUp * 2} очка характеристик и +${r.levelUp} умений`) : ''),
     h('div', { class: 'muted' }, `До следующего уровня: ${heroXpToLevel(state.hero.level) - state.hero.xp}`),
     h('div', {}, `Опыт отряда: +${r.troopXp}`),
     r.heroWounded ? h('div', { style: 'color:#e07a6a' }, 'Герой ранен в бою, но выжил.') : null,
+    ...(r.party ?? []).map((line) => h('div', { style: 'color:#c8a0e8;font-size:12.5px' }, line)),
   );
   const content = panel(
     'modal wide',

@@ -3,6 +3,8 @@ import { heroLook } from '../game/hero';
 import { lookKey, troopLook } from '../battle/looks';
 import type { GameState } from '../game/state';
 import { TROOPS } from '../data/troops';
+import { COMPANION_BY_ID } from '../data/companions';
+import { companionTroop } from '../game/companions';
 import type { Settlement } from '../game/world';
 import { hash2 } from '../util/rng';
 import { Pix, hex, shade } from './pixel';
@@ -75,6 +77,11 @@ export function figureURL(troopId: string): string {
     c.getContext('2d')!.drawImage(sheet, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
     return c;
   });
+}
+
+/** Портрет спутника. */
+export function companionPortraitURL(id: string): string {
+  return memo(`cp_${id}`, () => bust(troopLook(companionTroop(COMPANION_BY_ID[id]))));
 }
 
 /** Портрет героя в текущем снаряжении. */

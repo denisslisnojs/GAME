@@ -9,6 +9,8 @@ import type { GameState } from './state';
 import { capture, defeatLord, distributeLosses, news, placeName, type Troops } from './war';
 import { addRelation, onPartyDefeated, onVillageRaided } from './quests';
 import { spawnPointNear, world, type Settlement } from './world';
+import { companionDeed, companionsAfterBattle, partySkill } from './companions';
+import { COMPANION_BY_ID, type Deed } from '../data/companions';
 
 export interface AppliedResult {
   won: boolean;
@@ -27,6 +29,8 @@ export interface AppliedResult {
   items: string[];
   /** Особый итог (взят город, разбит лорд и т. п.). */
   headline?: string;
+  /** Спутники: ранения, уровни, реплики. */
+  party?: string[];
 }
 
 export function heroXpToLevel(level: number) {
@@ -52,6 +56,8 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies
 
   const ourLosses: AppliedResult['ourLosses'] = [];
   let troopXp = 0;
+  // Лечение: павшие чаще выживают ранеными
+  const killChance = Math.max(0.25, 0.62 - partySkill(state, 'surgery') * 0.07);
   for (const [id, s] of ours.stacks) {
     if (/^A\d+\|/.test(id)) {
       // Потери союзных лордов
@@ -61,7 +67,7 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies
       continue;
     }
     let killed = 0;
-    for (let i = 0; i < s.dead; i++) if (Math.random() < 0.62) killed++;
+    for (let i = 0; i < s.dead; i++) if (Math.random() < killChance) killed++;
     const wounded = s.dead - killed;
     if (s.dead) ourLosses.push({ id, killed, wounded });
     if (killed) dismiss(state, id, killed);
@@ -136,7 +142,21 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies
   const tierXp = enemyTierSum <= 20 ? enemyTierSum * 9 : 180 + (enemyTierSum - 20) * 3;
   res.heroXp = Math.round(tierXp + (won ? 20 : 5));
   res.levelUp = gainHeroXp(state, res.heroXp);
+  res.party = [
+    ...ours.companionsDown.map((id) => `${companionName(id)} ранен и несколько дней не сможет сражаться.`),
+    ...companionsAfterBattle(state, res.heroXp, ours.companionsDown),
+    ...companionDeed(state, won ? 'victory' : 'defeat'),
+  ];
   return res;
+}
+
+function companionName(id: string) {
+  return COMPANION_BY_ID[id]?.name ?? id;
+}
+
+/** Реплики спутников о поступке — в итог боя. */
+function deed(res: AppliedResult, state: GameState, d: Deed) {
+  (res.party ??= []).push(...companionDeed(state, d));
 }
 
 /** Начислить опыт герою; возвращает число новых уровней (2 очка характеристик за уровень). */
@@ -147,6 +167,7 @@ export function gainHeroXp(state: GameState, xp: number): number {
     state.hero.xp -= heroXpToLevel(state.hero.level);
     state.hero.level++;
     state.hero.points = (state.hero.points ?? 0) + 2;
+    state.hero.skillPoints = (state.hero.skillPoints ?? 0) + 1;
     ups++;
   }
   return ups;
@@ -174,10 +195,12 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty, a
     }
     onPartyDefeated(state, party);
     if (party.kind === 'caravan') {
+      deed(res, state, 'caravan');
       news(state, `${state.hero.name} разграбил караван державы «${FACTIONS[party.faction as FactionId].short}».`, 'player');
       res.headline = 'Караван разграблен! Товары погружены в ваш обоз.';
     }
     if (party.kind === 'lord') {
+      deed(res, state, 'lord');
       defeatLord(state, party, 'player');
       res.headline = `${party.name} разбит и бежал!`;
     } else removeParty(state, party.id);
@@ -203,6 +226,7 @@ export function applySiege(state: GameState, battle: Battle, s: Settlement, garr
   afterAllies(state, allies, res.won, owner);
   if (res.won) {
     for (const l of lords) if (l.lord?.status === 'active') defeatLord(state, l, 'player');
+    deed(res, state, 'siege');
     capture(state, s, state.hero.faction, true);
     (state.capturedByHero ??= []).push(s.id);
     state.stats!.captured = (state.stats!.captured ?? 0) + 1;
@@ -230,6 +254,7 @@ export function applyRaid(state: GameState, battle: Battle, s: Settlement, milit
     state.war!.looted[s.id] = state.time + 14;
     state.settlements[s.id].recruits = {};
     onVillageRaided(state, s);
+    deed(res, state, 'raid');
     news(state, `${state.hero.name} разорил ${placeName(s)}.`, 'player');
     res.headline = `${s.name} разорена. Крестьяне разбежались.`;
   }

@@ -29,6 +29,9 @@ import { world, type Settlement } from '../game/world';
 import { btn, h, img, openModal, panel, plural, sfxCoins, stars, toast } from './dom';
 import { openHero, openShop } from './heroUi';
 import { openTroopTree } from './troopTree';
+import { openTavern, skillLine } from './tavern';
+import { companionsAt, dismissCompanion, inParty, isWounded, mood } from '../game/companions';
+import { companionPortraitURL } from '../gfx/icons';
 import { heroPortraitURL } from '../gfx/icons';
 
 export interface GameCtx {
@@ -167,6 +170,7 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
         optF('Оружейник', 'оружие и щиты', () => openShop(ctx, s, 'weapons')),
         optF('Бронник', 'шлемы и доспехи', () => openShop(ctx, s, 'armor')),
         optF('Конюшня', 'кони', () => openShop(ctx, s, 'horses')),
+        optF('Таверна', companionsAt(state, s.id).length ? `за столом: ${companionsAt(state, s.id).map((c) => c.def.name.split(' ')[0]).join(', ')}` : 'спутники, слухи', () => openTavern(ctx, s)),
         optF('Ристалище', tourneyReady(state, s) ? `турнир через ${tourneyReady(state, s)} дн.` : 'турнир сегодня!', () => openArena(ctx, s, () => close())),
         optF(FACTIONS[owner].capital === s.id ? 'Тронный зал' : 'Замок лорда', hostHint(state, s), () => openHost(ctx, s)),
       );
@@ -260,7 +264,7 @@ export function openMarket(ctx: GameCtx, s: Settlement) {
     sub.replaceChildren(goldLine(state), ` · Груз: ${cargoCount(state)}`);
     left.replaceChildren(h('div', { class: 'col-title' }, 'Товары рынка'));
     for (const g of s.goods) {
-      const p = buyPrice(g);
+      const p = buyPrice(g, state);
       left.append(
         goodRow(
           g,
@@ -276,7 +280,7 @@ export function openMarket(ctx: GameCtx, s: Settlement) {
     const cargo = Object.entries(state.cargo) as [GoodId, number][];
     if (!cargo.length) right.append(h('div', { class: 'muted', style: 'padding:6px' }, 'Пусто. Товары и трофеи добываются в боях и на турнирах.'));
     for (const [g, n] of cargo) {
-      const p = sellPrice(g);
+      const p = sellPrice(g, state);
       right.append(
         goodRow(
           g,
@@ -295,7 +299,7 @@ export function openMarket(ctx: GameCtx, s: Settlement) {
     'modal wide',
     header(`${s.type === 'town' ? 'Рынок' : 'Торговля'} — ${s.name}`, sub, () => close()),
     h('div', { class: 'body two-col' }, left, right),
-    h('div', { class: 'muted', style: 'font-size:12px' }, 'Цены везде одинаковые: покупка по полной цене, продажа за 80%.'),
+    h('div', { class: 'muted', style: 'font-size:12px' }, 'Цены везде одинаковые, продажа — за 80% цены. Умение «Торговля» (ваше или спутника) улучшает обе цены.'),
   );
   render();
   close = openModal(content);
@@ -326,6 +330,31 @@ export function openParty(ctx: GameCtx) {
         btn('Снаряжение', () => openHero(ctx), 'small primary'),
       ),
     );
+    for (const { def, cs } of inParty(state)) {
+      const m = mood(cs.loyalty);
+      const wounded = isWounded(state, cs);
+      body.append(
+        h(
+          'div',
+          { class: 'item', style: 'border-color:#4a3a5a' },
+          img(companionPortraitURL(def.id), 'px portrait'),
+          h('div', { class: 'grow col', style: 'gap:2px' },
+            h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' },
+              h('span', { class: 'name', style: 'color:#c8a0e8' }, def.name),
+              h('span', { class: 'muted', style: 'font-size:12px' }, `${def.title} · ур. ${cs.level}`),
+              wounded ? h('span', { style: 'font-size:12px;color:#e07a6a' }, `ранен ещё ${Math.ceil((cs.woundedUntil ?? 0) - state.time)} дн.`) : null,
+            ),
+            h('div', { class: 'stats' }, h('span', { class: 'gold' }, skillLine(def.skills)), h('span', {}, `жалованье ${def.wage} ¤/нед.`)),
+            h('div', { class: 'row', style: 'gap:6px;font-size:12px;flex-wrap:wrap' },
+              h('div', { style: 'flex:none;width:90px;height:6px;background:#0e0f10;border:1px solid #45494e' }, h('div', { style: `height:100%;width:${Math.max(0, Math.min(100, cs.loyalty))}%;background:${m.color}` })),
+              h('span', { style: `color:${m.color};white-space:nowrap` }, `Настроение: ${m.text}`),
+              h('span', { class: 'muted' }, `· любит: ${def.likes.map(deedName).join(', ') || '—'} · не терпит: ${def.dislikes.map(deedName).join(', ') || '—'}`),
+            ),
+          ),
+          btn('Отпустить', () => { dismissCompanion(state, def.id); toast(`${def.name} ушёл искать другую службу`); ctx.commit(); render(); }, 'small ghost'),
+        ),
+      );
+    }
     const troops = [...state.party.troops].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier || (TROOPS[a.id].line === 'cavalry' ? -1 : 1));
     for (const stack of troops) {
       const t = TROOPS[stack.id];
@@ -387,6 +416,20 @@ export function openParty(ctx: GameCtx) {
   const content = panel('modal', head, body);
   render();
   close = openModal(content);
+}
+
+const DEED_NAME: Record<string, string> = {
+  raid: 'грабёж деревень',
+  caravan: 'грабёж караванов',
+  retreat: 'отступление',
+  defeat: 'поражения',
+  victory: 'победы',
+  siege: 'штурмы',
+  tourney: 'турниры',
+  lord: 'победы над лордами',
+};
+function deedName(d: string) {
+  return DEED_NAME[d] ?? d;
 }
 
 // ───────────────────────── обзор держав ─────────────────────────
