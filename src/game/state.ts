@@ -83,6 +83,8 @@ export interface GameState {
   capturedByHero?: string[];
   /** Чёрная смерть. */
   plague?: PlagueState;
+  /** Показанные подсказки. */
+  hints?: string[];
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {

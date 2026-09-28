@@ -3,7 +3,8 @@ import { music } from '../audio/music';
 import { ART_SCALE, GRID_H, GRID_W, PARTY_SPEED, SECONDS_PER_DAY, TILE, WORLD_H, WORLD_W } from '../config';
 import { FACTIONS, type FactionId } from '../data/factions';
 import { settlementTextureKey } from '../gfx/sprites';
-import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo } from '../game/logic';
+import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo, totalReady } from '../game/logic';
+import { hint, openHelp, resetHints } from '../ui/hints';
 import { enemyArmy, playerArmy } from '../battle/setup';
 import { Battle, type Formation } from '../battle/sim';
 import type { BattleTerrain } from '../battle/background';
@@ -43,6 +44,9 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   private closeMenuUi: (() => void) | null = null;
 
   private party!: Phaser.GameObjects.Sprite;
+  /** Золотое кольцо под отрядом игрока, чтобы его было видно в толпе. */
+  private ring!: Phaser.GameObjects.Ellipse;
+  private ringT = 0;
   private partyFrame = 0;
   private partyAnimT = 0;
   private path: Pt[] = [];
@@ -114,6 +118,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     }
 
     this.party = this.add.sprite(0, 0, 'rider_aurelia_player_0').setOrigin(0.5, 0.9).setScale(ART_SCALE).setVisible(false);
+    this.ring = this.add.ellipse(0, 0, 90, 34).setStrokeStyle(5, 0xffd24a, 0.9).setVisible(false);
 
     this.setupInput();
     this.scale.on('resize', () => this.clampZoom());
@@ -124,9 +129,11 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
   private enterMenu() {
     this.mode = 'menu';
+    resetHints();
     this.hud?.destroy();
     this.hud = null;
     this.party.setVisible(false);
+    this.ring?.setVisible(false);
     for (const v of this.partySprites.values()) {
       v.s.destroy();
       v.label.destroy();
@@ -235,6 +242,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     });
     this.updateLabels();
     this.updateHud();
+    resetHints();
+    hint(state, 'start');
   }
 
   /** GameCtx: сохранить и обновить интерфейс. */
@@ -279,6 +288,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
             toast('Игра сохранена');
             close();
           }),
+          btn('Как играть', () => openHelp()),
           btn('Настройки', () => showSettings()),
           btn('Выйти в главное меню', () => {
             this.commit();
@@ -559,7 +569,11 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.marker.clear();
     this.state.visiting = s.id;
     this.commit();
-    if (!canEnter(this.state, s)) toast(`${s.name}: владения врага`);
+    hint(this.state, 'settle');
+    if (!canEnter(this.state, s)) {
+      toast(`${s.name}: владения врага`);
+      hint(this.state, 'enemy');
+    }
     this.modal(() =>
       openSettlement(this, s, () => {
         this.state.visiting = undefined;
@@ -620,12 +634,21 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         this.updatePartyTexture(this.partyFrame);
       }
     }
-    this.party.setDepth(this.party.y + 1);
+    // Отряд игрока поверх соседних лордов и шаек, кольцо под ним пульсирует
+    this.party.setDepth(this.party.y + 60);
+    this.ringT += deltaMs / 1000;
+    this.ring.setVisible(true).setPosition(this.party.x, this.party.y - 2).setDepth(this.party.y + 59).setScale(1 + Math.sin(this.ringT * 3) * 0.08).setAlpha(0.65 + Math.sin(this.ringT * 3) * 0.25);
 
     this.hudTimer += deltaMs;
     if (this.hudTimer > 120) {
       this.hudTimer = 0;
       this.updateHud();
+      const st = this.state;
+      if (totalReady(st) > 0) hint(st, 'upgrade');
+      if ((st.hero.points ?? 0) > 0 && st.hero.level > 1) hint(st, 'points');
+      if (st.time > 1.5) hint(st, 'war');
+      if (st.quests?.length) hint(st, 'quest');
+      if (st.plague?.started) hint(st, 'plague');
     }
   }
 
@@ -778,6 +801,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.marker.clear();
     const attacked = this.targetParty?.id !== p.id;
     this.targetParty = null;
+    hint(this.state, 'battle');
     if (this.state.party.troops.reduce((s, t) => s + t.count, 0) === 0 && attacked) {
       // Героя без отряда разбойники просто грабят
       const lost = Math.floor(this.state.gold * 0.3);
