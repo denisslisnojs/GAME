@@ -3,6 +3,7 @@ import { heroPortraitURL } from '../gfx/icons';
 import { partySize, totalReady } from '../game/logic';
 import { dateString, timeOfDay, type GameState } from '../game/state';
 import { btn, h, uiRoot } from './dom';
+import { TUTORIAL, tutorialStep } from '../game/tutorial';
 
 export interface HudActions {
   toggleWait(): void;
@@ -13,6 +14,7 @@ export interface HudActions {
   openMenu(): void;
   openHero(): void;
   openChronicle(): void;
+  skipTutorial(): void;
 }
 
 /** Состояние времени: отряд в пути, герой ждёт, или мир стоит. */
@@ -32,6 +34,8 @@ export class Hud {
   private heroLine = h('span', {});
   private heroImg = h('img', { class: 'px emblem', style: 'width:28px;height:28px' }) as HTMLImageElement;
   private feed = h('div', { class: 'news-feed' });
+  private tutText = h('span', {});
+  private tut: HTMLElement;
   private night = h('div', { class: 'passthrough', style: 'position:fixed;inset:0;pointer-events:none;background:#10183a;opacity:0;transition:opacity 1s' });
 
   constructor(state: GameState, a: HudActions) {
@@ -39,6 +43,7 @@ export class Hud {
     this.waitBtn = btn('⌛ Ждать', () => a.toggleWait(), '', false, 'Ждать на месте: время идёт (пробел)');
     this.speedBtn = btn('×1', () => a.cycleSpeed(), 'small', false, 'Скорость времени');
     this.partyBtn = btn('Отряд', () => a.openParty());
+    this.tut = h('div', { class: 'tut-card' }, this.tutText, btn('✕', () => a.skipTutorial(), 'small ghost', false, 'Пропустить обучение'));
     this.partyBtn.append(this.partyBadge);
     this.root = h(
       'div',
@@ -56,6 +61,7 @@ export class Hud {
         h('div', { class: 'hud-box col', style: 'gap:0;align-items:flex-end' }, h('span', { class: 'row', style: 'gap:6px' }, this.gold, h('span', { class: 'muted' }, '·'), this.men), h('span', { class: 'muted small' }, this.date)),
       ),
       h('div', { class: 'hud-left' }, h('div', { class: 'hud-group' }, this.waitBtn, this.speedBtn), h('div', { class: 'hud-terrain' }, this.terrain)),
+      this.tut,
       h(
         'div',
         { class: 'hud-bottom' },
@@ -89,6 +95,12 @@ export class Hud {
     this.partyBadge.textContent = ready ? `↑${ready}` : '';
     this.partyBadge.style.display = ready ? '' : 'none';
     this.waitBtn.textContent = flow === 'wait' ? '■ Стоп' : '⌛ Ждать';
+    const step = tutorialStep(state);
+    this.tut.style.display = step ? '' : 'none';
+    if (step) {
+      const txt = `Обучение ${(state.tutorial?.step ?? 0) + 1}/${TUTORIAL.length}: ${step.text} (+${step.reward} ¤)`;
+      if (this.tutText.textContent !== txt) this.tutText.textContent = txt;
+    }
     this.waitBtn.classList.toggle('active', flow === 'wait');
     this.speedBtn.textContent = `×${speed}`;
     // Ночь: плавно темнеет с 20 до 5 часов

@@ -58,6 +58,7 @@ export function maybeCaptureLord(state: GameState, l: MapParty): boolean {
   if (Math.random() > 0.4) return false;
   (state.captives ??= []).push({ id: l.id, name: l.name, faction: l.faction as FactionId, rank: l.lord.rank, since: state.time, lordName: l.lord.name });
   l.lord.recoverAt = 1e9; // сидит у нас, пока не выкупят или не отпустим
+  if (state.stats) state.stats.lordsCaptured = (state.stats.lordsCaptured ?? 0) + 1;
   news(state, `${state.hero.name} взял в плен: ${l.name}.`, 'player');
   return true;
 }

@@ -131,6 +131,7 @@ export function upgrade(state: GameState, fromId: string, toId: string, n: numbe
   stack.count -= k;
   stack.xp -= k * t.xpToUpgrade;
   state.gold -= k * t.upgradeCost;
+  (state.flags ??= {}).upgraded = true;
   if (stack.count <= 0) state.party.troops = state.party.troops.filter((x) => x !== stack);
   else stack.xp = Math.min(stack.xp, stack.count * t.xpToUpgrade * 2);
   addTroops(state, toId, k);

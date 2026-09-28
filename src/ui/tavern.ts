@@ -24,6 +24,7 @@ export function skillLine(skills: Partial<Record<SkillId, number>>): string {
 
 export function openTavern(ctx: GameCtx, s: Settlement) {
   const { state } = ctx;
+  (state.flags ??= {}).tavern = true;
   let close = () => {};
   const body = h('div', { class: 'list' });
   const side = h('div', { class: 'list' });

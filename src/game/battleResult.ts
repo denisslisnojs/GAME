@@ -12,6 +12,7 @@ import { spawnPointNear, world, type Settlement } from './world';
 import { companionDeed, companionsAfterBattle, partySkill } from './companions';
 import { COMPANION_BY_ID, type Deed } from '../data/companions';
 import { maybeCaptureLord, onDefeat, takePrisoners } from './prisoners';
+import { diff } from './difficulty';
 
 export interface AppliedResult {
   won: boolean;
@@ -110,7 +111,7 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies
 
   if (won) {
     state.stats.won++;
-    res.gold = enemy.gold + Math.round(enemyTierSum * (5 + Math.random() * 7));
+    res.gold = Math.round((enemy.gold + enemyTierSum * (5 + Math.random() * 7)) * diff(state.difficulty).gold);
     res.goods = { ...enemy.loot };
     if (enemy.bonusGoods) {
       const g: GoodId = Math.random() < 0.5 ? 'iron' : 'leather';
@@ -263,6 +264,7 @@ export function applyDefense(state: GameState, battle: Battle, s: Settlement, at
   const res = applyOutcome(state, battle, { lists: attackers.map((l) => l.troops), gold: 250, loot: {}, itemChance: 0.6, itemCap: 4, culture: attacker, bonusGoods: true }, [], s.id);
   if (res.won) {
     delete state.war!.sieges[s.id];
+    state.stats!.defended = (state.stats!.defended ?? 0) + 1;
     for (const l of attackers)
       if (l.lord?.status === 'active') {
         defeatLord(state, l, 'player');
@@ -295,6 +297,7 @@ export function applyRaid(state: GameState, battle: Battle, s: Settlement, milit
   const res = applyOutcome(state, battle, { lists: [militia], gold: 60 + Math.floor(Math.random() * 140), loot: goods, itemChance: 0.08, itemCap: 1, culture: s.culture });
   if (res.won) {
     state.war!.looted[s.id] = state.time + 14;
+    state.stats!.raids = (state.stats!.raids ?? 0) + 1;
     state.settlements[s.id].recruits = {};
     onVillageRaided(state, s);
     deed(res, state, 'raid');

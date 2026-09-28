@@ -66,6 +66,7 @@ export function shopStock(state: GameState, s: Settlement, kind: ShopKind): Item
 export function buyItem(state: GameState, it: Item, equipNow: boolean): boolean {
   if (state.gold < it.price) return false;
   state.gold -= it.price;
+  (state.flags ??= {}).gear = true;
   const h = state.hero;
   h.bag ??= [];
   h.equip ??= {};

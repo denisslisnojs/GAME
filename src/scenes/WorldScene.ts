@@ -20,12 +20,16 @@ import { companionDeed, companionsDaily, partySkill, trainingDaily } from '../ga
 import { pickEvent, type RoadEvent } from '../game/events';
 import { prisonersDaily } from '../game/prisoners';
 import { fiefDaily } from '../game/fief';
+import { diff } from '../game/difficulty';
+import { tutorialTick } from '../game/tutorial';
+import { checkAchievements } from '../game/achievements';
+import { sfx } from '../audio/sfx';
 import { applyCrown } from '../game/crown';
 import { openRoadEvent } from '../ui/events';
 import { isPlagued, plagueDaily } from '../game/plague';
 import { activeLords, alliesNear, capture, news, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeAttackers, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
-import { hasSave, loadGame, newGame, saveGame, type GameState } from '../game/state';
+import { hasSave, listSlots, loadGame, newGame, saveGame, type GameState } from '../game/state';
 import { heroLook } from '../game/hero';
 import { heroEmblemURL, heroPortraitURL } from '../gfx/icons';
 import { isWaterCell, world, type Settlement } from '../game/world';
@@ -38,7 +42,7 @@ import { openHero } from '../ui/heroUi';
 import { btn, h, openModal, panel, toast, uiRoot } from '../ui/dom';
 import { Hud } from '../ui/hud';
 import { openParty, openRealms, openSettlement, type BattleView, type GameCtx } from '../ui/panels';
-import { showCreation, showMainMenu, showSettings } from '../ui/screens';
+import { showAchievements, showCreation, showMainMenu, showSettings, showSlots } from '../ui/screens';
 
 type Pt = { x: number; y: number };
 
@@ -205,15 +209,34 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         this.closeMenuUi?.();
         this.startGame(s);
       },
+      onLoad: () =>
+        showSlots('load', (slot) => {
+          const s = loadGame(slot);
+          if (!s) {
+            toast('Сохранение повреждено');
+            return;
+          }
+          this.closeMenuUi?.();
+          this.startGame(s);
+        }),
       onNew: () => {
         this.closeMenuUi?.();
         this.closeMenuUi = showCreation(
-          (name, faction) => {
-            this.closeMenuUi?.();
-            const s = newGame(name, faction);
-            saveGame(s);
-            this.startGame(s);
-            toast(`${FACTIONS[faction].rulerTitle} ${FACTIONS[faction].ruler} принял вашу присягу`, 4000);
+          (name, faction, difficulty, tutorial) => {
+            const begin = (slot: number) => {
+              this.closeMenuUi?.();
+              const s = newGame(name, faction);
+              s.slot = slot;
+              s.difficulty = difficulty;
+              s.tutorial = tutorial ? { step: 0 } : { step: 0, off: true };
+              saveGame(s);
+              this.startGame(s);
+              toast(`${FACTIONS[faction].rulerTitle} ${FACTIONS[faction].ruler} принял вашу присягу`, 4000);
+            };
+            // Первый свободный слот, иначе — спросить, что перезаписать
+            const free = listSlots().findIndex((x) => !x);
+            if (free >= 0) begin(free + 1);
+            else showSlots('new', begin);
           },
           () => this.showMenuUi(),
         );
@@ -261,6 +284,10 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       openMenu: () => this.openGameMenu(),
       openHero: () => this.modal(() => openHero(this)),
       openChronicle: () => this.modal(() => openChronicle(this.state)),
+      skipTutorial: () => {
+        this.state.tutorial = { step: this.state.tutorial?.step ?? 0, off: true };
+        this.commit();
+      },
     });
     this.updateLabels();
     this.updateHud();
@@ -313,6 +340,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
             close();
           }),
           btn('Как играть', () => openHelp()),
+          btn('Достижения', () => showAchievements()),
           btn('Настройки', () => showSettings()),
           btn('Выйти в главное меню', () => {
             this.commit();
@@ -699,6 +727,15 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       if (st.time > 1.5) hint(st, 'war');
       if (st.quests?.length) hint(st, 'quest');
       if (st.plague?.started) hint(st, 'plague');
+      for (const r of tutorialTick(st)) {
+        toast(`Обучение: шаг выполнен! +${r.done.reward} ¤`, 3000);
+        if (r.finished) toast('Обучение пройдено. Дальше — сами. Удачи!', 4000);
+        this.commit();
+      }
+      for (const a of checkAchievements(st)) {
+        toast(`★ Достижение: ${a.name}`, 4000);
+        sfx.play('cheer');
+      }
       // Лад музыки — по культуре ближайшего поселения
       let near = world.settlements[0];
       let nd = Infinity;
@@ -861,7 +898,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   /** Условия поля боя: местность, ночь, брод через реку. */
   private battleOpts(extra: BattleOpts = {}): BattleOpts {
     const hr = (this.state.time % 1) * 24;
-    return { terrain: this.battleTerrain(), night: hr >= 21 || hr < 5, ford: nearRiver(this.party.x, this.party.y), ...extra };
+    return { terrain: this.battleTerrain(), night: hr >= 21 || hr < 5, ford: nearRiver(this.party.x, this.party.y), playerDamageK: diff(this.state.difficulty).taken, ...extra };
   }
 
   private battleTerrain(): BattleTerrain {
@@ -939,7 +976,10 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         ? { ours: 10, theirs: -30, heroHp: Math.max(0.3, (hero?.hp ?? 1) / (hero?.maxHp ?? 1)), won }
         : { ours: -20, theirs: 10, heroHp: 0.35, won };
       news(this.state, won ? `${this.state.hero.name} одолел ${p.name} в поединке перед строем.` : `${p.name} одолел ${this.state.hero.name} в поединке.`, 'player');
-      if (won) gainHeroXp(this.state, 40);
+      if (won) {
+        gainHeroXp(this.state, 40);
+        this.state.stats!.duels = (this.state.stats!.duels ?? 0) + 1;
+      }
       this.openEncounterDialog(p, attacked, allies, others, false, mods);
     });
   }
@@ -953,6 +993,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       enemy.morale = Math.max(20, enemy.morale + mods.theirs);
       if (mine.hero && mods.heroHp < 1) mine.hero = { ...mine.hero, def: { ...mine.hero.def, hp: Math.max(20, Math.round(mine.hero.def.hp * mods.heroHp)) } };
     }
+    enemy.morale += diff(this.state.difficulty).enemyMorale;
     const battle = new Battle([mine, enemy], 0, this.battleOpts({ ambush }));
     this.runBattle(battle, auto, { enemyName: name, enemyColor: enemyDisplayColor(p) }, (b) => {
       const res = applyBattle(this.state, b, p, allies, others);
@@ -1051,7 +1092,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const def = enemyArmy(`Гарнизон: ${s.name}`, owner, mergeTroops([garrison, ...lords.map((l) => l.troops)]));
     def.morale = 115;
     const allies = alliesNear(this.state, s.x, s.y, 6);
-    const battle = new Battle([withAllies(playerArmy(this.state, 'classic'), allies), def], 0, { siege: true });
+    def.morale += diff(this.state.difficulty).enemyMorale;
+    const battle = new Battle([withAllies(playerArmy(this.state, 'classic'), allies), def], 0, { siege: true, playerDamageK: diff(this.state.difficulty).taken });
     this.runBattle(battle, auto, { enemyName: s.name, enemyColor: f.css, wall: { culture: s.culture, color: f.css, color2: f.css2 } }, (b) => {
       const res = applySiege(this.state, b, s, garrison, lords, allies);
       this.afterBattle(res, `Гарнизон ${s.name}`);
@@ -1104,7 +1146,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const me = playerArmy(this.state, 'classic');
     me.troops = [...me.troops, ...(this.state.war!.garrisons[s.id] ?? []).map((t) => ({ id: t.id, count: t.count, key: `G|${t.id}` }))];
     me.morale += 10; // за стенами дух крепче
-    const battle = new Battle([att, me], 1, { siege: true });
+    att.morale += diff(this.state.difficulty).enemyMorale;
+    const battle = new Battle([att, me], 1, { siege: true, playerDamageK: diff(this.state.difficulty).taken });
     this.runBattle(battle, auto, { enemyName: name, enemyColor: f.css, wall: { culture: s.culture, color: owner.css, color2: owner.css2 } }, (b) => {
       const res = applyDefense(this.state, b, s, attackers);
       this.afterBattle(res, name);
@@ -1144,7 +1187,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
   private raid(s: Settlement, militia: { id: string; count: number }[], formation: Formation, auto: boolean) {
     const owner = this.state.settlements[s.id].owner;
-    const battle = new Battle([playerArmy(this.state, formation), enemyArmy(`Ополчение: ${s.name}`, owner, militia)]);
+    const battle = new Battle([playerArmy(this.state, formation), enemyArmy(`Ополчение: ${s.name}`, owner, militia)], 0, this.battleOpts());
     this.runBattle(battle, auto, { enemyName: `Ополчение: ${s.name}`, enemyColor: FACTIONS[owner].css }, (b) => {
       const res = applyRaid(this.state, b, s, militia);
       this.afterBattle(res, `Ополчение ${s.name}`);

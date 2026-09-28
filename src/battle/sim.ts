@@ -145,6 +145,8 @@ export interface BattleOpts {
   ford?: boolean;
   /** Засада: враг начинает ближе, наш дух ниже. */
   ambush?: boolean;
+  /** Сложность: множитель урона по воинам игрока. */
+  playerDamageK?: number;
 }
 
 /** Полоса брода посреди поля. */
@@ -837,6 +839,7 @@ export class Battle {
   }
 
   private damage(a: BUnit | null, d: BUnit, dmg: number, kind: 'hit' | 'crit') {
+    if (d.side === this.playerSide && this.opts.playerDamageK) dmg = Math.max(1, Math.round(dmg * this.opts.playerDamageK));
     d.hp -= dmg;
     d.flash = 0.18;
     this.events.push({ kind, x: d.x, y: d.y, side: d.side, amount: dmg });

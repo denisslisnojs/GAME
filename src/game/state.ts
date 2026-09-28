@@ -13,6 +13,7 @@ import type { SkillId } from '../data/skills';
 import type { CaptiveLord } from './prisoners';
 import type { FiefState } from './fief';
 import type { Arms } from '../gfx/heraldry';
+import type { Difficulty } from './difficulty';
 
 export interface TroopStack {
   id: string;
@@ -76,7 +77,7 @@ export interface GameState {
   parties?: MapParty[];
   nextPartyId?: number;
   /** Статистика побед и поражений. */
-  stats?: { won: number; lost: number; killed: number; captured?: number; quests?: number; tourneys?: number };
+  stats?: { won: number; lost: number; killed: number; captured?: number; quests?: number; tourneys?: number; duels?: number; lordsCaptured?: number; defended?: number; raids?: number };
   /** Лорды держав (этап 4). */
   lords?: MapParty[];
   war?: WarState;
@@ -120,6 +121,14 @@ export interface GameState {
   spouse?: { name: string; lordName: string; faction: FactionId; since: number };
   /** Герой носит корону своей державы. */
   crown?: { since: number; oldRuler: string };
+  /** Слот сохранения (1…3). */
+  slot?: number;
+  /** Сложность. */
+  difficulty?: Difficulty;
+  /** Обучение: номер текущего шага или отключено. */
+  tutorial?: { step: number; off?: boolean };
+  /** Разовые отметки (для обучения и достижений). */
+  flags?: Record<string, boolean>;
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {
@@ -167,19 +176,88 @@ export function newGame(name: string, faction: FactionId): GameState {
   return state;
 }
 
+// ───────────────────────── слоты сохранений ─────────────────────────
+
+export const SLOTS = [1, 2, 3];
+const slotKey = (n: number) => `w1347_slot_${n}`;
+const LAST_KEY = 'w1347_last_slot';
+
+/** Старое единственное сохранение переезжает в первый слот. */
+function migrateOldSave() {
+  try {
+    const old = localStorage.getItem(SAVE_KEY);
+    if (old && !localStorage.getItem(slotKey(1))) {
+      localStorage.setItem(slotKey(1), old);
+      localStorage.setItem(LAST_KEY, '1');
+    }
+    if (old) localStorage.removeItem(SAVE_KEY);
+  } catch {
+    /* нет хранилища */
+  }
+}
+
+export interface SlotInfo {
+  slot: number;
+  name: string;
+  faction: FactionId;
+  level: number;
+  time: number;
+  difficulty: Difficulty;
+}
+
+/** Что лежит в каждом слоте (null — пусто). */
+export function listSlots(): (SlotInfo | null)[] {
+  migrateOldSave();
+  return SLOTS.map((n) => {
+    try {
+      const raw = localStorage.getItem(slotKey(n));
+      if (!raw) return null;
+      const s = JSON.parse(raw) as GameState;
+      return { slot: n, name: s.hero.name, faction: s.hero.faction, level: s.hero.level, time: s.time, difficulty: s.difficulty ?? 'normal' };
+    } catch {
+      return null;
+    }
+  });
+}
+
+export function lastSlot(): number | null {
+  migrateOldSave();
+  try {
+    const n = Number(localStorage.getItem(LAST_KEY));
+    if (n && localStorage.getItem(slotKey(n))) return n;
+    const any = SLOTS.find((k) => localStorage.getItem(slotKey(k)));
+    return any ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function deleteSlot(n: number) {
+  try {
+    localStorage.removeItem(slotKey(n));
+  } catch {
+    /* нет хранилища */
+  }
+}
+
 export function saveGame(state: GameState) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    const n = state.slot ?? 1;
+    localStorage.setItem(slotKey(n), JSON.stringify(state));
+    localStorage.setItem(LAST_KEY, String(n));
   } catch (e) {
     console.warn('Не удалось сохранить игру', e);
   }
 }
 
-export function loadGame(): GameState | null {
+export function loadGame(slot?: number): GameState | null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const n = slot ?? lastSlot();
+    if (!n) return null;
+    const raw = localStorage.getItem(slotKey(n));
     if (!raw) return null;
     const s = JSON.parse(raw) as GameState;
+    s.slot = n;
     if (s.version !== 1 || !FACTION_IDS.includes(s.hero?.faction)) return null;
     // Сохранения старых версий: герой без снаряжения получает стартовый набор
     s.hero.attrs ??= { str: 3, agi: 3, vit: 3, lead: 3 };
@@ -200,11 +278,7 @@ export function loadGame(): GameState | null {
 }
 
 export function hasSave(): boolean {
-  try {
-    return !!localStorage.getItem(SAVE_KEY);
-  } catch {
-    return false;
-  }
+  return lastSlot() !== null;
 }
 
 // ───────────────────────── календарь ─────────────────────────

@@ -1643,3 +1643,42 @@ input.text:focus {
   outline: 2px solid var(--gold);
   outline-offset: 1px;
 }
+
+.tut-card {
+  position: fixed;
+  left: calc(8px + var(--safe-l));
+  bottom: 58px;
+  max-width: min(360px, 44vw);
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 4px 4px 4px 8px;
+  font-size: 12px;
+  line-height: 1.3;
+  background: rgba(40, 32, 18, 0.88);
+  border: 2px solid #0e0f10;
+  box-shadow: inset 0 0 0 1px #8a6a1a;
+  color: #f0e2b8;
+}
+
+.tut-card .btn {
+  min-height: 0;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
+.ach {
+  opacity: 0.55;
+}
+
+.ach.on {
+  opacity: 1;
+  border-color: #6a5a3a;
+}
+
+.ach-icon {
+  font-size: 22px;
+  width: 28px;
+  text-align: center;
+  color: var(--gold);
+}
