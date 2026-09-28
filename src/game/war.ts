@@ -6,6 +6,7 @@ import type { ArmyDef } from '../battle/sim';
 import { GRID_W, TILE } from '../config';
 import { FACTIONS, FACTION_IDS, type FactionId } from '../data/factions';
 import { LORDS } from '../data/lords';
+import { TROOPS } from '../data/troops';
 import { worldToCell } from '../map/geo';
 import { mulberry32 } from '../util/rng';
 import { atWar } from './logic';
@@ -38,7 +39,9 @@ export interface WarState {
 
 // ───────────────────────── составы армий ─────────────────────────
 
-function mix(faction: FactionId, size: number, weights: [string, number][], r: () => number): Troops {
+function mix(faction: FactionId, size: number, all: [string, number][], r: () => number): Troops {
+  // Особых войск есть не у всех держав
+  const weights = all.filter(([slot]) => !!TROOPS[`${faction}_${slot}`]);
   const total = weights.reduce((s, [, w]) => s + w, 0);
   const out = new Map<string, number>();
   for (let i = 0; i < size; i++) {
@@ -69,6 +72,10 @@ export function lordArmy(faction: FactionId, rank: number, time: number, r: () =
     ['c3r', horde ? 18 : 3],
     ['c4m', 1 + rank],
     ['c4r', horde ? 4 : 1],
+    ['i3s', 3 + rank],
+    ['i4s', rank * 0.6],
+    ['c3s', 3 + rank],
+    ['c4s', rank * 0.6],
   ], r);
 }
 
@@ -76,7 +83,7 @@ export function garrisonTroops(s: Settlement, faction: FactionId, time: number, 
   const capital = FACTIONS[faction].capital === s.id;
   const base = s.type === 'town' ? (capital ? 46 : 34) : 24;
   const size = Math.round((base + Math.min(20, time / 5)) * k);
-  return mix(faction, size, [['i2', 26], ['i3m', 26], ['i3r', 30], ['i4m', 6], ['i4r', 12]], r);
+  return mix(faction, size, [['i2', 26], ['i3m', 26], ['i3r', 30], ['i4m', 6], ['i4r', 12], ['i3s', 6]], r);
 }
 
 export function troopCount(t: Troops): number {

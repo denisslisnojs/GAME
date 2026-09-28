@@ -1,9 +1,9 @@
 // Звуковые эффекты боя, синтезируемые на лету (без файлов).
 import { getSfxVolume } from '../ui/dom';
 
-type Kind = 'hit' | 'crit' | 'block' | 'whoosh' | 'death' | 'bow' | 'charge' | 'horn' | 'stakes' | 'cheer';
+type Kind = 'hit' | 'crit' | 'block' | 'whoosh' | 'death' | 'bow' | 'charge' | 'horn' | 'stakes' | 'cheer' | 'gun' | 'fire' | 'misfire' | 'drum';
 
-const MIN_GAP: Record<Kind, number> = { hit: 45, crit: 80, block: 70, whoosh: 90, death: 120, bow: 70, charge: 200, horn: 800, stakes: 300, cheer: 900 };
+const MIN_GAP: Record<Kind, number> = { hit: 45, crit: 80, block: 70, whoosh: 90, death: 120, bow: 70, charge: 200, horn: 800, stakes: 300, cheer: 900, gun: 110, fire: 160, misfire: 200, drum: 600 };
 
 class Sfx {
   private ctx: AudioContext | null = null;
@@ -84,6 +84,25 @@ class Sfx {
         break;
       case 'stakes':
         for (let i = 0; i < 3; i++) this.tone(t + i * 0.08, 'triangle', 320, 180, 0.06, 0.12);
+        break;
+      case 'gun':
+        // Грохот выстрела: резкий щелчок, низкий удар и раскат
+        this.noiseBurst(t, 0.05, 4000, 'highpass', 0.3);
+        this.noiseBurst(t, 0.45, 600, 'lowpass', 0.5);
+        this.tone(t, 'sine', 110, 35, 0.35, 0.45);
+        this.noiseBurst(t + 0.08, 0.6, 250, 'lowpass', 0.14);
+        break;
+      case 'fire':
+        // Горшок разбился — вспышка пламени
+        this.tone(t, 'triangle', 900, 500, 0.05, 0.08);
+        this.noiseSweep(t + 0.02, 0.5, 300, 1400, 0.18);
+        this.noiseBurst(t + 0.05, 0.6, 700, 'lowpass', 0.12);
+        break;
+      case 'misfire':
+        this.noiseBurst(t, 0.12, 2200, 'bandpass', 0.08);
+        break;
+      case 'drum':
+        for (let i = 0; i < 3; i++) this.tone(t + i * 0.16, 'sine', 95, 55, 0.16, 0.3);
         break;
     }
   }

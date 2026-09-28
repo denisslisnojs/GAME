@@ -1,4 +1,4 @@
-import type { Ability, Battle, Group, Order } from '../battle/sim';
+import type { Ability, Battle, Form, Group, Order } from '../battle/sim';
 import { FACTIONS, type FactionId } from '../data/factions';
 import { emblemURL, portraitURL } from '../gfx/icons';
 import { Pix } from '../gfx/pixel';
@@ -19,6 +19,8 @@ export interface BattleHudOpts {
   autoFinish(): void;
   /** Приблизить (k>1) или отдалить (k<1) камеру. */
   zoom(k: number): void;
+  /** Закончить расстановку и начать бой. */
+  startBattle(): void;
   arena?: boolean;
 }
 
@@ -69,6 +71,21 @@ const ICONS: Record<string, () => string> = {
     '.gggggggg....g..', 'gggggggggggggg..', '.gggggggg.......', '..ggggggg.......', '........b.......', '.......bb.......',
     '................', '...w..w..w......', '................', '................',
   ], W),
+  flank: () => icon('flank', [
+    '................', '......wwwwww....', '....ww......w...', '...w.........w..', '..w..........w..', '..w.........www.',
+    '..w..........w..', '..w.............', '..w.............', '...w............', '....ww..........', '......wwwww.....',
+    '..........ww....', '..........w.....', '................', '................',
+  ], W),
+  follow: () => icon('follow', [
+    '....b...........', '....bgggggggg...', '....bgrrrrrrg...', '....bgrrggrrg...', '....bgrrrrrrg...', '....bggggggg....',
+    '....b...........', '....b...........', '....b...........', '....b...........', '....b...........', '....b...........',
+    '....b...........', '...bbb..........', '................', '................',
+  ], W),
+  tactics: () => icon('tactics', [
+    '................', '.ss.ss.ss.ss....', '.ss.ss.ss.ss....', '................', '.ss.ss.ss.ss....', '.ss.ss.ss.ss....',
+    '................', '...........g....', '..........ggg...', '.........ggggg..', '...........g....', '...........g....',
+    '.gg.gg.....g....', '.gg.gg..........', '................', '................',
+  ], W),
   smoke: () => icon('smoke', [
     '................', '.....cccc.......', '...cccccccc.....', '..cccCCcccccc...', '.ccccCCCcccccc..', '.ccccccccccCCcc.',
     'cccCCccccccCCCcc', 'ccCCCCcccccccccc', '.cccccccCCccccc.', '..cccccCCCcccc..', '....ccccccccc...', '......cccc......',
@@ -91,7 +108,16 @@ const GROUPS: { id: Group | 'all'; name: string }[] = [
   { id: 'cav', name: tr('Конница') },
 ];
 
-const ORDER_NAME: Record<Order, string> = { attack: tr('В атаку'), hold: tr('Стоять'), retreat: tr('Отступить') };
+const ORDER_NAME: Record<Order, string> = { attack: tr('В атаку'), hold: tr('Стоять'), retreat: tr('Отступить'), flank: tr('Обход'), follow: tr('За мной') };
+
+const FORM_NAME: Record<Form, string> = { line: tr('Линия'), shieldwall: tr('Стена щитов'), loose: tr('Рассыпной'), wedge: tr('Клин'), hedgehog: tr('Ёж') };
+const FORM_HINT: Record<Form, string> = {
+  line: tr('Обычный строй'),
+  shieldwall: tr('Щит к щиту: держит стрелы и натиск, но идёт медленно'),
+  loose: tr('Ряды реже: меньше потерь от стрел, но слабее в рукопашной'),
+  wedge: tr('Таран набирает силу быстрее и бьёт сильнее'),
+  hedgehog: tr('Копья во все стороны: конница не пройдёт, но строй стоит на месте'),
+};
 
 export class BattleHud {
   private root: HTMLElement;
@@ -111,6 +137,12 @@ export class BattleHud {
   private ctlBtn: HTMLButtonElement | null = null;
   private pad: HTMLElement | null = null;
   private knob = h('div', { class: 'joy-knob' });
+  private tactics = h('div', { class: 'b-tactics' });
+  private tacticsBtn!: HTMLButtonElement;
+  private tacticsOpen = false;
+  private deployEl = h('div', { class: 'b-deploy' });
+  private deploying = false;
+  private abilBox!: HTMLElement;
 
   constructor(
     private b: Battle,
@@ -168,6 +200,14 @@ export class BattleHud {
       this.orderBtns.set(ord, btn);
       ordersBox.append(btn);
     }
+    this.tacticsBtn = h('button', { class: 'btn b-icon', title: tr('Строй и особые приказы') }, h('img', { class: 'px', src: ICONS.tactics() }), h('span', {}, tr('Тактика'))) as HTMLButtonElement;
+    this.tacticsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sfxClick();
+      this.tacticsOpen = !this.tacticsOpen;
+      this.renderTactics();
+    });
+    ordersBox.append(this.tacticsBtn);
 
     const abilBox = h('div', { class: 'b-group' });
     for (const a of ABILITIES) {
@@ -219,6 +259,7 @@ export class BattleHud {
     ctrl.append(auto);
 
     if (o.arena) abilBox.style.display = 'none';
+    this.abilBox = abilBox;
     const bottom = h('div', { class: 'b-bottom' }, cardsBox, ordersBox, abilBox, ctrl);
     const extra: HTMLElement[] = [];
     if (b.units.some((u) => u.isHero && u.side === ps)) {
@@ -231,7 +272,20 @@ export class BattleHud {
       this.pad = this.buildPad();
       extra.push(this.ctlBtn, this.pad);
     }
-    this.root = h('div', { class: 'passthrough battle-ui' }, top, bottom, ...extra, this.bannerEl);
+    // Расстановка перед боем
+    const go = h('button', { class: 'btn primary' }, tr('В бой!')) as HTMLButtonElement;
+    go.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sfxClick();
+      o.startBattle();
+    });
+    this.deployEl.append(
+      h('div', { class: 'col', style: 'gap:2px' }, h('b', { class: 'gold' }, tr('Расстановка')), h('span', { class: 'small' }, tr('Выберите группу внизу и коснитесь поля — она встанет там. Строй — в «Тактике».'))),
+      go,
+    );
+    this.deployEl.style.display = 'none';
+    this.tactics.style.display = 'none';
+    this.root = h('div', { class: 'passthrough battle-ui' }, top, bottom, ...extra, this.deployEl, this.tactics, this.bannerEl);
     uiRoot().append(this.root);
     this.select('all');
     // Режим управления героем запоминается между боями
@@ -243,6 +297,67 @@ export class BattleHud {
     }
     if (this.ctlBtn && remembered) this.setControl(true);
     this.update();
+  }
+
+  selectedGroup(): Group | 'all' {
+    return this.selected;
+  }
+
+  /** Режим расстановки: панель «В бой!», без способностей и управления героем. */
+  setDeploy(on: boolean) {
+    this.deploying = on;
+    this.deployEl.style.display = on ? '' : 'none';
+    if (!this.o.arena) this.abilBox.style.display = on ? 'none' : '';
+    this.update();
+  }
+
+  /** Окно тактики: строй выбранной группы и особые приказы. */
+  private renderTactics() {
+    const b = this.b;
+    const ps = b.playerSide;
+    this.tactics.style.display = this.tacticsOpen ? '' : 'none';
+    this.tacticsBtn.classList.toggle('active', this.tacticsOpen);
+    if (!this.tacticsOpen) return;
+    const g = this.selected;
+    const name = g === 'all' ? tr('Все') : GROUPS.find((x) => x.id === g)!.name;
+    const rows: HTMLElement[] = [h('div', { class: 'row', style: 'gap:8px' }, h('b', { class: 'gold' }, tr`Тактика · ${name}`), h('span', { class: 'grow' }), this.smallBtn('✕', () => { this.tacticsOpen = false; this.renderTactics(); }))];
+    if (g !== 'all' && g !== 'hero') {
+      const forms = b.formsFor(ps, g);
+      const cur = b.forms[ps][g];
+      rows.push(
+        h('div', { class: 'row', style: 'gap:4px;flex-wrap:wrap;align-items:center' }, h('span', { class: 'muted small' }, tr('Строй:')), ...forms.map((f) => this.smallBtn(FORM_NAME[f], () => {
+          b.setForm(ps, g, f);
+          this.banner(`${name}: ${FORM_NAME[f].toLowerCase()}`);
+          this.renderTactics();
+        }, f === cur, FORM_HINT[f]))),
+        h('div', { class: 'muted small' }, FORM_HINT[cur]),
+      );
+    }
+    const heroAlive = b.units.some((u) => u.isHero && u.side === ps && u.state !== 'dead' && u.state !== 'fled');
+    const orders: HTMLElement[] = [];
+    if (g === 'inf' || g === 'cav') orders.push(this.smallBtn(tr('Обойти с фланга'), () => this.giveOrder('flank'), b.orders[ps][g] === 'flank', tr('Группа идёт краем поля в тыл врагу и бьёт в спину')));
+    if (g !== 'hero' && heroAlive) orders.push(this.smallBtn(tr('За мной'), () => this.giveOrder('follow'), g !== 'all' && b.orders[ps][g] === 'follow', tr('Держаться рядом с героем')));
+    const hasRanged = [...b.units, ...b.reserves[ps]].some((u) => u.side === ps && u.group === 'ranged');
+    if ((g === 'ranged' || g === 'all') && hasRanged) {
+      const fire = b.fire[ps].ranged;
+      orders.push(this.smallBtn(fire ? tr('Не стрелять') : tr('Огонь!'), () => {
+        b.setFire(ps, 'ranged', !fire);
+        this.banner(fire ? tr('Стрелки: не стрелять!') : tr('Стрелки: огонь!'));
+        this.renderTactics();
+      }, !fire));
+    }
+    if (orders.length) rows.push(h('div', { class: 'row', style: 'gap:4px;flex-wrap:wrap;align-items:center' }, h('span', { class: 'muted small' }, tr('Приказ:')), ...orders));
+    this.tactics.replaceChildren(...rows);
+  }
+
+  private smallBtn(label: string, fn: () => void, active = false, title?: string): HTMLButtonElement {
+    const el = h('button', { class: `btn b-small${active ? ' active' : ''}`, title: title ?? label }, label) as HTMLButtonElement;
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sfxClick();
+      fn();
+    });
+    return el;
   }
 
   /** Включить или выключить ручное управление героем. */
@@ -322,13 +437,18 @@ export class BattleHud {
   private select(g: Group | 'all') {
     this.selected = g;
     for (const [k, c] of this.cards) c.el.classList.toggle('sel', k === g);
+    if (this.tacticsOpen) this.renderTactics();
     this.update();
   }
 
   private giveOrder(o: Order) {
     const ps = this.b.playerSide;
-    const groups: Group[] = this.selected === 'all' ? ['hero', 'inf', 'ranged', 'cav'] : [this.selected];
+    let groups: Group[] = this.selected === 'all' ? ['hero', 'inf', 'ranged', 'cav'] : [this.selected];
+    if (o === 'follow') groups = groups.filter((g) => g !== 'hero');
     for (const g of groups) this.b.setOrder(ps, g, o);
+    // Особый приказ отдан — окно тактики можно закрыть
+    if (o === 'flank' || o === 'follow') this.tacticsOpen = false;
+    this.renderTactics();
     this.banner(`${this.selected === 'all' ? tr('Все') : GROUPS.find((x) => x.id === this.selected)!.name}: ${ORDER_NAME[o].toLowerCase()}!`);
     this.update();
   }
@@ -371,10 +491,10 @@ export class BattleHud {
       const hero = b.units.find((u) => u.isHero && u.side === ps);
       const alive = !!hero && hero.state !== 'dead' && hero.state !== 'fled' && b.winner === null && !b.routed[ps];
       if (!alive && b.heroCtl.on) b.heroCtl.on = false;
-      this.ctlBtn.style.display = alive ? '' : 'none';
+      this.ctlBtn.style.display = alive && !this.deploying ? '' : 'none';
       this.ctlBtn.classList.toggle('active', b.heroCtl.on);
       this.ctlBtn.textContent = b.heroCtl.on ? tr('✋ Отдать приказам') : tr('⚔ Управлять героем');
-      this.pad.style.display = b.heroCtl.on ? '' : 'none';
+      this.pad.style.display = b.heroCtl.on && !this.deploying ? '' : 'none';
     }
     this.pauseBtn.textContent = this.o.isPaused() ? '▶' : '❚❚';
     this.pauseBtn.classList.toggle('active', this.o.isPaused());

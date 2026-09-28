@@ -1,10 +1,11 @@
 import type { FactionId } from './factions';
+import type { BodyKind } from './items';
 import { tr } from '../i18n';
 
 export type DamageType = 'cut' | 'pierce' | 'blunt';
 export type TroopLine = 'infantry' | 'cavalry';
 export type TroopRole = 'melee' | 'ranged';
-export type Weapon = 'pitchfork' | 'spear' | 'sword' | 'axe' | 'mace' | 'halberd' | 'bow' | 'crossbow' | 'lance' | 'sabre' | 'glaive';
+export type Weapon = 'pitchfork' | 'spear' | 'sword' | 'axe' | 'mace' | 'halberd' | 'bow' | 'crossbow' | 'lance' | 'sabre' | 'glaive' | 'handgonne' | 'firepot' | 'daneaxe';
 export type Helmet = 'none' | 'hood' | 'cap' | 'kettle' | 'nasal' | 'bascinet' | 'great' | 'turban' | 'spired' | 'fur' | 'sallet' | 'armet';
 
 export interface TroopLook {
@@ -15,7 +16,18 @@ export interface TroopLook {
   armor: string;
   weapon: Weapon;
   shield: boolean;
+  /** Явный тип доспеха (берсерк — без доспеха); без него — по уровню. */
+  body?: BodyKind;
+  tabard?: boolean;
+  /** Верхом на верблюде. */
+  camel?: boolean;
 }
+
+/**
+ * Особенности воина в бою. Часть выводится из оружия и строя (упор копий, стена щитов,
+ * двуручник, застрельщик, павеза), часть задаётся явно.
+ */
+export type Trait = 'brace' | 'shieldwall' | 'javelin' | 'twohand' | 'skirmish' | 'pavise' | 'gun' | 'berserk' | 'feint' | 'firepot' | 'camel' | 'lasso';
 
 export interface TroopDef {
   id: string;
@@ -46,6 +58,8 @@ export interface TroopDef {
   upgradesTo: string[];
   look: TroopLook;
   description: string;
+  /** Явные особенности (к ним добавляются выведенные из оружия, см. traitsOf). */
+  traits?: Trait[];
 }
 
 type Slot = 'i1' | 'i2' | 'i3m' | 'i3r' | 'i4m' | 'i4r' | 'c1' | 'c2' | 'c3m' | 'c3r' | 'c4m' | 'c4r';
@@ -91,6 +105,7 @@ interface Spec {
   shield: boolean;
   armor: string;
   description: string;
+  traits?: Trait[];
   /** Поправки к шаблону. */
   mod?: Partial<{ hp: number; damage: number; armor: number; speed: number; block: number; dodge: number; attackTime: number; range: number; crit: number }>;
 }
@@ -116,8 +131,8 @@ const SPECS: Record<FactionId, { cloth: string } & Record<Slot, Spec>> = {
   nordmark: {
     cloth: '#c24040',
     i1: { name: tr('Крестьянин'), weapon: 'pitchfork', helmet: 'hood', shield: false, armor: '#7a6448', description: PEASANT_DESC },
-    i2: { name: tr('Бонд'), weapon: 'axe', helmet: 'cap', shield: true, armor: '#8a7050', description: tr('Свободный земледелец с топором и круглым щитом.'), mod: { hp: 1.1, block: 1.3 } },
-    i3m: { name: tr('Хирдман'), weapon: 'axe', helmet: 'nasal', shield: true, armor: '#9aa0a8', description: tr('Дружинник ярла. Щит к щиту — стену не пробить.'), mod: { hp: 1.1, block: 1.3 } },
+    i2: { name: tr('Бонд'), weapon: 'axe', helmet: 'cap', shield: true, armor: '#8a7050', description: tr('Свободный земледелец с топором и круглым щитом.'), traits: ['javelin'], mod: { hp: 1.1, block: 1.3 } },
+    i3m: { name: tr('Хирдман'), weapon: 'axe', helmet: 'nasal', shield: true, armor: '#9aa0a8', description: tr('Дружинник ярла. Щит к щиту — стену не пробить.'), traits: ['javelin'], mod: { hp: 1.1, block: 1.3 } },
     i3r: { name: tr('Лесной лучник'), weapon: 'bow', helmet: 'hood', shield: false, armor: '#6a5a40', description: tr('Охотник из северных лесов. Бьёт белку в глаз.'), mod: { range: 1.15 } },
     i4m: { name: tr('Хускарл'), weapon: 'axe', helmet: 'nasal', shield: true, armor: '#b0b5bc', description: tr('Личная гвардия конунга с датским топором. Не отступает никогда.'), mod: { hp: 1.15, damage: 1.15, block: 1.2 } },
     i4r: { name: tr('Охотник Нордмарка'), weapon: 'bow', helmet: 'fur', shield: false, armor: '#7a6a50', description: tr('Лучший лучник Севера с тисовым длинным луком.'), mod: { range: 1.2, crit: 1.3 } },
@@ -139,14 +154,14 @@ const SPECS: Record<FactionId, { cloth: string } & Record<Slot, Spec>> = {
     c1: { name: tr('Табунщик'), weapon: 'spear', helmet: 'fur', shield: false, armor: '#8a6a45', description: tr('Степняк, выросший в седле.'), mod: { speed: 1.15 } },
     c2: { name: tr('Аратский всадник'), weapon: 'sabre', helmet: 'fur', shield: true, armor: '#8f7a5a', description: tr('Лёгкий всадник тумена.'), mod: { speed: 1.15 } },
     c3m: { name: tr('Тяжёлый нукер'), weapon: 'lance', helmet: 'spired', shield: true, armor: '#a08a60', description: tr('Всадник в ламеллярной броне на бронированном коне.'), mod: { speed: 1.1 } },
-    c3r: { name: tr('Конный лучник'), weapon: 'bow', helmet: 'fur', shield: false, armor: '#8f7a5a', description: tr('Главное оружие Орды: стреляет на скаку и уходит от погони.'), mod: { speed: 1.15, damage: 1.15, dodge: 1.2 } },
+    c3r: { name: tr('Конный лучник'), weapon: 'bow', helmet: 'fur', shield: false, armor: '#8f7a5a', description: tr('Главное оружие Орды: стреляет на скаку и уходит от погони.'), traits: ['feint'], mod: { speed: 1.15, damage: 1.15, dodge: 1.2 } },
     c4m: { name: tr('Кешиктен'), weapon: 'lance', helmet: 'spired', shield: true, armor: '#b89a60', description: tr('Гвардеец личной стражи хана. Лучший из лучших.'), mod: { speed: 1.1, damage: 1.05 } },
-    c4r: { name: tr('Хубилганский стрелок'), weapon: 'bow', helmet: 'spired', shield: false, armor: '#a88a55', description: tr('Легендарный конный лучник: не промахивается даже на полном скаку.'), mod: { speed: 1.15, damage: 1.2, dodge: 1.2, crit: 1.2 } },
+    c4r: { name: tr('Хубилганский стрелок'), weapon: 'bow', helmet: 'spired', shield: false, armor: '#a88a55', description: tr('Легендарный конный лучник: не промахивается даже на полном скаку.'), traits: ['feint'], mod: { speed: 1.15, damage: 1.2, dodge: 1.2, crit: 1.2 } },
   },
   sultanate: {
     cloth: '#35a066',
     i1: { name: tr('Крестьянин'), weapon: 'pitchfork', helmet: 'turban', shield: false, armor: '#b09a70', description: PEASANT_DESC },
-    i2: { name: tr('Ахдас'), weapon: 'spear', helmet: 'turban', shield: true, armor: '#a08a60', description: tr('Городское ополчение с копьём и лёгким щитом.'), mod: { dodge: 1.3 } },
+    i2: { name: tr('Ахдас'), weapon: 'spear', helmet: 'turban', shield: true, armor: '#a08a60', description: tr('Городское ополчение с копьём и лёгким щитом.'), traits: ['javelin'], mod: { dodge: 1.3 } },
     i3m: { name: tr('Копейщик'), weapon: 'spear', helmet: 'spired', shield: true, armor: '#a8a8a0', description: tr('Опытный копейщик. Длинное копьё — гроза конницы.'), mod: { dodge: 1.3 } },
     i3r: { name: tr('Лучник-рами'), weapon: 'bow', helmet: 'turban', shield: false, armor: '#a08a60', description: tr('Выученный стрелок из составного лука.'), mod: { dodge: 1.3 } },
     i4m: { name: tr('Гулям-страж'), weapon: 'sabre', helmet: 'spired', shield: true, armor: '#c0c0b8', description: tr('Гвардеец эмира в кольчуге и с дамасским клинком.'), mod: { damage: 1.1, dodge: 1.3 } },
@@ -197,7 +212,146 @@ function buildTroops(): Record<string, TroopDef> {
         upgradesTo: t.next.map((n) => `${faction}_${n}`),
         look: { helmet: s.helmet, cloth: specs.cloth, armor: s.armor, weapon: s.weapon, shield: s.shield },
         description: s.description,
+        traits: s.traits,
       };
+    }
+  }
+  return out;
+}
+
+// ───────────────────────── особые войска держав ─────────────────────────
+// Третья ветка развития: от ополченца (i2) или всадника (c2) — к особому роду войск.
+
+interface SpecialSpec {
+  faction: FactionId;
+  slot: 'i3s' | 'i4s' | 'c3s' | 'c4s';
+  name: string;
+  tier: 3 | 4;
+  line: TroopLine;
+  role: TroopRole;
+  hp: number;
+  armor: [number, number, number];
+  damage: number;
+  damageType?: DamageType;
+  attackTime: number;
+  range: number;
+  speed: number;
+  crit: number;
+  dodge: number;
+  block: number;
+  look: Omit<TroopLook, 'cloth'>;
+  description: string;
+  traits: Trait[];
+}
+
+const SPECIALS: SpecialSpec[] = [
+  {
+    faction: 'aurelia', slot: 'i3s', name: tr('Ручничник'), tier: 3, line: 'infantry', role: 'ranged',
+    hp: 62, armor: [0.16, 0.13, 0.1], damage: 32, attackTime: 5.6, range: 42, speed: 0.95, crit: 0.05, dodge: 0.08, block: 0,
+    look: { helmet: 'kettle', armor: '#9a9a9a', weapon: 'handgonne', shield: false },
+    description: tr('Новинка из Италии: железная трубка на древке. Перезаряжается долго, зато пуля пробивает латы, а грохот пугает коней.'),
+    traits: ['gun'],
+  },
+  {
+    faction: 'aurelia', slot: 'i4s', name: tr('Кулевринер'), tier: 4, line: 'infantry', role: 'ranged',
+    hp: 78, armor: [0.26, 0.21, 0.16], damage: 40, attackTime: 5.0, range: 52, speed: 0.95, crit: 0.06, dodge: 0.08, block: 0,
+    look: { helmet: 'sallet', armor: '#b0b5bc', weapon: 'handgonne', shield: false },
+    description: tr('Мастер огненного боя с длинной кулевриной. Один выстрел — и рыцарь лежит в пыли.'),
+    traits: ['gun'],
+  },
+  {
+    faction: 'nordmark', slot: 'i3s', name: tr('Берсерк'), tier: 3, line: 'infantry', role: 'melee',
+    hp: 98, armor: [0.05, 0.04, 0.04], damage: 19, attackTime: 1.05, range: 0, speed: 1.2, crit: 0.12, dodge: 0.14, block: 0,
+    look: { helmet: 'fur', armor: '#6a4a30', weapon: 'axe', shield: false, body: 'bare', tabard: false },
+    description: tr('Воин в медвежьей шкуре. Не носит доспеха и не знает страха: раны лишь распаляют его ярость.'),
+    traits: ['berserk'],
+  },
+  {
+    faction: 'nordmark', slot: 'i4s', name: tr('Ульфхеднар'), tier: 4, line: 'infantry', role: 'melee',
+    hp: 118, armor: [0.1, 0.08, 0.06], damage: 25, attackTime: 1.2, range: 0, speed: 1.2, crit: 0.16, dodge: 0.14, block: 0,
+    look: { helmet: 'fur', armor: '#4a3a2c', weapon: 'daneaxe', shield: false, body: 'bare', tabard: false },
+    description: tr('Волкоголовый воин из древних саг с датской секирой. Там, где он прошёл, строй рассыпается.'),
+    traits: ['berserk'],
+  },
+  {
+    faction: 'horde', slot: 'c3s', name: tr('Арканщик'), tier: 3, line: 'cavalry', role: 'melee',
+    hp: 110, armor: [0.2, 0.16, 0.12], damage: 18, attackTime: 1.4, range: 0, speed: 2.35, crit: 0.08, dodge: 0.15, block: 0,
+    look: { helmet: 'fur', armor: '#8f7a5a', weapon: 'sabre', shield: false },
+    description: tr('Степняк с волосяным арканом: на полном скаку сдёргивает всадника с седла.'),
+    traits: ['lasso'],
+  },
+  {
+    faction: 'horde', slot: 'c4s', name: tr('Багатур-арканщик'), tier: 4, line: 'cavalry', role: 'melee',
+    hp: 128, armor: [0.3, 0.25, 0.18], damage: 24, attackTime: 1.3, range: 0, speed: 2.35, crit: 0.12, dodge: 0.12, block: 0,
+    look: { helmet: 'spired', armor: '#a08a60', weapon: 'sabre', shield: false },
+    description: tr('Прославленный багатур: его аркан не знает промаха, а сабля добивает упавших.'),
+    traits: ['lasso'],
+  },
+  {
+    faction: 'sultanate', slot: 'i3s', name: tr('Наффатун'), tier: 3, line: 'infantry', role: 'ranged',
+    hp: 64, armor: [0.12, 0.1, 0.08], damage: 12, damageType: 'blunt', attackTime: 4.6, range: 28, speed: 1.0, crit: 0.05, dodge: 0.15, block: 0,
+    look: { helmet: 'turban', armor: '#a08a60', weapon: 'firepot', shield: false },
+    description: tr('Метатель горшков с горящей нефтью. Огонь не гасят ни щит, ни кольчуга.'),
+    traits: ['firepot'],
+  },
+  {
+    faction: 'sultanate', slot: 'i4s', name: tr('Мастер-наффатун'), tier: 4, line: 'infantry', role: 'ranged',
+    hp: 80, armor: [0.2, 0.16, 0.12], damage: 16, damageType: 'blunt', attackTime: 4.0, range: 32, speed: 1.0, crit: 0.06, dodge: 0.15, block: 0,
+    look: { helmet: 'spired', armor: '#b0a890', weapon: 'firepot', shield: false },
+    description: tr('Хранитель тайны «греческого огня». Его горшки летят дальше и горят жарче.'),
+    traits: ['firepot'],
+  },
+  {
+    faction: 'sultanate', slot: 'c3s', name: tr('Верблюжий всадник'), tier: 3, line: 'cavalry', role: 'melee',
+    hp: 115, armor: [0.16, 0.13, 0.1], damage: 18, attackTime: 1.45, range: 0, speed: 1.9, crit: 0.07, dodge: 0.08, block: 0.12,
+    look: { helmet: 'turban', armor: '#a8a8a0', weapon: 'spear', shield: true, camel: true },
+    description: tr('Бедуин на боевом верблюде. Кони врага шарахаются от незнакомого запаха.'),
+    traits: ['camel'],
+  },
+  {
+    faction: 'sultanate', slot: 'c4s', name: tr('Хаджан'), tier: 4, line: 'cavalry', role: 'ranged',
+    hp: 125, armor: [0.24, 0.2, 0.14], damage: 20, attackTime: 1.9, range: 65, speed: 2.0, crit: 0.14, dodge: 0.1, block: 0,
+    look: { helmet: 'spired', armor: '#b8b0a0', weapon: 'bow', shield: false, camel: true },
+    description: tr('Стрелок на быстром верблюде: бьёт издалека, а кони не смеют к нему подступиться.'),
+    traits: ['camel'],
+  },
+];
+
+function buildSpecials(base: Record<string, TroopDef>): Record<string, TroopDef> {
+  const out: Record<string, TroopDef> = {};
+  for (const sp of SPECIALS) {
+    const id = `${sp.faction}_${sp.slot}`;
+    const t3 = sp.tier === 3;
+    const nextId = `${sp.faction}_${sp.slot.replace('3', '4')}`;
+    out[id] = {
+      id,
+      name: sp.name,
+      faction: sp.faction,
+      tier: sp.tier,
+      line: sp.line,
+      role: sp.role,
+      hp: sp.hp,
+      armor: { cut: sp.armor[0], pierce: sp.armor[1], blunt: sp.armor[2] },
+      damage: sp.damage,
+      damageType: sp.damageType ?? damageTypeOf(sp.look.weapon),
+      attackTime: sp.attackTime,
+      range: sp.range,
+      speed: sp.speed,
+      crit: sp.crit,
+      dodge: sp.dodge,
+      block: sp.block,
+      hireCost: 0,
+      upgradeCost: t3 ? (sp.line === 'cavalry' ? 360 : 160) : 0,
+      xpToUpgrade: t3 ? (sp.line === 'cavalry' ? 460 : 340) : 0,
+      upgradesTo: t3 ? [nextId] : [],
+      look: { ...sp.look, cloth: SPECS[sp.faction].cloth },
+      description: sp.description,
+      traits: sp.traits,
+    };
+    // Развилка у ополченца или всадника второго уровня получает третью ветку
+    if (t3) {
+      const from = base[`${sp.faction}_${sp.line === 'cavalry' ? 'c2' : 'i2'}`];
+      if (from && !from.upgradesTo.includes(id)) from.upgradesTo = [...from.upgradesTo, id];
     }
   }
   return out;
@@ -212,7 +366,10 @@ function damageTypeOf(w: Weapon): DamageType {
     case 'lance':
     case 'bow':
     case 'crossbow':
+    case 'handgonne':
       return 'pierce';
+    case 'firepot':
+      return 'blunt';
     default:
       return 'cut';
   }
@@ -275,6 +432,7 @@ const OUTLAWS: TroopDef[] = [
     armor: { cut: 0.1, pierce: 0.08, blunt: 0.06 },
     look: { helmet: 'cap', cloth: '#2a3a5a', armor: '#6a5a40', weapon: 'axe', shield: true },
     description: tr('Грабит берега с быстрых ладей.'),
+    traits: ['javelin'],
   }),
   outlaw('outlaw_raider', tr('Степной налётчик'), {
     tier: 2,
@@ -288,6 +446,7 @@ const OUTLAWS: TroopDef[] = [
     dodge: 0.15,
     look: { helmet: 'fur', cloth: '#7a5a32', armor: '#6a4a2c', weapon: 'bow', shield: false },
     description: tr('Налетает, осыпает стрелами и исчезает в степи.'),
+    traits: ['feint'],
   }),
   outlaw('outlaw_desert', tr('Пустынный разбойник'), {
     tier: 2,
@@ -336,6 +495,7 @@ const MERCS: TroopDef[] = [
     hireCost: 130,
     look: { helmet: 'cap', cloth: '#8a5a2a', armor: '#6a5a40', weapon: 'spear', shield: false },
     description: tr('Каталонские ветераны Великой компании: легки, быстры и безжалостны.'),
+    traits: ['javelin'],
   }),
   outlaw('merc_knight', tr('Странствующий рыцарь'), {
     tier: 4,
@@ -379,7 +539,52 @@ const MERCS: TroopDef[] = [
 
 export const MERC_IDS = MERCS.map((t) => t.id);
 
-export const TROOPS: Record<string, TroopDef> = { ...buildTroops(), ...Object.fromEntries([...OUTLAWS, ...MERCS].map((t) => [t.id, t])) };
+const BASE_TROOPS = buildTroops();
+export const TROOPS: Record<string, TroopDef> = { ...BASE_TROOPS, ...buildSpecials(BASE_TROOPS), ...Object.fromEntries([...OUTLAWS, ...MERCS].map((t) => [t.id, t])) };
+
+// ───────────────────────── особенности ─────────────────────────
+
+const traitCache = new WeakMap<TroopDef, Set<Trait>>();
+
+function isPoleWeapon(w: Weapon) {
+  return w === 'spear' || w === 'pitchfork' || w === 'halberd' || w === 'glaive';
+}
+
+/** Все особенности воина: явные и выведенные из оружия, щита и рода войск. */
+export function traitsOf(t: TroopDef): Set<Trait> {
+  let s = traitCache.get(t);
+  if (s) return s;
+  s = new Set(t.traits ?? []);
+  const w = t.look.weapon;
+  const foot = t.line === 'infantry';
+  if (foot && t.role === 'melee' && isPoleWeapon(w) && t.tier >= 2) s.add('brace');
+  if (foot && t.role === 'melee' && t.look.shield) s.add('shieldwall');
+  if (w === 'halberd' || w === 'glaive' || w === 'daneaxe') s.add('twohand');
+  if (!foot && t.role === 'ranged') s.add('skirmish');
+  if (foot && t.role === 'ranged' && t.look.shield && w === 'crossbow') s.add('pavise');
+  if (t.look.camel) s.add('camel');
+  traitCache.set(t, s);
+  return s;
+}
+
+export function hasTrait(t: TroopDef, x: Trait): boolean {
+  return traitsOf(t).has(x);
+}
+
+export const TRAIT_INFO: Record<Trait, { name: string; hint: string }> = {
+  brace: { name: tr('Упор копий'), hint: tr('Встречает конницу копьями: таранный удар о них разбивается') },
+  shieldwall: { name: tr('Стена щитов'), hint: tr('В плотном строю почти неуязвим для стрел и держит натиск') },
+  javelin: { name: tr('Дротики'), hint: tr('Перед сшибкой мечет дротики, застревающие в щитах') },
+  twohand: { name: tr('Двуручник'), hint: tr('Бьёт сквозь щиты и доспехи, но сам без щита') },
+  skirmish: { name: tr('Застрельщик'), hint: tr('Держит дистанцию и стреляет на скаку') },
+  pavise: { name: tr('Павеза'), hint: tr('Стреляет из-за большого щита: стрелы его почти не берут') },
+  gun: { name: tr('Порох'), hint: tr('Долго перезаряжается, но пуля пробивает латы, а грохот пугает коней. В дождь — осечки') },
+  berserk: { name: tr('Берсерк'), hint: tr('Без доспеха; чем тяжелее ранен, тем яростнее бьёт, и никогда не бежит') },
+  feint: { name: tr('Ложное отступление'), hint: tr('Уходит от погони, отстреливаясь, и расстраивает ряды преследователей') },
+  firepot: { name: tr('Греческий огонь'), hint: tr('Мечет горшки с горящей нефтью: огонь жжёт сквозь доспех и пугает коней') },
+  camel: { name: tr('Верблюд'), hint: tr('Кони врага боятся верблюдов и теряют натиск') },
+  lasso: { name: tr('Аркан'), hint: tr('Сдёргивает вражеских всадников с коней') },
+};
 
 export function peasantOf(faction: FactionId): string {
   return `${faction}_i1`;

@@ -42,6 +42,8 @@ export interface UnitLook {
   gauntlets?: string;
   greaves?: string;
   horseColor?: string;
+  /** Верблюд вместо коня. */
+  camel?: boolean;
 }
 
 const SKIN: Record<Culture, string> = { aurelia: '#e6bc96', nordmark: '#f0c8a8', horde: '#d8a878', sultanate: '#c89068', outlaw: '#dcb08a' };
@@ -136,6 +138,32 @@ function kitOf(L: UnitLook): Kit {
   const pants = L.greaves ?? (!L.body && L.tier >= 4 && L.culture !== 'sultanate' && !eastern ? L.armor : PANTS[L.culture]);
   const legMetal = !!L.greaves ? L.greaves.startsWith('#5a3a') === false : !L.body && L.tier >= 4 && !eastern;
   const sleeve = plate || kind === 'mail' || kind === 'scale' || kind === 'lamellar' ? L.armor : kind === 'brigandine' ? mix(L.cloth, '#1a1410', 0.2) : kind === 'leather' ? L.armor : L.body ? L.armor : L.tier <= 1 ? L.armor : L.cloth;
+  if (kind === 'bare') {
+    // Голый торс, звериная шкура на плечах (цвет шкуры — L.armor)
+    const skin = SKIN[L.culture];
+    return {
+      L,
+      skin,
+      hair: HAIR[L.culture],
+      beard: L.culture === 'nordmark' ? '#b07a3a' : HAIR[L.culture],
+      kind,
+      metal: toneMetal('#a8b0b8'),
+      helmMetal: toneMetal('#a8b0b8'),
+      pants: PANTS[L.culture],
+      pantsMat: 'cloth',
+      boots: '#4a3a2a',
+      bootsMat: 'leather',
+      sleeve: skin,
+      sleeveMat: 'skin',
+      sleevePat: 'none',
+      forearm: skin,
+      forearmMat: 'skin',
+      hand: '#5a3e24',
+      handMat: 'leather',
+      eastern,
+      tabard: false,
+    };
+  }
   return {
     L,
     skin: SKIN[L.culture],
@@ -331,6 +359,27 @@ function weapon(k: Kit, H: Pt, a: number, extra: { pull?: number; arrow?: boolea
       }
       break;
     }
+    case 'daneaxe':
+      out.push(cap(WOOD, 'wood', at(-14), at(27), 1.4));
+      out.push(poly('#aab2ba', 'metal', [at(20, 0.4), at(19, -3.5), at(20.5, -8.4), at(26.5, -9.2), at(27.5, -3.5), at(25.5, 0.4)]));
+      out.push(cap(mix('#aab2ba', '#ffffff', 0.35), 'metal', at(20.8, -8.2), at(26.3, -9), 0.6));
+      break;
+    case 'handgonne':
+      // Древко-ложе и железный ствол с запальным отверстием; фитиль тлеет у кисти
+      out.push(cap(WOOD, 'wood', at(-13), at(4), 1.9, 1.6));
+      out.push(cap('#50555c', 'metal', at(2), at(16), 2.8, 2.3));
+      out.push(cap('#6a7078', 'metal', at(15.2), at(16.4), 3.2, 3.2));
+      out.push(cap('#6a7078', 'metal', at(5.5), at(6.5), 3.1, 3.1));
+      out.push(cap('#8a6a45', 'string', at(-1, 2), at(1, 5), 0.5), ell('#ff7a2a', 'gold', ...at(1.2, 5.4), 0.7, 0.7));
+      break;
+    case 'firepot': {
+      // Глиняный горшок с горящей тряпкой в горлышке
+      const c = at(3.5);
+      out.push(ell('#a0603a', 'leather', c[0], c[1], 3.4, 3.1), ell('#c07a4a', 'leather', c[0] - 0.8, c[1] - 0.9, 1.4, 1.1));
+      out.push(cap('#7a4a2a', 'leather', at(6.2), at(7.4), 1.8, 1.6));
+      out.push(cap('#e8c04a', 'gold', at(7.6), at(9.6, -1), 1.3, 0.4), cap('#ff6a1a', 'gold', at(7.4, 0.4), at(10.6, 0.6), 0.9, 0.3));
+      break;
+    }
     case 'crossbow':
       out.push(cap(WOOD, 'wood', at(-6), at(7), 2.2, 1.8));
       out.push(cap('#5a5f66', 'metal', at(6.5, -6), at(7.5, 0), 1.1), cap('#5a5f66', 'metal', at(7.5, 0), at(6.5, 6), 1.1));
@@ -382,6 +431,14 @@ function torso(k: Kit): Shape[] {
   const skirt: Pt[] = [[-5.8, -3], [6.4, -3], [7.6, 7], [-6.8, 7]];
   const pat: Pat = k.kind === 'mail' ? 'mail' : k.kind === 'scale' ? 'scale' : k.kind === 'lamellar' ? 'lamellar' : k.kind === 'brigandine' ? 'rivets' : k.kind === 'cloth' && L.body ? 'quilt' : 'none';
   switch (k.kind) {
+    case 'bare': {
+      // Мускулистый голый торс, шкура зверя через плечо и меховая юбка
+      out.push(poly(k.skin, 'skin', [...body.slice(0, 3), [6.6, 2], [-5.6, 2], body[5]]));
+      out.push(cap(mix(k.skin, '#000000', 0.16), 'skin', [0.2, -15.5], [4.8, -13.6], 0.7), cap(mix(k.skin, '#000000', 0.12), 'skin', [1.5, -9.5], [5.4, -9], 0.6));
+      out.push(poly(L.armor, 'fur', [[-6.4, -20.4], [2.6, -21], [4.2, -17.4], [-1, -13], [-6.8, -8]]));
+      out.push(poly(mix(L.armor, '#ffffff', 0.12), 'fur', [[-5.6, 1], [6.8, 1], [7.8, 8], [2, 9.6], [-6.6, 8.4]]));
+      break;
+    }
     case 'cloth':
       out.push(poly(L.armor, 'cloth', [...body.slice(0, 3), [7.2, 5.5], [-6.4, 5.5], body[5]], L.body ? 'quilt' : 'none'));
       break;
@@ -460,11 +517,13 @@ function clsOf(L: UnitLook): Cls {
     case 'bow':
       return 'bow';
     case 'crossbow':
+    case 'handgonne':
       return 'crossbow';
     case 'lance':
       return 'lance';
     case 'halberd':
     case 'glaive':
+    case 'daneaxe':
       return 'chop';
     case 'spear':
     case 'pitchfork':
@@ -682,10 +741,64 @@ function horseShapes(k: Kit, frame: number, rider: Shape[], reinHand: Pt | null,
   return out;
 }
 
+// ───────────────────────── верблюд ─────────────────────────
+
+/** Высота седла на горбу (дизайн-единицы от земли). */
+const CAMEL_SEAT = -54;
+
+function camelShapes(k: Kit, frame: number, rider: Shape[], reinHand: Pt | null, riderLeg: Shape[]): Shape[] {
+  const L = k.L;
+  const base = ['#c8a46a', '#b8945a', '#d2b27a'][L.seed % 3];
+  const farC = mix(base, '#000000', 0.18);
+  const gaits: [number, number][][] = [
+    [[4, 0], [-4, 0], [-3, 0], [4, 0]],
+    [[22, -6], [-12, -2], [-16, -2], [14, 26]],
+    [[8, 18], [2, 0], [-2, 0], [2, 10]],
+    [[-12, -2], [22, -6], [14, 26], [-16, -2]],
+    [[2, 0], [8, 18], [2, 10], [-2, 0]],
+  ];
+  const g = gaits[frame >= 1 && frame <= 4 ? frame : 0];
+  const bob = frame === 2 || frame === 4 ? -0.9 : 0;
+  const y0 = -35 + bob;
+  const leg = (x: number, [a, b]: [number, number], c: string, front: boolean): Shape[] => {
+    const top: Pt = [x, y0 + 5];
+    const knee = add(top, down(a, 14));
+    const foot = add(knee, down(front ? b : b - 8, 15));
+    return [cap(c, 'horse', top, knee, 4.6, 2.6), ell(mix(c, '#000000', 0.12), 'horse', knee[0], knee[1], 1.8, 1.8), cap(c, 'horse', knee, foot, 2.2, 1.9), ell(mix(c, '#000000', 0.35), 'dark', foot[0] + 0.8, foot[1] + 0.8, 2.8, 1.2)];
+  };
+  const out: Shape[] = [];
+  out.push(...leg(10, g[1], farC, true), ...leg(-11, g[3], farC, false));
+  // Хвост
+  out.push(cap(mix(base, '#000000', 0.3), 'hair', [-15, y0 - 2], [-18, y0 + 9], 1.6, 0.8));
+  // Туловище и горб
+  out.push(ell(base, 'horse', 0, y0, 15.5, 8.4));
+  out.push(ell(base, 'horse', -1.5, y0 - 7, 8.5, 7.2));
+  out.push(ell(mix(base, '#ffffff', 0.08), 'horse', -3, y0 - 10, 4, 3));
+  out.push(...leg(11, g[0], base, true), ...leg(-10, g[2], base, false));
+  // Длинная изогнутая шея и маленькая голова
+  out.push(cap(base, 'horse', [11, y0 - 2], [20, y0 + 1], 7.5, 5.2));
+  out.push(cap(base, 'horse', [20, y0 + 1], [25, y0 - 13], 5.2, 3.8));
+  out.push(cap(base, 'horse', [24.5, y0 - 14], [31.5, y0 - 12.5], 4.6, 3));
+  out.push(ell(mix(base, '#000000', 0.22), 'horse', 31.8, y0 - 12.2, 1.8, 1.7));
+  out.push(ell(DARK, 'dark', 26.6, y0 - 15, 0.6, 0.6));
+  out.push(cap(mix(base, '#000000', 0.3), 'horse', [24.2, y0 - 16.4], [23.4, y0 - 18.6], 1.2, 0.6));
+  // Узда и попона с кистями на горбу
+  out.push(cap('#3a2618', 'leather', [26, y0 - 15.5], [30, y0 - 11], 0.6), cap('#3a2618', 'leather', [30, y0 - 11], [31.5, y0 - 13.8], 0.6));
+  const blanket = L.cloth2 === '#2a2320' ? '#8a3a2a' : L.cloth;
+  out.push(poly(blanket, 'cloth', [[-10, y0 - 12], [7, y0 - 12], [9, y0 - 1], [-11.5, y0 - 1]], 'quilt'));
+  out.push(cap(L.cloth2 === '#2a2320' ? '#c8a050' : L.cloth2, 'gold', [-11.5, y0 - 1.2], [9, y0 - 1.2], 1));
+  for (const x of [-9, -3, 3, 8]) out.push(cap('#c8a050', 'gold', [x, y0 - 1], [x, y0 + 2], 0.8, 0.5));
+  // Седло на горбу
+  out.push(poly('#4e3220', 'leather', [[-8, CAMEL_SEAT + 2.5 + bob], [-6, CAMEL_SEAT + 5 + bob], [4.4, CAMEL_SEAT + 5 + bob], [6.6, CAMEL_SEAT + 2 + bob], [4.4, CAMEL_SEAT + 3.6 + bob], [-5.8, CAMEL_SEAT + 3.6 + bob]]));
+  out.push(...rider, ...riderLeg);
+  if (reinHand) out.push(cap('#3a2618', 'string', reinHand, [29, y0 - 12.5], 0.5));
+  return out;
+}
+
 function mounted(k: Kit, frame: number): Shape[] {
   const cls = clsOf(k.L);
   const bob = frame === 2 || frame === 4 ? -0.8 : 0;
-  const hip: Pt = [-1, -38.8 + bob];
+  const hip: Pt = k.L.camel ? [-2, CAMEL_SEAT + 1.5 + bob] : [-1, -38.8 + bob];
   const ub = upperBody(k, cls, frame, true);
   const rider = transform(ub.shapes, ub.lean, hip[0], hip[1]);
   // Ближняя нога всадника вдоль бока коня, стопа в стремени
@@ -699,7 +812,7 @@ function mounted(k: Kit, frame: number): Shape[] {
     cap('#8f969e', 'metal', [ankle[0] - 1.5, ankle[1] + 3], [ankle[0] + 4, ankle[1] + 3], 0.9),
   ];
   // Рука всадника перекрывается ногой: рисуем её после
-  return horseShapes(k, frame, rider, ub.reinHand, riderLeg);
+  return k.L.camel ? camelShapes(k, frame, rider, ub.reinHand, riderLeg) : horseShapes(k, frame, rider, ub.reinHand, riderLeg);
 }
 
 // ───────────────────────── кадры ─────────────────────────

@@ -21,13 +21,16 @@ export function troopLook(t: TroopDef): UnitLook {
     weapon: t.look.weapon,
     shield: t.look.shield,
     mounted: t.line === 'cavalry',
-    heavy: t.line === 'cavalry' && t.role === 'melee' && t.tier >= 3 && t.faction !== 'horde',
+    heavy: t.line === 'cavalry' && t.role === 'melee' && t.tier >= 3 && t.faction !== 'horde' && !t.look.camel,
     seed: hashStr(t.id),
+    body: t.look.body,
+    tabard: t.look.tabard,
+    camel: t.line === 'cavalry' && !!t.look.camel,
   };
 }
 
 export function lookKey(l: UnitLook): string {
-  return ['u', l.culture, l.tier, l.helmet, l.cloth, l.cloth2, l.armor, l.weapon, l.shield ? 1 : 0, l.mounted ? 1 : 0, l.heavy ? 1 : 0, l.hero ? 1 : 0, l.seed % 6, l.body ?? '', l.tabard ?? '', l.helmetMetal ?? '', l.gauntlets ?? '', l.greaves ?? '', l.horseColor ?? ''].join('_');
+  return ['u', l.culture, l.tier, l.helmet, l.cloth, l.cloth2, l.armor, l.weapon, l.shield ? 1 : 0, l.mounted ? 1 : 0, l.heavy ? 1 : 0, l.hero ? 1 : 0, l.seed % 6, l.body ?? '', l.tabard ?? '', l.helmetMetal ?? '', l.gauntlets ?? '', l.greaves ?? '', l.horseColor ?? '', l.camel ? 'camel' : ''].join('_');
 }
 
 export { troopLook as lookOf };

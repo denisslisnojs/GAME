@@ -1,6 +1,6 @@
 import { FACTIONS, type FactionId } from '../data/factions';
 import { GOODS, type GoodId } from '../data/goods';
-import { DAMAGE_NAME, TROOPS, type TroopDef } from '../data/troops';
+import { DAMAGE_NAME, TRAIT_INFO, TROOPS, traitsOf, type TroopDef } from '../data/troops';
 import { emblemURL, portraitURL, vistaURL } from '../gfx/icons';
 import {
   buy,
@@ -108,6 +108,7 @@ export function troopStats(t: TroopDef): HTMLElement {
     h('span', {}, tr`Крит ${Math.round(t.crit * 100)}%`),
     h('span', {}, tr`Уклон ${Math.round(t.dodge * 100)}%`),
     t.block ? h('span', {}, tr`Блок ${Math.round(t.block * 100)}%`) : null,
+    ...[...traitsOf(t)].map((x) => h('span', { class: 'trait-chip', title: TRAIT_INFO[x].hint }, TRAIT_INFO[x].name)),
   );
 }
 

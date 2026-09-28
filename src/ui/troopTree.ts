@@ -1,7 +1,7 @@
 // Древо воинов: как растут бойцы каждой державы — от крестьянина до гвардии.
 
 import { FACTIONS, type FactionId } from '../data/factions';
-import { DAMAGE_NAME, TROOPS, type TroopDef } from '../data/troops';
+import { DAMAGE_NAME, TRAIT_INFO, TROOPS, traitsOf, type TroopDef } from '../data/troops';
 import type { GameState } from '../game/state';
 import { emblemURL, figureURL } from '../gfx/icons';
 import { btn, h, img, openModal, panel, stars } from './dom';
@@ -24,6 +24,9 @@ const WEAPON_NAME: Record<string, string> = {
   crossbow: tr('арбалет'),
   lance: tr('пика'),
   sabre: tr('сабля'),
+  handgonne: tr('ручница'),
+  firepot: tr('горшки с нефтью'),
+  daneaxe: tr('датская секира'),
 };
 
 function armorPct(t: TroopDef) {
@@ -64,13 +67,13 @@ export function openTroopTree(state: GameState, start?: FactionId) {
     return el;
   };
 
-  /** Стрелка между уровнями; fork — развилка на две ветки. */
-  const arrow = (area: string, fork: boolean, cost: number, xp: number) =>
+  /** Стрелка между уровнями; fork — развилка на две (или три) ветки. */
+  const arrow = (area: string, fork: boolean | 3, cost: number, xp: number) =>
     h(
       'div',
       { class: 'tree-arrow', style: `grid-area:${area}` },
       fork
-        ? h('div', { class: 'fork' }, h('i', { class: 'up' }), h('i', { class: 'down' }))
+        ? h('div', { class: `fork${fork === 3 ? ' fork3' : ''}` }, h('i', { class: 'up' }), fork === 3 ? h('i', { class: 'mid' }) : null, h('i', { class: 'down' }))
         : h('div', { class: 'line' }),
       h('span', { class: 'small gold' }, `${cost} ¤`),
       h('span', { class: 'small muted' }, tr`опыт ${xp}`),
@@ -102,22 +105,26 @@ export function openTroopTree(state: GameState, start?: FactionId) {
     const t1 = TROOPS[id('1')];
     const t2 = TROOPS[id('2')];
     const t3 = TROOPS[id('3m')];
+    const special = TROOPS[id('3s')];
+    grid.classList.toggle('three', !!special);
     grid.replaceChildren(
       node(id('1'), 'n1'),
       arrow('a1', false, t1.upgradeCost, t1.xpToUpgrade),
       node(id('2'), 'n2'),
-      arrow('a2', true, t2.upgradeCost, t2.xpToUpgrade),
+      arrow('a2', special ? 3 : true, t2.upgradeCost, t2.xpToUpgrade),
       node(id('3m'), 'm3'),
       node(id('3r'), 'r3'),
       arrow('am', false, t3.upgradeCost, t3.xpToUpgrade),
       arrow('ar', false, TROOPS[id('3r')].upgradeCost, TROOPS[id('3r')].xpToUpgrade),
       node(id('4m'), 'm4'),
       node(id('4r'), 'r4'),
+      ...(special ? [node(id('3s'), 's3'), arrow('as', false, special.upgradeCost, special.xpToUpgrade), node(id('4s'), 's4')] : []),
     );
     const sel = TROOPS[picked || id('1')];
     info.replaceChildren(
       h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, h('b', { class: 'gold' }, sel.name), h('span', { class: 'stars' }, stars(sel.tier)), h('span', { class: 'muted small' }, sel.role === 'ranged' ? tr('стрелок') : tr('ближний бой'))),
       h('div', { class: 'small', style: 'line-height:1.35' }, sel.description),
+      ...[...traitsOf(sel)].map((x) => h('div', { class: 'small trait' }, h('b', { class: 'gold' }, TRAIT_INFO[x].name), ` — ${TRAIT_INFO[x].hint}`)),
       h(
         'div',
         { class: 'stats' },

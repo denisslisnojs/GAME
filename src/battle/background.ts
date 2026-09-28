@@ -819,3 +819,102 @@ export function drawArena(W: number, H: number, colors: string[]): HTMLCanvasEle
   }
   return B.canvas();
 }
+
+// ───────────────────────── объекты на поле ─────────────────────────
+
+function stampCanvas(S: Stamp): HTMLCanvasElement {
+  const B = new Buf(S.w, S.h);
+  S.put(B, 0, 0);
+  return B.canvas();
+}
+
+/** Дерево рощи на поле боя (в арт-пикселях, рисуется ×2). */
+export function drawFieldTree(t: BattleTerrain, variant: number): HTMLCanvasElement {
+  const pal = PAL[t];
+  const seed = variant * 131 + t.length * 17;
+  if (t === 'snow' || (t === 'forest' && variant % 2 === 0)) return stampCanvas(pineStamp(38 + (variant % 3) * 6, t === 'snow' ? '#2e4d3a' : '#2a5236', t === 'snow'));
+  if (t === 'dry' && variant % 2 === 1) return stampCanvas(cypressStamp(34 + (variant % 3) * 5, pal.midTree));
+  const S = oakStamp(24 + (variant % 3) * 5, t === 'dry' ? '#5e6e34' : pal.midTree === '#2c4e28' ? '#35602e' : '#447a38', seed);
+  return stampCanvas(S);
+}
+
+/** Куст подлеска. */
+export function drawBush(t: BattleTerrain, variant: number): HTMLCanvasElement {
+  const c = t === 'snow' ? '#4a6a52' : t === 'dry' ? '#6a7a3a' : '#4a7a38';
+  const S = new Stamp(16, 10);
+  const r = mulberry32(variant * 7 + 3);
+  for (let i = 0; i < 4; i++) S.disc(4 + r() * 8, 5 + r() * 2, 2.5 + r() * 1.5, i % 2 ? ramp(c, 1) : c);
+  if (t === 'snow') for (let x = 2; x < 14; x++) if (r() < 0.6) S.p(x, 2 + Math.floor(r() * 2), '#eef2f6');
+  S.outline(ramp(c, -3));
+  return stampCanvas(S);
+}
+
+/** Телега обоза: кузов, колёса, полотняный верх. */
+export function drawCart(cloth: string): HTMLCanvasElement {
+  const S = new Stamp(40, 26);
+  // Полотняный верх дугами
+  for (let x = 6; x < 32; x++) {
+    const h = 7 + Math.round(Math.sin(((x - 6) / 26) * Math.PI) * 3);
+    for (let y = 0; y < h; y++) S.p(x, 12 - y, y < 2 ? ramp('#e8dcc0', -1) : x % 6 === 0 ? ramp('#e8dcc0', -1) : '#e8dcc0');
+  }
+  for (let x = 8; x < 30; x++) S.p(x, 9, cloth);
+  // Кузов
+  S.rect(4, 12, 30, 6, '#7a5332');
+  for (let x = 4; x < 34; x += 5) S.rect(x, 12, 1, 6, '#5a3a22');
+  S.rect(4, 12, 30, 1, '#9a7042');
+  // Оглобли
+  for (let k = 0; k < 6; k++) S.p(34 + k, 16 + Math.floor(k / 3), '#5a3a22');
+  // Колёса
+  for (const wx of [10, 27]) {
+    for (let a = 0; a < 16; a++) {
+      const an = (a / 16) * Math.PI * 2;
+      S.p(wx + Math.round(Math.cos(an) * 4), 20 + Math.round(Math.sin(an) * 4), '#4a3020');
+    }
+    S.p(wx, 20, '#8a8a80');
+    for (const [dx, dy] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) S.p(wx + dx, 20 + dy, '#6a4a2a');
+  }
+  S.outline('#1c1612');
+  return stampCanvas(S);
+}
+
+/**
+ * Холм поперёк поля: гребень над дальним краем, освещённый склон, тёмная передняя грань.
+ * w, h — в арт-пикселях; lift — подъём вершины в арт-пикселях.
+ */
+export function drawHill(t: BattleTerrain, w: number, h: number, lift: number): HTMLCanvasElement {
+  const B = new Buf(w, h);
+  const pal = PAL[t];
+  const g = pal.ground;
+  const top0 = 30; // где у подножия проходит дальний край поля
+  for (let x = 0; x < w; x++) {
+    const u = x / (w - 1);
+    const e = Math.min(1, Math.sin(u * Math.PI) * 1.35);
+    const crest = Math.round(top0 - e * (lift + 12) + fbm(x * 0.05, 2, 2, 3) * 3 * e);
+    const face = Math.round(h - 16 - e * lift * 0.9);
+    const slope = Math.cos(u * Math.PI); // + — левый склон (к свету)
+    for (let y = Math.max(0, crest); y < h; y++) {
+      const edgeFade = Math.min(1, e * 3);
+      if (bayer(x, y) > edgeFade) continue;
+      let c: string;
+      if (y > face) {
+        // Передняя грань — в тени, с полосками земли
+        c = y - face < 2 ? ramp(g[1], -1) : hash2(x, y, 5) < 0.2 ? pal.dirt : ramp(g[1], -1);
+        if (y > h - 6) c = mix(c, g[0], 0.5);
+      } else {
+        // Освещённый левый склон светлее, правый — в тени; горизонтали подчёркивают рельеф
+        const lit = slope * 0.8 + e * 0.35;
+        c = lit > 0.55 ? ramp(g[2], 1) : lit > 0.2 ? g[2] : lit > -0.15 ? g[0] : lit > -0.45 ? g[1] : ramp(g[1], -1);
+        const contour = Math.abs(((e * 5) % 1) - 0.5) < 0.04 && e < 0.95;
+        if (contour && bayer(x, y) < 0.6) c = ramp(c, -1);
+        const n = hash2(x, y, 9);
+        if (n < 0.08) c = ramp(c, -1);
+        else if (n > 0.95) c = ramp(c, 1);
+        if (y - crest < 2) c = ramp(c, 1);
+      }
+      B.p(x, y, c);
+    }
+    // Травинки по гребню
+    if (e > 0.3 && hash2(x, 3, 7) < 0.35 && t !== 'desert') for (let k = 1; k < 3; k++) B.p(x, crest - k, pal.tuft);
+  }
+  return B.canvas();
+}

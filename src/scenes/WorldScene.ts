@@ -7,7 +7,7 @@ import { drawRider, settlementTextureKey } from '../gfx/sprites';
 import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo, totalReady } from '../game/logic';
 import { hint, openHelp, resetHints } from '../ui/hints';
 import { enemyArmy, playerArmy } from '../battle/setup';
-import { Battle, type BattleOpts, type Formation } from '../battle/sim';
+import { Battle, type BattleOpts, type Formation, type Weather } from '../battle/sim';
 import { nearRiver } from '../map/rivers';
 import type { DuelMods } from '../ui/encounter';
 import { TROOPS } from '../data/troops';
@@ -886,20 +886,24 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     return best;
   }
 
-  /** Погода боя: в снегах часто метель, в пустыне сухо, в остальных местах иногда дождь. */
-  private battleWeather(t: BattleTerrain | null): 'rain' | 'snow' | undefined {
+  /** Погода боя: в снегах часто метель, в пустыне сухо, по утрам у рек туман, иногда дождь. */
+  private battleWeather(t: BattleTerrain | null): Weather | undefined {
     if (!t || t === 'desert') return undefined;
     const month = Math.floor(((this.state.time / 30.4) + 2) % 12); // 0 — январь
     const winter = month === 11 || month <= 1;
+    const hr = (this.state.time % 1) * 24;
     if (t === 'snow') return Math.random() < 0.6 ? 'snow' : undefined;
     if (winter && t !== 'steppe' && t !== 'dry') return Math.random() < 0.35 ? 'snow' : undefined;
+    const morning = hr >= 4 && hr < 10;
+    if (Math.random() < (morning ? 0.3 : 0.06) * (nearRiver(this.party.x, this.party.y) ? 1.5 : 1)) return 'fog';
     return Math.random() < 0.18 ? 'rain' : undefined;
   }
 
   /** Условия поля боя: местность, ночь, брод через реку. */
   private battleOpts(extra: BattleOpts = {}): BattleOpts {
     const hr = (this.state.time % 1) * 24;
-    return { terrain: this.battleTerrain(), night: hr >= 21 || hr < 5, ford: nearRiver(this.party.x, this.party.y), playerDamageK: diff(this.state.difficulty).taken, ...extra };
+    const terrain = this.battleTerrain();
+    return { terrain, night: hr >= 21 || hr < 5, ford: nearRiver(this.party.x, this.party.y), playerDamageK: diff(this.state.difficulty).taken, weather: this.battleWeather(terrain), ...extra };
   }
 
   private battleTerrain(): BattleTerrain {
@@ -967,7 +971,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const battle = new Battle([
       { name: this.state.hero.name, culture: this.state.hero.faction, troops: [], hero: me.hero, formation: 'classic', morale: 100 },
       { name: p.name, culture: f, troops: [], hero: { name: p.name, level: 10, def: champion }, formation: 'classic', morale: 100 },
-    ], 0, { terrain: this.battleTerrain() });
+    ], 0, { terrain: this.battleTerrain(), noField: true });
     // Бойцы сходятся в середине поля
     for (const u of battle.units) u.x = u.side === 0 ? FIELD_W / 2 - 160 : FIELD_W / 2 + 160;
     this.runBattle(battle, false, { enemyName: p.name, enemyColor: enemyDisplayColor(p) }, (b) => {
@@ -995,7 +999,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       if (mine.hero && mods.heroHp < 1) mine.hero = { ...mine.hero, def: { ...mine.hero.def, hp: Math.max(20, Math.round(mine.hero.def.hp * mods.heroHp)) } };
     }
     enemy.morale += diff(this.state.difficulty).enemyMorale;
-    const battle = new Battle([mine, enemy], 0, this.battleOpts({ ambush }));
+    const battle = new Battle([mine, enemy], 0, this.battleOpts({ ambush, wagons: p.kind === 'caravan' ? 1 : undefined }));
     this.runBattle(battle, auto, { enemyName: name, enemyColor: enemyDisplayColor(p) }, (b) => {
       const res = applyBattle(this.state, b, p, allies, others);
       this.afterBattle(res, name);
@@ -1029,7 +1033,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       enemyColor: view.enemyColor,
       wall: view.wall,
       arena: view.arena,
-      weather: this.battleWeather(view.arena ? null : this.battleTerrain()),
+      weather: view.arena ? undefined : battle.opts.weather,
       onFinish: (b: Battle) => {
         this.scene.stop('battle');
         this.scene.wake();
@@ -1094,7 +1098,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     def.morale = 115;
     const allies = alliesNear(this.state, s.x, s.y, 6);
     def.morale += diff(this.state.difficulty).enemyMorale;
-    const battle = new Battle([withAllies(playerArmy(this.state, 'classic'), allies), def], 0, { siege: true, playerDamageK: diff(this.state.difficulty).taken });
+    const battle = new Battle([withAllies(playerArmy(this.state, 'classic'), allies), def], 0, { siege: true, playerDamageK: diff(this.state.difficulty).taken, weather: this.battleWeather(this.battleTerrain()) });
     this.runBattle(battle, auto, { enemyName: s.name, enemyColor: f.css, wall: { culture: s.culture, color: f.css, color2: f.css2 } }, (b) => {
       const res = applySiege(this.state, b, s, garrison, lords, allies);
       this.afterBattle(res, tr`Гарнизон ${s.name}`);
@@ -1148,7 +1152,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     me.troops = [...me.troops, ...(this.state.war!.garrisons[s.id] ?? []).map((t) => ({ id: t.id, count: t.count, key: `G|${t.id}` }))];
     me.morale += 10; // за стенами дух крепче
     att.morale += diff(this.state.difficulty).enemyMorale;
-    const battle = new Battle([att, me], 1, { siege: true, playerDamageK: diff(this.state.difficulty).taken });
+    const battle = new Battle([att, me], 1, { siege: true, playerDamageK: diff(this.state.difficulty).taken, weather: this.battleWeather(this.battleTerrain()) });
     this.runBattle(battle, auto, { enemyName: name, enemyColor: f.css, wall: { culture: s.culture, color: owner.css, color2: owner.css2 } }, (b) => {
       const res = applyDefense(this.state, b, s, attackers);
       this.afterBattle(res, name);

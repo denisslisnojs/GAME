@@ -92,6 +92,7 @@ export function heroTroop(state: GameState): TroopDef {
     speed: +st.speed.toFixed(2),
     range: 0,
     look: { helmet: look.helmet, cloth: look.cloth, armor: look.armor, weapon: weapon?.weapon ?? 'mace', shield: look.shield },
+    traits: undefined,
   };
 }
 

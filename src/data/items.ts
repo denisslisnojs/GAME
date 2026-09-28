@@ -4,7 +4,7 @@ import type { DamageType, Helmet, Weapon } from './troops';
 import { tr } from '../i18n';
 
 export type Slot = 'head' | 'body' | 'hands' | 'legs' | 'weapon' | 'shield' | 'horse';
-export type BodyKind = 'cloth' | 'leather' | 'mail' | 'scale' | 'lamellar' | 'brigandine' | 'plate';
+export type BodyKind = 'cloth' | 'leather' | 'mail' | 'scale' | 'lamellar' | 'brigandine' | 'plate' | 'bare';
 
 export interface Item {
   id: string;
