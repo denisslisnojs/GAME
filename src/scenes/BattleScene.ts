@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { sfx } from '../audio/sfx';
 import { music } from '../audio/music';
 import { drawFar, drawGround, drawMid, drawSky, drawStake, type BattleTerrain } from '../battle/background';
-import { heroLook, lookKey, troopLook } from '../battle/looks';
+import { lookKey, troopLook } from '../battle/looks';
 import { FIELD_W, MID_Y, type Battle, type BattleEvent, type BUnit } from '../battle/sim';
 import type { FactionId } from '../data/factions';
 import { drawUnitSheet, FRAME_H, FRAME_W, type UnitLook } from '../gfx/units';
@@ -12,6 +12,9 @@ export interface BattleSceneData {
   battle: Battle;
   terrain: BattleTerrain;
   heroFaction: FactionId;
+  /** Облик героя из его снаряжения. */
+  heroLook?: UnitLook;
+  heroPortrait?: string;
   enemyName: string;
   enemyColor: string;
   onFinish: (b: Battle) => void;
@@ -106,6 +109,7 @@ export class BattleScene extends Phaser.Scene {
       enemyName: this.cfg.enemyName,
       enemyColor: this.cfg.enemyColor,
       heroFaction: this.cfg.heroFaction,
+      heroPortrait: this.cfg.heroPortrait,
       setSpeed: (s) => (this.speed = s),
       togglePause: () => (this.paused = !this.paused),
       isPaused: () => this.paused,
@@ -153,7 +157,7 @@ export class BattleScene extends Phaser.Scene {
   // ───────────────────────── спрайты ─────────────────────────
 
   private lookFor(u: BUnit): UnitLook {
-    return u.isHero ? heroLook(this.cfg.heroFaction) : troopLook(u.troop);
+    return u.isHero && u.side === this.battle.playerSide && this.cfg.heroLook ? this.cfg.heroLook : troopLook(u.troop);
   }
 
   private ensureTexture(u: BUnit): string {

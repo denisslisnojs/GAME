@@ -1,6 +1,7 @@
 import type { Battle } from '../battle/sim';
 import { FACTIONS } from '../data/factions';
 import type { GoodId } from '../data/goods';
+import { ITEM_LIST } from '../data/items';
 import { TROOPS } from '../data/troops';
 import { dismiss } from './logic';
 import { KIND_INFO, removeParty, type MapParty } from './parties';
@@ -20,6 +21,8 @@ export interface AppliedResult {
   troopXp: number;
   lostGold: number;
   respawnAt?: string;
+  /** Трофейное снаряжение (id предметов). */
+  items: string[];
 }
 
 export function heroXpToLevel(level: number) {
@@ -71,6 +74,7 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty): 
     levelUp: 0,
     troopXp,
     lostGold: 0,
+    items: [],
   };
   state.stats ??= { won: 0, lost: 0, killed: 0 };
   state.stats.killed += enemyKilled;
@@ -84,6 +88,20 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty): 
       res.goods[g] = (res.goods[g] ?? 0) + 1 + Math.floor(enemyKilled / 4);
     }
     state.gold += res.gold;
+    // Трофейное снаряжение
+    const chance: Record<string, number> = { bandits: 0.14, raiders: 0.2, desert: 0.22, pirates: 0.16, deserters: 0.35, patrol: 0.45 };
+    const capTier: Record<string, number> = { bandits: 2, raiders: 3, desert: 3, pirates: 2, deserters: 3, patrol: 4 };
+    const tries = 1 + Math.floor(enemyKilled / 12);
+    for (let i = 0; i < tries; i++) {
+      if (Math.random() > (chance[party.kind] ?? 0.1)) continue;
+      const culture = party.faction === 'outlaw' ? null : party.faction;
+      const pool = ITEM_LIST.filter((it) => it.tier <= (capTier[party.kind] ?? 2) && it.tier >= 1 && (it.cultures === 'all' || !culture || it.cultures.includes(culture)));
+      const it = pool[Math.floor(Math.random() * pool.length)];
+      if (it) {
+        res.items.push(it.id);
+        (state.hero.bag ??= []).push(it.id);
+      }
+    }
     for (const [g, n] of Object.entries(res.goods) as [GoodId, number][]) state.cargo[g] = (state.cargo[g] ?? 0) + n;
     removeParty(state, party.id);
   } else {
@@ -116,6 +134,7 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty): 
   while (state.hero.xp >= heroXpToLevel(state.hero.level)) {
     state.hero.xp -= heroXpToLevel(state.hero.level);
     state.hero.level++;
+    state.hero.points = (state.hero.points ?? 0) + 2;
     res.levelUp++;
   }
   return res;

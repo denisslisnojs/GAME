@@ -1,6 +1,7 @@
 import type { FactionId } from '../data/factions';
 import { GOODS, SELL_RATIO, type GoodId } from '../data/goods';
 import { TROOPS } from '../data/troops';
+import { heroStats } from './hero';
 import { recruitSlots, type GameState } from './state';
 import { world, type Settlement } from './world';
 
@@ -26,8 +27,8 @@ export function partySize(state: GameState): number {
 
 /** Цена найма: в чужих (мирных) землях дороже. */
 export function hirePrice(state: GameState, s: Settlement, troopId: string): number {
-  const base = TROOPS[troopId].hireCost;
-  return relationTo(state, s) === 'own' ? base : Math.round(base * 1.5);
+  const base = TROOPS[troopId].hireCost * (1 - heroStats(state.hero).hireDiscount);
+  return Math.max(1, Math.round(relationTo(state, s) === 'own' ? base : base * 1.5));
 }
 
 export function addTroops(state: GameState, id: string, count: number) {

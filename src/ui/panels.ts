@@ -20,6 +20,8 @@ import {
 import type { GameState } from '../game/state';
 import { world, type Settlement } from '../game/world';
 import { btn, h, img, openModal, panel, plural, sfxCoins, stars, toast } from './dom';
+import { openHero, openShop } from './heroUi';
+import { heroPortraitURL } from '../gfx/icons';
 
 export interface GameCtx {
   state: GameState;
@@ -113,13 +115,14 @@ export function openSettlement(ctx: GameCtx, s: Settlement, onLeave: () => void)
     if (s.type !== 'castle') options.append(optF(s.type === 'town' ? 'Рынок' : 'Торговать с крестьянами', '', () => openMarket(ctx, s)));
     if (s.type === 'town') {
       options.append(
-        optF('Оружейник', 'этап 3', () => {}, '', true),
-        optF('Бронник', 'этап 3', () => {}, '', true),
+        optF('Оружейник', 'оружие и щиты', () => openShop(ctx, s, 'weapons')),
+        optF('Бронник', 'шлемы и доспехи', () => openShop(ctx, s, 'armor')),
+        optF('Конюшня', 'кони', () => openShop(ctx, s, 'horses')),
         optF('Арена и турниры', 'этап 5', () => {}, '', true),
         optF(owner === state.hero.faction && FACTIONS[owner].capital === s.id ? 'Тронный зал' : 'Замок лорда', 'этап 5', () => {}, '', true),
       );
     } else if (s.type === 'castle') {
-      options.append(optF('Поговорить с кастеляном', 'этап 5', () => {}, '', true));
+      options.append(optF('Конюшня', 'кони', () => openShop(ctx, s, 'horses')), optF('Поговорить с кастеляном', 'этап 5', () => {}, '', true));
     } else {
       options.append(optF('Поговорить со старостой', 'этап 5', () => {}, '', true));
     }
@@ -266,11 +269,12 @@ export function openParty(ctx: GameCtx) {
       h(
         'div',
         { class: 'item', style: 'border-color:#6a5a3a' },
-        img(portraitURL(`${state.hero.faction}_c2`), 'px portrait'),
+        img(heroPortraitURL(state), 'px portrait'),
         h('div', { class: 'grow col', style: 'gap:2px' },
           h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name gold' }, state.hero.name), h('span', { class: 'muted', style: 'font-size:12px' }, `вассал: ${f.rulerTitle.toLowerCase()} ${f.ruler}`)),
-          h('div', { class: 'sub' }, `Уровень ${state.hero.level} · Опыт ${state.hero.xp}. Снаряжение и характеристики героя появятся на этапе 3.`),
+          h('div', { class: 'sub' }, `Уровень ${state.hero.level} · Опыт ${state.hero.xp}${state.hero.points ? ` · свободных очков: ${state.hero.points}` : ''}`),
         ),
+        btn('Снаряжение', () => openHero(ctx), 'small primary'),
       ),
     );
     const troops = [...state.party.troops].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier || (TROOPS[a.id].line === 'cavalry' ? -1 : 1));

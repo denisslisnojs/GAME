@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body style="background:#6b8a45;margin:8px">
+<script type="module">
+import { drawUnitSheet } from '/src/gfx/units.ts';
+import { heroLook, heroStats } from '/src/game/hero.ts';
+import { heroPortraitURL } from '/src/gfx/icons.ts';
+const kits = [
+  ['aurelia', { head: 'hood', body: 'gambeson', weapon: 'hatchet' }],
+  ['nordmark', { head: 'nasal', body: 'mail_shirt', hands: 'mail_mittens', legs: 'boots', weapon: 'dane_axe', horse: null }],
+  ['horde', { head: 'shishak', body: 'lamellar', legs: 'boots', weapon: 'sabre', shield: 'round_shield', horse: 'steppe_horse' }],
+  ['sultanate', { head: 'khula_khud', body: 'jawshan', hands: 'mail_mittens', weapon: 'damascus_sabre', shield: 'kalkan', horse: 'arabian' }],
+  ['aurelia', { head: 'bascinet', body: 'brigandine', hands: 'plate_gauntlets', legs: 'mail_chausses', weapon: 'bastard_sword', shield: 'heater' }],
+  ['aurelia', { head: 'sallet', body: 'gothic', hands: 'gothic_gauntlets', legs: 'gothic_greaves', weapon: 'zweihander' }],
+  ['aurelia', { head: 'armet', body: 'maximilian', hands: 'gothic_gauntlets', legs: 'gothic_greaves', weapon: 'lance', shield: 'knight_shield', horse: 'barded_destrier' }],
+];
+for (const [faction, equip] of kits) {
+  const state = { hero: { name: 'x', faction, level: 5, xp: 0, attrs: { str: 5, agi: 5, vit: 5, lead: 5 }, equip: Object.fromEntries(Object.entries(equip).filter(([,v]) => v)) } };
+  const row = document.createElement('div'); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.gap = '10px';
+  const c = drawUnitSheet(heroLook(state)); c.style.width = c.width * 2 + 'px'; c.style.imageRendering = 'pixelated'; row.append(c);
+  const im = new Image(); im.src = heroPortraitURL(state); im.style.width = '72px'; im.style.imageRendering = 'pixelated'; row.append(im);
+  const st = heroStats(state.hero); const t = document.createElement('span'); t.style.font = '12px monospace'; t.textContent = `hp ${st.hp} dmg ${st.damage} arm ${st.armor.cut.toFixed(2)} dodge ${st.dodge} spd ${st.speed.toFixed(2)}`; row.append(t);
+  document.body.append(row);
+}
+window.__done = true;
+</script></body></html>

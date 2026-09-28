@@ -8,6 +8,7 @@ export interface BattleHudOpts {
   enemyName: string;
   enemyColor: string;
   heroFaction: FactionId;
+  heroPortrait?: string;
   setSpeed(s: number): void;
   togglePause(): void;
   isPaused(): boolean;
@@ -130,14 +131,14 @@ export class BattleHud {
     const cardsBox = h('div', { class: 'b-cards' });
     for (const g of GROUPS) {
       if (g.id !== 'all' && !this.totals[g.id]) continue;
-      const rep = g.id === 'all' ? null : g.id === 'hero' ? `${o.heroFaction}_c3m` : mostCommon(mine.filter((u) => u.group === g.id).map((u) => u.troop.id));
+      const rep = g.id === 'all' || g.id === 'hero' ? null : mostCommon(mine.filter((u) => u.group === g.id).map((u) => u.troop.id));
       const count = h('div', { class: 'n' });
       const bar = h('div', { class: 'hp' }, h('div'));
       const badge = h('img', { class: 'badge px', src: ICONS.attack() }) as HTMLImageElement;
       const el = h(
         'div',
         { class: 'b-card', onclick: () => this.select(g.id) },
-        rep ? h('img', { class: 'px face', src: portraitURL(rep) }) : h('img', { class: 'px face', src: emblemURL(o.heroFaction) }),
+        h('img', { class: 'px face', src: rep ? portraitURL(rep) : g.id === 'hero' ? o.heroPortrait ?? portraitURL(`${o.heroFaction}_c3m`) : emblemURL(o.heroFaction) }),
         badge,
         h('div', { class: 'lbl' }, g.name),
         count,

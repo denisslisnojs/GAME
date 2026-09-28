@@ -1,4 +1,4 @@
-import { FACTIONS, type FactionId } from '../data/factions';
+import { FACTIONS } from '../data/factions';
 import { TROOPS, type TroopDef } from '../data/troops';
 import { hex } from '../gfx/pixel';
 import type { UnitLook } from '../gfx/units';
@@ -26,25 +26,8 @@ export function troopLook(t: TroopDef): UnitLook {
   };
 }
 
-/** Облик героя: пока — всадник-рыцарь своей державы с золотой отделкой (снаряжение придёт на этапе 3). */
-export function heroLook(faction: FactionId): UnitLook {
-  const base = TROOPS[`${faction}_c3m`];
-  const f = FACTIONS[faction];
-  return {
-    ...troopLook(base),
-    weapon: faction === 'horde' || faction === 'sultanate' ? 'sabre' : 'sword',
-    helmet: faction === 'aurelia' ? 'great' : base.look.helmet,
-    tier: 4,
-    heavy: true,
-    hero: true,
-    cloth: hex(f.color),
-    cloth2: hex(f.color2),
-    seed: 7,
-  };
-}
-
 export function lookKey(l: UnitLook): string {
-  return ['u', l.culture, l.tier, l.helmet, l.cloth, l.cloth2, l.armor, l.weapon, l.shield ? 1 : 0, l.mounted ? 1 : 0, l.heavy ? 1 : 0, l.hero ? 1 : 0, l.seed % 6].join('_');
+  return ['u', l.culture, l.tier, l.helmet, l.cloth, l.cloth2, l.armor, l.weapon, l.shield ? 1 : 0, l.mounted ? 1 : 0, l.heavy ? 1 : 0, l.hero ? 1 : 0, l.seed % 6, l.body ?? '', l.tabard ?? '', l.helmetMetal ?? '', l.gauntlets ?? '', l.greaves ?? '', l.horseColor ?? ''].join('_');
 }
 
 export { troopLook as lookOf };

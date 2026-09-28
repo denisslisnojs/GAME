@@ -1,6 +1,7 @@
 import { SAVE_KEY, START_YEAR } from '../config';
 import { FACTION_IDS, INITIAL_WARS, FACTIONS, type FactionId } from '../data/factions';
 import type { GoodId } from '../data/goods';
+import { START_KIT, type Slot } from '../data/items';
 import { cavRecruitOf, peasantOf } from '../data/troops';
 import type { MapParty } from './parties';
 import { spawnPointNear, world, type Settlement } from './world';
@@ -12,11 +13,29 @@ export interface TroopStack {
   xp: number;
 }
 
+export interface HeroAttrs {
+  /** Сила: урон. */
+  str: number;
+  /** Ловкость: уклонение, крит, скорость удара. */
+  agi: number;
+  /** Живучесть: здоровье. */
+  vit: number;
+  /** Лидерство: боевой дух армии, скидка на найм. */
+  lead: number;
+}
+
 export interface Hero {
   name: string;
   faction: FactionId;
   level: number;
   xp: number;
+  attrs?: HeroAttrs;
+  /** Нераспределённые очки характеристик. */
+  points?: number;
+  /** Надетое снаряжение: слот → id предмета. */
+  equip?: Partial<Record<Slot, string>>;
+  /** Снаряжение в сумке. */
+  bag?: string[];
 }
 
 export interface SettlementState {
@@ -71,7 +90,7 @@ export function newGame(name: string, faction: FactionId): GameState {
   const spawn = spawnPointNear(capital);
   return {
     version: 1,
-    hero: { name, faction, level: 1, xp: 0 },
+    hero: { name, faction, level: 1, xp: 0, attrs: { str: 3, agi: 3, vit: 3, lead: 3 }, points: 3, equip: { ...START_KIT[faction] }, bag: [] },
     gold: 500,
     time: 0.33, // 8 утра
     lastDay: 0,
@@ -103,6 +122,11 @@ export function loadGame(): GameState | null {
     if (!raw) return null;
     const s = JSON.parse(raw) as GameState;
     if (s.version !== 1 || !FACTION_IDS.includes(s.hero?.faction)) return null;
+    // Сохранения старых версий: герой без снаряжения получает стартовый набор
+    s.hero.attrs ??= { str: 3, agi: 3, vit: 3, lead: 3 };
+    s.hero.points ??= 3 + (s.hero.level - 1) * 2;
+    s.hero.equip ??= { ...START_KIT[s.hero.faction] };
+    s.hero.bag ??= [];
     // Поселения, добавленные в новых версиях, получают состояние по умолчанию
     for (const st of world.settlements) {
       if (!s.settlements[st.id]) s.settlements[st.id] = { owner: st.culture, recruits: {} };

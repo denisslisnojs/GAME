@@ -4,7 +4,7 @@ export type DamageType = 'cut' | 'pierce' | 'blunt';
 export type TroopLine = 'infantry' | 'cavalry';
 export type TroopRole = 'melee' | 'ranged';
 export type Weapon = 'pitchfork' | 'spear' | 'sword' | 'axe' | 'mace' | 'halberd' | 'bow' | 'crossbow' | 'lance' | 'sabre' | 'glaive';
-export type Helmet = 'none' | 'hood' | 'cap' | 'kettle' | 'nasal' | 'bascinet' | 'great' | 'turban' | 'spired' | 'fur';
+export type Helmet = 'none' | 'hood' | 'cap' | 'kettle' | 'nasal' | 'bascinet' | 'great' | 'turban' | 'spired' | 'fur' | 'sallet' | 'armet';
 
 export interface TroopLook {
   helmet: Helmet;

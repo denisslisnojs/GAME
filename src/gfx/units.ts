@@ -1,6 +1,7 @@
 // Боевые спрайты воинов (вид сбоку, лицом вправо), рисуются кодом по «облику» воина.
 // Кадры: 0 — стойка, 1..4 — шаг, 5..7 — атака, 8 — павший.
 
+import type { BodyKind } from '../data/items';
 import type { Helmet, Weapon } from '../data/troops';
 import { Pix, shade } from './pixel';
 
@@ -24,6 +25,14 @@ export interface UnitLook {
   heavy: boolean;
   hero?: boolean;
   seed: number;
+  /** Явный тип доспеха (для героя); без него — по уровню воина. */
+  body?: BodyKind;
+  tabard?: boolean;
+  /** Цвет металла шлема, перчаток, поножей (если есть). */
+  helmetMetal?: string;
+  gauntlets?: string;
+  greaves?: string;
+  horseColor?: string;
 }
 
 const SKIN: Record<Culture, string> = { aurelia: '#e8bf98', nordmark: '#f0c8a8', horde: '#d8a878', sultanate: '#c89068', outlaw: '#dcb08a' };
@@ -238,9 +247,9 @@ function drawShield(P: Pix, L: UnitLook, x: number, y: number) {
 // ───────────────────────── тело ─────────────────────────
 
 function drawLegs(P: Pix, L: UnitLook, fx: number, b: number, front: number, back: number) {
-  const pants = L.tier >= 4 && L.culture !== 'sultanate' ? L.armor : PANTS[L.culture];
+  const pants = L.greaves ?? (L.body ? PANTS[L.culture] : L.tier >= 4 && L.culture !== 'sultanate' ? L.armor : PANTS[L.culture]);
   const pantsD = shade(pants, -0.3);
-  const boots = L.tier >= 4 && L.culture === 'aurelia' ? shade(L.armor, -0.1) : BOOTS;
+  const boots = L.greaves ? shade(L.greaves, -0.1) : !L.body && L.tier >= 4 && L.culture === 'aurelia' ? shade(L.armor, -0.1) : BOOTS;
   // дальняя нога
   const bx = fx - 2 + back;
   P.rect(bx - 1, 40 - b, 3, 7 + b, pantsD);
@@ -263,28 +272,43 @@ function drawUpper(P: Pix, L: UnitLook, fx: number, ty: number) {
   const cloth = L.cloth;
   const clothD = shade(cloth, -0.3);
   const clothL = shade(cloth, 0.2);
-  const plate = L.tier >= 4 || L.heavy;
   const eastern = L.culture === 'horde' || L.culture === 'sultanate';
+  // Тип доспеха: явный (герой) или по уровню воина
+  const kind: BodyKind = L.body ?? (L.tier <= 1 ? 'cloth' : L.tier >= 4 || L.heavy ? (eastern ? 'lamellar' : 'plate') : 'mail');
+  const plate = kind === 'plate';
 
   // Торс
-  const bodyBase = L.tier <= 1 ? L.armor : metal;
+  const soft = kind === 'cloth' || kind === 'leather';
+  const bodyBase = kind === 'brigandine' ? shade(cloth, -0.15) : soft ? L.armor : metal;
   P.rect(fx - 4, ty, 8, 12, bodyBase);
   for (let y = ty; y < ty + 12; y++) {
     for (let x = fx - 4; x < fx + 4; x++) {
-      if (L.tier >= 2 && !plate && (x + y) % 2 === 0) P.p(x, y, metalD); // кольчуга
-      if (plate && eastern && (y - ty) % 2 === 0 && (x % 2 === 0)) P.p(x, y, metalD); // ламелляр
+      const r = y - ty;
+      if (kind === 'mail' && (x + y) % 2 === 0) P.p(x, y, metalD);
+      if (kind === 'lamellar' && r % 2 === 0 && x % 2 === 0) P.p(x, y, metalD);
+      if (kind === 'scale' && ((r % 2 === 0 && x % 2 === 0) || (r % 2 === 1 && x % 2 === 1))) P.p(x, y, r % 2 ? metalL : metalD);
+      if (kind === 'cloth' && L.body && r % 3 === 2) P.p(x, y, shade(bodyBase, -0.18)); // стёжка
+      if (kind === 'leather' && r % 4 === 3 && x % 2 === 0) P.p(x, y, shade(bodyBase, -0.3));
+      if (kind === 'brigandine' && r % 3 === 1 && (x - fx) % 3 === 0) P.p(x, y, '#e8c04a'); // заклёпки
     }
   }
-  P.vline(fx - 4, ty, ty + 11, L.tier <= 1 ? shade(bodyBase, 0.2) : metalL);
-  P.vline(fx + 3, ty, ty + 11, L.tier <= 1 ? shade(bodyBase, -0.3) : metalD);
-  if (plate && !eastern) {
-    P.rect(fx - 3, ty + 1, 6, 5, metalL);
-    P.hline(fx - 3, fx + 2, ty + 6, metalD);
+  P.vline(fx - 4, ty, ty + 11, soft ? shade(bodyBase, 0.2) : metalL);
+  P.vline(fx + 3, ty, ty + 11, soft ? shade(bodyBase, -0.3) : metalD);
+  if (plate) {
+    // кираса с рёбрами и бликом
+    P.rect(fx - 3, ty + 1, 6, 7, metalL);
+    P.hline(fx - 3, fx + 2, ty + 8, metalD);
+    P.vline(fx, ty + 1, ty + 7, metal);
     P.p(fx - 2, ty + 2, '#ffffff');
+    P.p(fx - 2, ty + 3, '#ffffff');
+    // набедренные пластины
+    P.rect(fx - 4, ty + 10, 8, 3, metal);
+    P.hline(fx - 4, fx + 3, ty + 12, metalD);
   }
 
   // Табард / кафтан
-  if (L.tier >= 2) {
+  const wantsTabard = L.tabard ?? L.tier >= 2;
+  if (wantsTabard && L.tier >= 2) {
     if (eastern) {
       P.rect(fx - 4, ty + 6, 8, 9, cloth); // полы кафтана
       P.vline(fx + 3, ty + 6, ty + 14, clothD);
@@ -305,14 +329,14 @@ function drawUpper(P: Pix, L: UnitLook, fx: number, ty: number) {
         P.vline(fx - 3, ty + 1, ty + 13, '#e8c04a');
       }
     }
-  } else {
+  } else if (!L.body) {
     // рубаха крестьянина с поясом-верёвкой
     P.rect(fx - 4, ty + 9, 8, 4, L.armor);
   }
   P.hline(fx - 4, fx + 3, ty + 10, LEATHER);
   P.p(fx + 1, ty + 10, '#c8a040');
   // Наплечник
-  if (L.tier >= 3) {
+  if (kind === 'plate' || kind === 'brigandine' || (!L.body && L.tier >= 3)) {
     P.rect(fx - 1, ty, 4, 3, metalL);
     P.hline(fx - 1, fx + 2, ty + 2, metalD);
   }
@@ -343,7 +367,7 @@ function drawUpper(P: Pix, L: UnitLook, fx: number, ty: number) {
 }
 
 function drawHelmet(P: Pix, L: UnitLook, x: number, y: number) {
-  const m = L.armor;
+  const m = L.helmetMetal ?? L.armor;
   const mL = shade(m, 0.35);
   const mD = shade(m, -0.35);
   const mail = '#8a8f96';
@@ -409,6 +433,32 @@ function drawHelmet(P: Pix, L: UnitLook, x: number, y: number) {
         P.p(x, y - 6, L.cloth2);
         P.p(x - 1, y - 5, L.cloth2);
       }
+      break;
+    case 'sallet':
+      // Салад: купол с длинным назатыльником и прорезью, бувигер закрывает подбородок
+      P.rect(x - 1, y - 3, 8, 5, m);
+      P.hline(x + 1, x + 5, y - 4, m);
+      P.rect(x - 4, y + 1, 4, 2, m);
+      P.p(x - 5, y + 2, mD);
+      P.hline(x + 2, x + 7, y + 1, OUT);
+      P.rect(x + 2, y + 4, 6, 4, m);
+      P.hline(x + 2, x + 7, y + 4, mL);
+      P.p(x, y - 2, mL);
+      P.p(x + 1, y - 3, mL);
+      break;
+    case 'armet':
+      // Армет: гладкий закрытый шлем с забралом
+      P.rect(x - 1, y - 3, 9, 11, m);
+      P.clear(x - 1, y - 3);
+      P.clear(x + 7, y - 3);
+      P.hline(x + 1, x + 6, y - 4, m);
+      P.hline(x + 2, x + 7, y + 2, OUT);
+      P.hline(x + 4, x + 7, y + 4, mD);
+      P.vline(x + 3, y - 3, y + 1, mL);
+      P.vline(x - 1, y - 1, y + 7, mL);
+      P.vline(x + 7, y, y + 7, mD);
+      P.rect(x + 1, y - 7, 3, 3, L.cloth2);
+      P.p(x, y - 8, L.cloth2);
       break;
     case 'turban':
       P.rect(x - 1, y - 3, 8, 4, '#efe6d0');
@@ -483,10 +533,20 @@ function armPose(L: UnitLook, fx: number, ty: number, pose: Pose): ArmPose {
 }
 
 function drawArm(P: Pix, L: UnitLook, sx: number, sy: number, hx: number, hy: number) {
-  const sleeve = L.tier <= 1 ? L.armor : L.tier >= 4 || L.heavy ? shade(L.armor, 0.1) : shade(L.armor, -0.1);
+  const sleeve = L.body
+    ? L.body === 'cloth' || L.body === 'leather'
+      ? shade(L.armor, -0.1)
+      : L.body === 'brigandine'
+        ? shade(L.gauntlets ?? L.armor, -0.1)
+        : shade(L.armor, L.body === 'plate' ? 0.1 : -0.1)
+    : L.tier <= 1
+      ? L.armor
+      : L.tier >= 4 || L.heavy
+        ? shade(L.armor, 0.1)
+        : shade(L.armor, -0.1);
   line(P, sx, sy, hx, hy, sleeve);
   line(P, sx, sy + 1, hx, hy + 1, shade(sleeve, -0.25));
-  P.p(hx, hy, L.tier >= 3 ? shade(L.armor, -0.2) : SKIN[L.culture]);
+  P.p(hx, hy, L.gauntlets ?? (L.body ? SKIN[L.culture] : L.tier >= 3 ? shade(L.armor, -0.2) : SKIN[L.culture]));
 }
 
 function drawArmsAndWeapon(P: Pix, L: UnitLook, fx: number, ty: number, pose: Pose) {
@@ -517,7 +577,7 @@ function drawArmsAndWeapon(P: Pix, L: UnitLook, fx: number, ty: number, pose: Po
 // ───────────────────────── конь ─────────────────────────
 
 function drawHorse(P: Pix, L: UnitLook, gait: number, far: boolean) {
-  const base = L.culture === 'horde' ? ['#8a6a45', '#6a4a2a', '#9a958c'][L.seed % 3] : HORSES[L.seed % HORSES.length];
+  const base = L.horseColor ?? (L.culture === 'horde' ? ['#8a6a45', '#6a4a2a', '#9a958c'][L.seed % 3] : HORSES[L.seed % HORSES.length]);
   const dark = shade(base, -0.3);
   const light = shade(base, 0.18);
   const mane = shade(base, -0.55);

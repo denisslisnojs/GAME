@@ -1,30 +1,8 @@
 import { FACTIONS, type FactionId } from '../data/factions';
-import { TROOPS, type TroopDef } from '../data/troops';
+import { TROOPS } from '../data/troops';
 import type { GameState } from '../game/state';
+import { heroStats, heroTroop } from '../game/hero';
 import type { ArmyDef, Formation } from './sim';
-
-/** Боевые характеристики героя (до этапа 3 зависят только от уровня). */
-export function heroTroop(state: GameState): TroopDef {
-  const f = state.hero.faction;
-  const base = TROOPS[`${f}_c3m`];
-  const lvl = state.hero.level;
-  return {
-    ...base,
-    id: 'hero',
-    name: state.hero.name,
-    tier: 4,
-    hp: 150 + lvl * 12,
-    damage: 22 + lvl * 2,
-    damageType: 'cut',
-    armor: { cut: 0.4, pierce: 0.33, blunt: 0.22 },
-    attackTime: 1.2,
-    crit: 0.14,
-    dodge: 0.1,
-    block: 0.28,
-    speed: 2.0,
-    look: { ...base.look, weapon: f === 'horde' || f === 'sultanate' ? 'sabre' : 'sword', shield: true },
-  };
-}
 
 export function playerArmy(state: GameState, formation: Formation): ArmyDef {
   return {
@@ -33,7 +11,7 @@ export function playerArmy(state: GameState, formation: Formation): ArmyDef {
     troops: state.party.troops.filter((t) => t.count > 0).map((t) => ({ id: t.id, count: t.count })),
     hero: { name: state.hero.name, level: state.hero.level, def: heroTroop(state) },
     formation,
-    morale: 100,
+    morale: 100 + heroStats(state.hero).morale,
   };
 }
 

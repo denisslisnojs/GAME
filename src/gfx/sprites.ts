@@ -520,6 +520,22 @@ export function drawPortrait(t: TroopDef): HTMLCanvasElement {
       P.vline(16, 5, 14, metalD);
       P.hline(6, 17, 4, cloth);
       break;
+    case 'sallet':
+      P.rect(7, 3, 10, 6, metal);
+      P.rect(4, 8, 4, 3, metal);
+      P.hline(9, 16, 8, OUT);
+      P.rect(10, 11, 7, 4, metal);
+      P.hline(10, 16, 11, metalL);
+      P.p(9, 4, metalL);
+      break;
+    case 'armet':
+      P.rect(7, 3, 10, 12, metal);
+      P.hline(9, 16, 8, OUT);
+      P.hline(12, 16, 10, metalD);
+      P.vline(8, 4, 14, metalL);
+      P.vline(16, 4, 14, metalD);
+      P.rect(10, 1, 3, 2, FACTIONS[t.faction === 'outlaw' ? 'aurelia' : t.faction].css2);
+      break;
     case 'turban':
       P.rect(7, 4, 10, 4, '#efe6d0');
       P.hline(7, 16, 6, '#cfc6b0');

@@ -1,5 +1,5 @@
 import { FACTIONS } from '../data/factions';
-import { emblemURL } from '../gfx/icons';
+import { heroPortraitURL } from '../gfx/icons';
 import { partySize, totalReady } from '../game/logic';
 import { dateString, timeOfDay, type GameState } from '../game/state';
 import { btn, h, uiRoot } from './dom';
@@ -11,6 +11,7 @@ export interface HudActions {
   openParty(): void;
   openRealms(): void;
   openMenu(): void;
+  openHero(): void;
 }
 
 export class Hud {
@@ -23,6 +24,9 @@ export class Hud {
   private pauseBtn: HTMLButtonElement;
   private partyBtn: HTMLButtonElement;
   private partyBadge = h('span', { class: 'badge-dot' });
+  private heroBadge = h('span', { class: 'badge-dot' });
+  private heroLine = h('span', {});
+  private heroImg = h('img', { class: 'px emblem', style: 'width:32px;height:32px' }) as HTMLImageElement;
   private speedBtns: HTMLButtonElement[] = [];
   private pauseBanner = h('div', { class: 'pause-banner' }, 'ПАУЗА');
   private night = h('div', { class: 'passthrough', style: 'position:fixed;inset:0;pointer-events:none;background:#10183a;opacity:0;transition:opacity 1s' });
@@ -42,7 +46,7 @@ export class Hud {
       h(
         'div',
         { class: 'hud-top' },
-        h('div', { class: 'hud-box', onclick: () => a.openRealms(), style: 'cursor:pointer' }, h('img', { src: emblemURL(state.hero.faction), class: 'px emblem' }), h('div', { class: 'col', style: 'gap:0' }, h('span', { class: 'big' }, state.hero.name), h('span', { class: 'muted', style: `font-size:12px;color:${f.css}` }, f.short))),
+        h('div', { class: 'hud-box', onclick: () => a.openHero(), style: 'cursor:pointer', title: 'Герой и снаряжение' }, this.heroImg, h('div', { class: 'col', style: 'gap:0' }, h('span', { class: 'big' }, state.hero.name, this.heroBadge), h('span', { class: 'muted', style: `font-size:12px;color:${f.css}` }, this.heroLine))),
         h('div', { class: 'hud-box' }, this.date, this.tod),
         h('div', { class: 'hud-box' }, this.gold, h('span', { class: 'muted' }, '·'), this.men),
       ),
@@ -72,6 +76,12 @@ export class Hud {
     const n = partySize(state);
     this.men.textContent = `${n} ⚔`;
     this.terrain.textContent = terrain;
+    const pts = state.hero.points ?? 0;
+    this.heroBadge.textContent = pts ? `+${pts}` : '';
+    this.heroBadge.style.display = pts ? '' : 'none';
+    this.heroLine.textContent = `${FACTIONS[state.hero.faction].short} · ур. ${state.hero.level}`;
+    const portrait = heroPortraitURL(state);
+    if (this.heroImg.src !== portrait) this.heroImg.src = portrait;
     const ready = totalReady(state);
     this.partyBadge.textContent = ready ? `↑${ready}` : '';
     this.partyBadge.style.display = ready ? '' : 'none';

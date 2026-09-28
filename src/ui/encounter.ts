@@ -2,7 +2,8 @@ import { strength } from '../battle/setup';
 import type { Formation } from '../battle/sim';
 import { GOODS, type GoodId } from '../data/goods';
 import { TROOPS } from '../data/troops';
-import { emblemURL, portraitURL } from '../gfx/icons';
+import { emblemURL, heroPortraitURL, itemIconURL, portraitURL } from '../gfx/icons';
+import { ITEMS } from '../data/items';
 import { heroXpToLevel, type AppliedResult } from '../game/battleResult';
 import { KIND_INFO, type MapParty } from '../game/parties';
 import type { GameState } from '../game/state';
@@ -16,9 +17,9 @@ const FORMATIONS: { id: Formation; name: string; hint: string }[] = [
 
 let lastFormation: Formation = 'classic';
 
-function armyList(troops: { id: string; count: number }[], heroName?: string, heroFaction?: string) {
+function armyList(troops: { id: string; count: number }[], heroName?: string, heroFaction?: string, heroPortrait?: string) {
   const box = h('div', { class: 'army-list' });
-  if (heroName && heroFaction) box.append(h('div', { class: 'row' }, img(portraitURL(`${heroFaction}_c3m`)), h('span', { class: 'gold' }, heroName), h('span', { class: 'muted' }, 'герой')));
+  if (heroName && heroFaction) box.append(h('div', { class: 'row' }, img(heroPortrait ?? portraitURL(`${heroFaction}_c3m`)), h('span', { class: 'gold' }, heroName), h('span', { class: 'muted' }, 'герой')));
   const sorted = [...troops].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier);
   for (const t of sorted.slice(0, 7)) box.append(h('div', { class: 'row' }, img(portraitURL(t.id)), h('span', {}, TROOPS[t.id].name), h('span', { class: 'muted' }, `×${t.count}`)));
   if (sorted.length > 7) box.append(h('div', { class: 'muted' }, `и ещё ${sorted.length - 7} ${plural(sorted.length - 7, 'отряд', 'отряда', 'отрядов')}`));
@@ -69,7 +70,7 @@ export function openEncounter(
       h(
         'div',
         { class: 'versus' },
-        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Ваш отряд · ${count(state.party.troops) + 1}`), armyList(state.party.troops, state.hero.name, state.hero.faction)),
+        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Ваш отряд · ${count(state.party.troops) + 1}`), armyList(state.party.troops, state.hero.name, state.hero.faction, heroPortraitURL(state))),
         h('div', { class: 'vs' }, 'VS'),
         h('div', { class: 'col' }, h('div', { class: 'col-title' }, `${party.name} · ${count(party.troops)}`), armyList(party.troops)),
       ),
@@ -106,6 +107,10 @@ export function openBattleResult(state: GameState, r: AppliedResult, enemyName: 
   const loot = h('div', { class: 'army-list' });
   if (r.won) {
     loot.append(h('div', { class: 'row' }, h('span', { class: 'gold' }, `+${r.gold} ¤`), h('span', { class: 'muted' }, 'золото')));
+    for (const id of r.items) {
+      const it = ITEMS[id];
+      loot.append(h('div', { class: 'row' }, img(itemIconURL(it, state.hero.faction)), h('span', { class: 'gold' }, it.name), h('span', { class: 'muted' }, 'в сумке')));
+    }
     for (const [g, n] of Object.entries(r.goods) as [GoodId, number][]) {
       loot.append(h('div', { class: 'row' }, h('div', { class: 'good-icon', style: `background:${GOODS[g].color}` }), h('span', {}, GOODS[g].name), h('span', { class: 'muted' }, `×${n}`)));
     }
@@ -116,7 +121,7 @@ export function openBattleResult(state: GameState, r: AppliedResult, enemyName: 
   const xp = h(
     'div',
     { class: 'army-list' },
-    h('div', {}, `Опыт героя: +${r.heroXp}`, r.levelUp ? h('b', { class: 'gold' }, ` · новый уровень ${state.hero.level}!`) : ''),
+    h('div', {}, `Опыт героя: +${r.heroXp}`, r.levelUp ? h('b', { class: 'gold' }, ` · новый уровень ${state.hero.level}! +${r.levelUp * 2} очка характеристик`) : ''),
     h('div', { class: 'muted' }, `До следующего уровня: ${heroXpToLevel(state.hero.level) - state.hero.xp}`),
     h('div', {}, `Опыт отряда: +${r.troopXp}`),
     r.heroWounded ? h('div', { style: 'color:#e07a6a' }, 'Герой ранен в бою, но выжил.') : null,

@@ -21,6 +21,12 @@ export class Pix {
     return this;
   }
 
+  /** Стереть пиксель (сделать прозрачным). */
+  clear(x: number, y: number): this {
+    this.ctx.clearRect(x | 0, y | 0, 1, 1);
+    return this;
+  }
+
   rect(x: number, y: number, w: number, h: number, c: string): this {
     this.ctx.fillStyle = c;
     this.ctx.fillRect(x | 0, y | 0, w | 0, h | 0);

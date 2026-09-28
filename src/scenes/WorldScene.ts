@@ -10,12 +10,15 @@ import type { BattleTerrain } from '../battle/background';
 import { applyBattle, enemyDisplayColor, retreat } from '../game/battleResult';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
 import { hasSave, loadGame, newGame, saveGame, type GameState } from '../game/state';
+import { heroLook } from '../game/hero';
+import { heroPortraitURL } from '../gfx/icons';
 import { isWaterCell, world, type Settlement } from '../game/world';
 import { cellCenterWorld, geoToWorld, worldToCell } from '../map/geo';
 import { findPath, smoothPath } from '../map/pathfinding';
 import { computeTerritory, drawTerritory } from '../map/territory';
 import { T, TERRAIN_COST, TERRAIN_NAME } from '../map/terrain';
 import { openBattleResult, openEncounter } from '../ui/encounter';
+import { openHero } from '../ui/heroUi';
 import { btn, h, openModal, panel, toast, uiRoot } from '../ui/dom';
 import { Hud } from '../ui/hud';
 import { openParty, openRealms, openSettlement, type GameCtx } from '../ui/panels';
@@ -210,6 +213,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       openParty: () => this.modal(() => openParty(this)),
       openRealms: () => this.modal(() => openRealms(this)),
       openMenu: () => this.openGameMenu(),
+      openHero: () => this.modal(() => openHero(this)),
     });
     this.updateLabels();
     this.updateHud();
@@ -753,6 +757,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       battle,
       terrain: this.battleTerrain(),
       heroFaction: this.state.hero.faction,
+      heroLook: heroLook(this.state),
+      heroPortrait: heroPortraitURL(this.state),
       enemyName: p.name,
       enemyColor: enemyDisplayColor(p),
       onFinish: (b: Battle) => {

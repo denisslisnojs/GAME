@@ -1,8 +1,13 @@
 import type { FactionId } from '../data/factions';
+import { heroTroop } from '../game/hero';
+import type { GameState } from '../game/state';
 import { TROOPS } from '../data/troops';
 import type { Settlement } from '../game/world';
 import { hash2 } from '../util/rng';
-import { Pix, shade } from './pixel';
+import { Pix, hex, shade } from './pixel';
+import { drawUnitSheet, FRAME_H, FRAME_W, type UnitLook } from './units';
+import type { Item } from '../data/items';
+import { FACTIONS } from '../data/factions';
 import { drawCastle, drawEmblem, drawPortrait, drawTown, drawVillage } from './sprites';
 
 const cache = new Map<string, string>();
@@ -18,6 +23,13 @@ function memo(key: string, make: () => HTMLCanvasElement): string {
 
 export function portraitURL(troopId: string): string {
   return memo(`p_${troopId}`, () => drawPortrait(TROOPS[troopId]));
+}
+
+/** Портрет героя в текущем снаряжении (не кэшируется: снаряжение меняется). */
+export function heroPortraitURL(state: GameState): string {
+  const t = heroTroop(state);
+  const key = `hp_${t.look.helmet}_${t.look.armor}_${t.look.weapon}_${t.look.shield}_${t.line}_${state.hero.faction}`;
+  return memo(key, () => drawPortrait(t));
 }
 
 export function emblemURL(f: FactionId): string {
@@ -111,4 +123,86 @@ export function vistaURL(s: Settlement, owner: FactionId): string {
     }
     return P.canvas;
   });
+}
+
+/** Иконка предмета: вырезка из спрайта манекена в этом предмете. */
+export function itemIconURL(it: Item, faction: FactionId): string {
+  return memo(`it_${it.id}_${faction}`, () => {
+    const f = FACTIONS[faction];
+    const L: UnitLook = {
+      culture: faction,
+      tier: 2,
+      helmet: 'none',
+      cloth: hex(f.color),
+      cloth2: hex(f.color2),
+      armor: '#c8b890',
+      weapon: 'mace',
+      shield: false,
+      mounted: false,
+      heavy: false,
+      seed: 3,
+      body: 'cloth',
+      tabard: false,
+    };
+    let crop: [number, number, number, number] = [0, 0, FRAME_W, FRAME_H];
+    switch (it.slot) {
+      case 'head':
+        L.helmet = it.helmet ?? 'hood';
+        L.helmetMetal = it.metal;
+        crop = [12, 6, 20, 20];
+        break;
+      case 'body':
+        L.body = it.body ?? 'cloth';
+        L.armor = it.metal ?? (it.body === 'leather' ? '#8a6a45' : '#c8b890');
+        L.tabard = it.tabard;
+        L.tier = it.body === 'plate' ? 4 : 3;
+        crop = [11, 14, 24, 24];
+        break;
+      case 'hands':
+        L.gauntlets = it.metal ?? '#7a5535';
+        L.weapon = 'sword';
+        crop = [16, 24, 18, 18];
+        break;
+      case 'legs':
+        L.greaves = it.metal ?? '#5a3a22';
+        crop = [12, 30, 22, 22];
+        break;
+      case 'weapon':
+        L.weapon = it.weapon ?? 'mace';
+        crop = [4, 0, 48, 48];
+        break;
+      case 'shield':
+        L.shield = true;
+        crop = [14, 20, 22, 22];
+        break;
+      case 'horse':
+        L.mounted = true;
+        L.horseColor = it.horseColor;
+        L.heavy = !!it.barding;
+        L.armor = '#9aa0a8';
+        crop = [0, 4, FRAME_W, 48];
+        break;
+    }
+    const sheet = drawUnitSheet(L);
+    const size = 24;
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext('2d')!;
+    ctx.imageSmoothingEnabled = false;
+    const [x, y, w, hh] = crop;
+    const k = Math.min(size / w, size / hh);
+    ctx.drawImage(sheet, x, y, w, hh, (size - w * k) / 2, (size - hh * k) / 2, w * k, hh * k);
+    return c;
+  });
+}
+
+/** Крупный спрайт героя (кадр стойки) для окна героя. */
+export function heroFigureURL(look: UnitLook): string {
+  const sheet = drawUnitSheet(look);
+  const c = document.createElement('canvas');
+  c.width = FRAME_W;
+  c.height = FRAME_H;
+  c.getContext('2d')!.drawImage(sheet, 0, 0, FRAME_W, FRAME_H, 0, 0, FRAME_W, FRAME_H);
+  return c.toDataURL();
 }
