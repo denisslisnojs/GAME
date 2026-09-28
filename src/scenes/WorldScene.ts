@@ -8,6 +8,7 @@ import { hint, openHelp, resetHints } from '../ui/hints';
 import { enemyArmy, playerArmy } from '../battle/setup';
 import { Battle, type Formation } from '../battle/sim';
 import type { BattleTerrain } from '../battle/background';
+import { prewarmBattleTerrain } from './BattleScene';
 import { applyBattle, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
 import { questsDaily } from '../game/quests';
 import { isPlagued, plagueDaily } from '../game/plague';
@@ -244,6 +245,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.updateHud();
     resetHints();
     hint(state, 'start');
+    // Фон боя для местности вокруг отряда рисуется заранее, в свободное время
+    prewarmBattleTerrain(this.textures, [this.battleTerrain()]);
   }
 
   /** GameCtx: сохранить и обновить интерфейс. */
@@ -814,6 +817,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const attacked = this.targetParty?.id !== p.id;
     this.targetParty = null;
     hint(this.state, 'battle');
+    prewarmBattleTerrain(this.textures, [this.battleTerrain()]); // пока игрок читает окно встречи
     if (this.state.party.troops.reduce((s, t) => s + t.count, 0) === 0 && attacked) {
       // Героя без отряда разбойники просто грабят
       const lost = Math.floor(this.state.gold * 0.3);
@@ -908,6 +912,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
   /** GameCtx: начать осаду вражеской крепости, у стен которой стоит отряд. */
   startSiege(s: Settlement) {
+    prewarmBattleTerrain(this.textures, [this.battleTerrain()]);
     const { garrison, lords } = siegeDefenders(this.state, s);
     if (troopCount(garrison) + lords.reduce((n, l) => n + troopCount(l.troops), 0) === 0) {
       capture(this.state, s, this.state.hero.faction, true);
@@ -948,6 +953,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
   /** GameCtx: разорить вражескую деревню (бой с ополчением). */
   startRaid(s: Settlement) {
+    prewarmBattleTerrain(this.textures, [this.battleTerrain()]);
     if (isLooted(this.state, s.id)) {
       toast('Здесь уже нечего брать', 2500);
       return;

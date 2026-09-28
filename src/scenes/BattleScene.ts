@@ -7,6 +7,7 @@ import { FIELD_W, FIELD_Y0, MID_Y, WALL_X, type Battle, type BattleEvent, type B
 import type { FactionId } from '../data/factions';
 import { drawUnitSheet, FRAME_H, FRAME_W, type UnitLook } from '../gfx/units';
 import { BattleHud } from '../ui/battleHud';
+import { resetHints } from '../ui/hints';
 
 export interface BattleSceneData {
   battle: Battle;
@@ -42,6 +43,32 @@ interface Particle {
   color: number;
   size: number;
   gravity: number;
+}
+
+const LAYER_PAD = 900;
+const LAYER_W = (FIELD_W + LAYER_PAD * 2) / 2;
+
+/** Слои фона местности: ключ текстуры и как её нарисовать. */
+function terrainLayers(t: BattleTerrain): { key: string; make: () => HTMLCanvasElement }[] {
+  return [
+    { key: `bg_sky_${t}`, make: () => drawSky(t, LAYER_W, 260) },
+    { key: `bg_far_${t}`, make: () => drawFar(t, LAYER_W, 90) },
+    { key: `bg_mid_${t}`, make: () => drawMid(t, LAYER_W, 60) },
+    { key: `bg_ground_${t}`, make: () => drawGround(t, LAYER_W, (WORLD_H - GROUND_Y + 200) / 2) },
+  ];
+}
+
+/** Заранее нарисовать фоны местности в свободное время (по слою за раз), чтобы бой открывался без паузы. */
+export function prewarmBattleTerrain(textures: Phaser.Textures.TextureManager, terrains: BattleTerrain[]) {
+  const jobs = terrains.flatMap(terrainLayers).filter((j) => !textures.exists(j.key));
+  const idle = (fn: () => void) => ((window as unknown as { requestIdleCallback?: (f: () => void) => void }).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 50)))(fn);
+  const next = () => {
+    const j = jobs.shift();
+    if (!j) return;
+    if (!textures.exists(j.key)) textures.addCanvas(j.key, j.make());
+    idle(next);
+  };
+  idle(next);
 }
 
 export class BattleScene extends Phaser.Scene {
@@ -114,18 +141,20 @@ export class BattleScene extends Phaser.Scene {
       sfx.crowdStop();
     });
     if (this.cfg.arena) sfx.crowdStart();
+    resetHints(); // советы не должны висеть поверх боя
 
     // Фон
     const t = this.cfg.terrain;
     // Слои шире поля: при отдалении камеры края не должны оголяться
     const PAD = 900;
     const W = (FIELD_W + PAD * 2) / SCALE;
-    this.addLayer(`bg_sky_${t}`, () => drawSky(t, W, 260), -PAD, -120, 0.1);
-    this.addLayer(`bg_far_${t}`, () => drawFar(t, W, 90), -PAD, GROUND_Y - 180 + 10, 0.3);
+    const L = terrainLayers(t);
+    this.addLayer(L[0].key, L[0].make, -PAD, -120, 0.1);
+    this.addLayer(L[1].key, L[1].make, -PAD, GROUND_Y - 180 + 10, 0.3);
     const arena = this.cfg.arena;
     if (arena) this.addLayer(`bg_arena_${arena.colors.join('')}`, () => drawArena(W, 60, arena.colors), -PAD, GROUND_Y - 120 + 8, 0.6);
-    else this.addLayer(`bg_mid_${t}`, () => drawMid(t, W, 60), -PAD, GROUND_Y - 120 + 8, 0.6);
-    this.addLayer(`bg_ground_${t}`, () => drawGround(t, W, (WORLD_H - GROUND_Y + 200) / SCALE), -PAD, GROUND_Y, 1);
+    else this.addLayer(L[2].key, L[2].make, -PAD, GROUND_Y - 120 + 8, 0.6);
+    this.addLayer(L[3].key, L[3].make, -PAD, GROUND_Y, 1);
     if (!this.textures.exists('stake')) this.textures.addCanvas('stake', drawStake());
 
     if (this.battle.siege && this.cfg.wall) {
