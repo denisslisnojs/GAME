@@ -2,6 +2,7 @@ import { SAVE_KEY, START_YEAR } from '../config';
 import { FACTION_IDS, INITIAL_WARS, FACTIONS, type FactionId } from '../data/factions';
 import type { GoodId } from '../data/goods';
 import { cavRecruitOf, peasantOf } from '../data/troops';
+import type { MapParty } from './parties';
 import { spawnPointNear, world, type Settlement } from './world';
 
 export interface TroopStack {
@@ -38,6 +39,11 @@ export interface GameState {
   wars: [FactionId, FactionId][];
   /** Где отряд стоит лагерем/в поселении (для «Продолжить»). */
   visiting?: string;
+  /** Отряды на карте (разбойники, разъезды). */
+  parties?: MapParty[];
+  nextPartyId?: number;
+  /** Статистика побед и поражений. */
+  stats?: { won: number; lost: number; killed: number };
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {

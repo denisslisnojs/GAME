@@ -19,7 +19,7 @@ export interface TroopLook {
 export interface TroopDef {
   id: string;
   name: string;
-  faction: FactionId;
+  faction: FactionId | 'outlaw';
   tier: 1 | 2 | 3 | 4;
   line: TroopLine;
   role: TroopRole;
@@ -217,7 +217,90 @@ function damageTypeOf(w: Weapon): DamageType {
   }
 }
 
-export const TROOPS: Record<string, TroopDef> = buildTroops();
+function outlaw(id: string, name: string, o: Partial<TroopDef> & { look: TroopLook }): TroopDef {
+  return {
+    id,
+    name,
+    faction: 'outlaw',
+    tier: 1,
+    line: 'infantry',
+    role: 'melee',
+    hp: 40,
+    armor: { cut: 0.05, pierce: 0.04, blunt: 0.03 },
+    damage: 8,
+    damageType: damageTypeOf(o.look.weapon),
+    attackTime: 1.5,
+    range: 0,
+    speed: 1.0,
+    crit: 0.07,
+    dodge: 0.12,
+    block: o.look.shield ? 0.12 : 0,
+    hireCost: 0,
+    upgradeCost: 0,
+    xpToUpgrade: 0,
+    upgradesTo: [],
+    description: '',
+    ...o,
+  };
+}
+
+const OUTLAWS: TroopDef[] = [
+  outlaw('outlaw_bandit', 'Разбойник', {
+    look: { helmet: 'hood', cloth: '#6a3a2a', armor: '#6a5a40', weapon: 'mace', shield: false },
+    description: 'Лесной грабитель с дубиной. Опасен только толпой.',
+  }),
+  outlaw('outlaw_archer', 'Разбойник-лучник', {
+    tier: 2,
+    role: 'ranged',
+    hp: 50,
+    damage: 11,
+    range: 65,
+    attackTime: 2.3,
+    look: { helmet: 'hood', cloth: '#4a5a32', armor: '#5a4a38', weapon: 'bow', shield: false },
+    description: 'Бьёт из засады и сразу уходит в чащу.',
+  }),
+  outlaw('outlaw_leader', 'Главарь шайки', {
+    tier: 3,
+    hp: 90,
+    damage: 17,
+    armor: { cut: 0.25, pierce: 0.2, blunt: 0.12 },
+    look: { helmet: 'nasal', cloth: '#5a2a22', armor: '#8a8f96', weapon: 'axe', shield: true },
+    description: 'Бывший наёмник, ставший атаманом.',
+  }),
+  outlaw('outlaw_pirate', 'Морской разбойник', {
+    tier: 2,
+    hp: 60,
+    damage: 13,
+    armor: { cut: 0.1, pierce: 0.08, blunt: 0.06 },
+    look: { helmet: 'cap', cloth: '#2a3a5a', armor: '#6a5a40', weapon: 'axe', shield: true },
+    description: 'Грабит берега с быстрых ладей.',
+  }),
+  outlaw('outlaw_raider', 'Степной налётчик', {
+    tier: 2,
+    line: 'cavalry',
+    role: 'ranged',
+    hp: 75,
+    damage: 12,
+    range: 55,
+    attackTime: 2.0,
+    speed: 2.3,
+    dodge: 0.15,
+    look: { helmet: 'fur', cloth: '#7a5a32', armor: '#6a4a2c', weapon: 'bow', shield: false },
+    description: 'Налетает, осыпает стрелами и исчезает в степи.',
+  }),
+  outlaw('outlaw_desert', 'Пустынный разбойник', {
+    tier: 2,
+    line: 'cavalry',
+    hp: 80,
+    damage: 15,
+    speed: 2.2,
+    armor: { cut: 0.1, pierce: 0.08, blunt: 0.06 },
+    look: { helmet: 'turban', cloth: '#3a3028', armor: '#8a7a5a', weapon: 'sabre', shield: true },
+    description: 'Всадник пустыни, грабящий караваны.',
+  }),
+];
+
+export const TROOPS: Record<string, TroopDef> = { ...buildTroops(), ...Object.fromEntries(OUTLAWS.map((t) => [t.id, t])) };
 
 export function peasantOf(faction: FactionId): string {
   return `${faction}_i1`;

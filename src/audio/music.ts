@@ -1,12 +1,13 @@
 // Процедурная средневековая музыка на WebAudio.
 // «Спокойная» тема для меню и карты: лютня (Карплус-Стронг), флейта с вибрато, тихий бурдон.
 // Мелодия сочиняется на лету в ре-дорийском ладу, размер 3/4.
+// «Боевая» тема: барабаны, остинато баса и «медь» в ре миноре, размер 4/4.
 
-type Mode = 'off' | 'calm';
+type Mode = 'off' | 'calm' | 'battle';
 
 interface NoteEv {
   beat: number;
-  inst: 'lute' | 'flute' | 'bass';
+  inst: 'lute' | 'flute' | 'bass' | 'tom' | 'snare' | 'horn' | 'bassSaw';
   midi: number;
   dur: number;
   vel: number;
@@ -14,6 +15,13 @@ interface NoteEv {
 
 const BEATS_PER_BAR = 3;
 const DORIAN = [0, 2, 3, 5, 7, 9, 10]; // от ре
+const AEOLIAN = [0, 2, 3, 5, 7, 8, 10];
+/** Боевые последовательности аккордов (ступени натурального минора): Dm Bb C Dm и т.п. */
+const BATTLE_PROGS = [
+  [0, 5, 6, 0],
+  [0, 3, 4, 0],
+  [0, 5, 3, 4],
+];
 const ROOT = 50; // D3
 
 /** Аккорды как ступени лада (0 — Dm, 6 — C, 4 — Am, 2 — F, 3 — G). */
@@ -28,6 +36,12 @@ function degreeToMidi(deg: number, base = ROOT): number {
   const oct = Math.floor(deg / 7);
   const d = ((deg % 7) + 7) % 7;
   return base + oct * 12 + DORIAN[d];
+}
+
+function aeolian(deg: number, base: number): number {
+  const oct = Math.floor(deg / 7);
+  const d = ((deg % 7) + 7) % 7;
+  return base + oct * 12 + AEOLIAN[d];
 }
 
 function mtof(m: number): number {
@@ -91,13 +105,17 @@ class MusicEngine {
     if (mode !== 'off') this.start(mode);
   }
 
-  private start(_mode: Mode) {
+  private start(mode: Mode) {
     const ctx = this.ctx!;
     this.musicBus.gain.cancelScheduledValues(ctx.currentTime);
     this.musicBus.gain.setValueAtTime(0, ctx.currentTime);
-    this.musicBus.gain.linearRampToValueAtTime(1, ctx.currentTime + 2.5);
-    this.startDrone();
-    this.newPiece(ctx.currentTime + 0.3);
+    this.musicBus.gain.linearRampToValueAtTime(1, ctx.currentTime + (mode === 'battle' ? 0.8 : 2.5));
+    if (mode === 'battle') {
+      this.newBattlePiece(ctx.currentTime + 0.2);
+    } else {
+      this.startDrone();
+      this.newPiece(ctx.currentTime + 0.3);
+    }
     this.timer = window.setInterval(() => this.schedule(), 120);
   }
 
@@ -272,7 +290,10 @@ class MusicEngine {
     }
     if (this.evIdx >= this.events.length) {
       const end = this.pieceStart + this.pieceBeats * spb;
-      if (end < horizon) this.newPiece(end);
+      if (end < horizon) {
+        if (this.mode === 'battle') this.newBattlePiece(end);
+        else this.newPiece(end);
+      }
     }
   }
 
@@ -284,7 +305,173 @@ class MusicEngine {
         return this.lute(e.midi, t, e.vel * 0.9, 1400);
       case 'flute':
         return this.flute(e.midi, t, dur, e.vel);
+      case 'tom':
+        return this.tom(t, e.midi, e.vel);
+      case 'snare':
+        return this.snare(t, e.vel);
+      case 'horn':
+        return this.hornNote(e.midi, t, dur, e.vel);
+      case 'bassSaw':
+        return this.bassSaw(e.midi, t, dur, e.vel);
     }
+  }
+
+  // ───────────── боевая тема ─────────────
+
+  private newBattlePiece(startTime: number) {
+    const ev: NoteEv[] = [];
+    const B = 4;
+    this.bpm = 118 + Math.floor(Math.random() * 12);
+    const prog = BATTLE_PROGS[Math.floor(Math.random() * BATTLE_PROGS.length)];
+    const melody = this.battlePhrase(prog);
+    const melody2 = this.battlePhrase(prog);
+    // Форма: 2 такта барабанов, A, A, B, A
+    const plan: (NoteEv[] | null)[] = [null, melody, melody, melody2, melody];
+    let bar = 0;
+    for (let si = 0; si < plan.length; si++) {
+      const bars = si === 0 ? 2 : prog.length;
+      for (let i = 0; i < bars; i++) {
+        const b0 = (bar + i) * B;
+        const chord = si === 0 ? 0 : prog[i];
+        const fill = i === bars - 1;
+        // Барабаны: низкий «тайко» и малый
+        const toms = fill ? [0, 1, 1.5, 2, 2.5, 3, 3.25, 3.5, 3.75] : [0, 0.75, 1.5, 2, 3, 3.5];
+        for (const t of toms) ev.push({ beat: b0 + t, inst: 'tom', midi: t % 1 === 0 ? 0 : 1, dur: 0.3, vel: t === 0 ? 1 : 0.7 });
+        for (const t of [1, 3]) ev.push({ beat: b0 + t, inst: 'snare', midi: 0, dur: 0.1, vel: 0.6 });
+        if (si > 0) {
+          // Бас: восьмые по тонике с октавным скачком
+          const root = aeolian(chord, 38);
+          for (let k = 0; k < 8; k++) ev.push({ beat: b0 + k * 0.5, inst: 'bassSaw', midi: k % 4 === 3 ? root + 12 : root, dur: 0.45, vel: k % 2 ? 0.5 : 0.7 });
+        }
+      }
+      const mel = plan[si];
+      if (mel) for (const n of mel) ev.push({ ...n, beat: n.beat + bar * B });
+      bar += bars;
+    }
+    this.events = ev.sort((a, b) => a.beat - b.beat);
+    this.evIdx = 0;
+    this.pieceStart = startTime;
+    this.pieceBeats = bar * B;
+  }
+
+  private battlePhrase(chords: number[]): NoteEv[] {
+    const out: NoteEv[] = [];
+    const rhythms = [[1.5, 0.5, 2], [1, 1, 2], [0.5, 0.5, 1, 2], [2, 1, 1], [1.5, 0.5, 1, 1]];
+    let deg = 7;
+    chords.forEach((c, bar) => {
+      const r = bar === chords.length - 1 ? [3, 1] : rhythms[Math.floor(Math.random() * rhythms.length)];
+      let t = bar * 4;
+      r.forEach((dur, i) => {
+        if (i === 0) {
+          const tones = [c, c + 2, c + 4, c + 7, c + 9];
+          deg = tones.reduce((best, x) => (Math.abs(x - deg) < Math.abs(best - deg) && x >= 4 && x <= 12 ? x : best), tones[0] + 7);
+        } else {
+          deg = Math.max(4, Math.min(12, deg + [-2, -1, 1, 1, 2][Math.floor(Math.random() * 5)]));
+        }
+        if (bar === chords.length - 1 && i === r.length - 1) deg = c + 7;
+        out.push({ beat: t, inst: 'horn', midi: aeolian(deg, 50), dur: dur * 0.9, vel: 0.6 });
+        t += dur;
+      });
+    });
+    return out;
+  }
+
+  private tom(t: number, hi: number, vel: number) {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    const f = hi ? 110 : 70;
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f * 1.8, t);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.08);
+    g.gain.setValueAtTime(0.5 * vel, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+    o.connect(g);
+    g.connect(this.musicBus);
+    g.connect(this.reverb);
+    o.start(t);
+    o.stop(t + 0.5);
+    // «кожа» — короткий шум
+    const n = ctx.createBufferSource();
+    n.buffer = this.noiseBuffer();
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 900;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.12 * vel, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    n.connect(lp);
+    lp.connect(ng);
+    ng.connect(this.musicBus);
+    n.start(t);
+    n.stop(t + 0.1);
+  }
+
+  private snare(t: number, vel: number) {
+    const ctx = this.ctx!;
+    const n = ctx.createBufferSource();
+    n.buffer = this.noiseBuffer();
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'bandpass';
+    hp.frequency.value = 1800;
+    hp.Q.value = 0.8;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.14 * vel, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    n.connect(hp);
+    hp.connect(g);
+    g.connect(this.musicBus);
+    g.connect(this.reverb);
+    n.start(t);
+    n.stop(t + 0.18);
+  }
+
+  private hornNote(midi: number, t: number, dur: number, vel: number) {
+    const ctx = this.ctx!;
+    const f = mtof(midi);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 2;
+    lp.frequency.setValueAtTime(f * 1.5, t);
+    lp.frequency.linearRampToValueAtTime(f * 5, t + 0.12);
+    lp.frequency.linearRampToValueAtTime(f * 3, t + dur);
+    const g = ctx.createGain();
+    const peak = 0.075 * vel;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(peak, t + 0.06);
+    g.gain.setValueAtTime(peak * 0.85, t + Math.max(0.07, dur - 0.08));
+    g.gain.linearRampToValueAtTime(0, t + dur + 0.1);
+    lp.connect(g);
+    g.connect(this.musicBus);
+    g.connect(this.reverb);
+    for (const [mul, det] of [[1, -6], [1, 6], [0.5, 0]] as [number, number][]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f * mul;
+      o.detune.value = det;
+      o.connect(lp);
+      o.start(t);
+      o.stop(t + dur + 0.15);
+    }
+  }
+
+  private bassSaw(midi: number, t: number, dur: number, vel: number) {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = mtof(midi);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(700, t);
+    lp.frequency.exponentialRampToValueAtTime(220, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.09 * vel, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp);
+    lp.connect(g);
+    g.connect(this.musicBus);
+    o.start(t);
+    o.stop(t + dur + 0.02);
   }
 
   private luteBuffer(midi: number): AudioBuffer {

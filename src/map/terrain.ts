@@ -163,8 +163,9 @@ export function inDesert(lon: number, lat: number): boolean {
 
 function biomeAt(lon0: number, lat0: number, n1: number, n2: number, forestNoise: number, edge: number, h: number): Terrain {
   // Шум «размывает» границы климатических поясов.
-  const lon = lon0 + (n1 - 0.5) * 3;
-  const lat = lat0 + (n2 - 0.5) * 2;
+  // Крупный шум изгибает пояса, мелкий (edge) делает их край рваным, а не прямым.
+  const lon = lon0 + (n1 - 0.5) * 3 + (edge - 0.5) * 1.8;
+  const lat = lat0 + (n2 - 0.5) * 2 + (edge - 0.5) * 1.2;
 
   if (lat > 70.3) return T.SNOW;
   if (lat > 66.8) return T.TUNDRA;

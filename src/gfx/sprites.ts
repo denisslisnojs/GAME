@@ -311,34 +311,84 @@ export function allSettlementTextures(): { key: string; canvas: HTMLCanvasElemen
 
 // ───────────────────────── отряды на карте ─────────────────────────
 
-/** Всадник со знаменем, 2 кадра шага. */
-export function drawRider(main: string, sec: string, frame: 0 | 1, player: boolean): HTMLCanvasElement {
-  const P = new Pix(18, 18);
-  const pal: Record<string, string> = {
-    h: '#7a4f2e', H: '#5a3820', m: '#2a1f18', s: '#e0b48a', c: main, C: shade(main, -0.3), k: '#9aa0a8', K: '#6a7078',
-    p: '#3b2f25', B: main, b: sec, g: '#e8c04a',
+const RIDER_BODY = [
+  '................p.........',
+  '................pBBBBBB...',
+  '................pBbbbbB...',
+  '................pBBbBBB...',
+  '................pBBBBB....',
+  '..........kkk...p.........',
+  '.........kkkkK..p.........',
+  '.........Ksses..p.........',
+  '..........ssss.sp.........',
+  '.........cgcCCssp....mm...',
+  '........ccgcCC..p...mmhh..',
+  '........cccccC..p..mhhhhh.',
+  '..mm....LcccCL..p.mhhhhehh',
+  '.mmhhhhhLhhhhLhhhhhhhh..Hn',
+  '.mhlllllLllllLlllhhhh.....',
+  '.m.hhhhhhhhhhhhhhhhH......',
+  '.m.hhhhhhhhhhhhhhhhH......',
+  '...HhhhhhhhhhhhhhhHH......',
+  '....HHHhhhhhhhhHHH........',
+];
+const RIDER_LEGS = [
+  ['....hH.hH......hH.hH......', '....hH.hH......hH.hH......', '....hH.hH......hH.hH......', '....nn.nn......nn.nn......'],
+  ['...hH...hH....hH...hH.....', '..hH.....hH..hH.....hH....', '.hH.......hH.hH......hH...', '.nn.......nn.nn......nn...'],
+];
+
+/** Всадник со знаменем на карте, 2 кадра шага. banner=false — без знамени (разбойники). */
+export function drawRider(main: string, sec: string, frame: 0 | 1, player: boolean, banner = true, horse = '#8a5a32'): HTMLCanvasElement {
+  const P = new Pix(26, 25);
+  const pal: Record<string, string | null> = {
+    h: horse, H: shade(horse, -0.32), l: shade(horse, 0.2), m: '#2a1f18', e: OUT, n: OUT,
+    s: '#e0b48a', c: main, C: shade(main, -0.3), g: sec, k: '#b0b6be', K: '#6a7078', L: '#4a3220',
+    p: banner ? (player ? '#e8c04a' : '#4a3520') : null, B: banner ? main : null, b: banner ? sec : null,
   };
-  const legs0 = ['..h..h...h..h.....', '..H..H...H..H.....'];
-  const legs1 = ['...h.h....h.h.....', '...H.H....H.H.....'];
-  P.pattern(0, 0, [
-    '.............p....',
-    '.............pBBBB',
-    '.............pBbbB',
-    '.............pBBBB',
-    '.......kk....p....',
-    '.......kK....p....',
-    '.......ss...pp....',
-    '......cccc.pp.....',
-    '......cCcCp.......',
-    '..hhhhccCchhm.....',
-    '.hhhhhhhhhhhhm....',
-    'mhhhhhhhhhhhhhs...',
-    '.HhhhhhhhhhhHH....',
-    '..HhhhhhhhhhH.....',
-  ], pal);
-  P.pattern(0, 14, frame === 0 ? legs0 : legs1, pal);
-  if (player) P.pattern(0, 16, ['.gg..........gg...'], pal);
+  P.pattern(0, 0, RIDER_BODY, pal);
+  P.pattern(0, 19, RIDER_LEGS[frame], pal);
   P.outline(OUT);
+  // тень под конём
+  P.rect(3, 23, 20, 1, 'rgba(0,0,0,0.28)');
+  P.rect(5, 24, 16, 1, 'rgba(0,0,0,0.18)');
+  return P.canvas;
+}
+
+/** Пешая шайка разбойников: три фигуры в капюшонах. */
+export function drawBandits(frame: 0 | 1, hood = '#5a2a22'): HTMLCanvasElement {
+  const P = new Pix(26, 20);
+  const fig = (x: number, y: number, cloth: string, weapon: 'club' | 'bow' | 'axe', f: number) => {
+    const pal: Record<string, string> = {
+      h: hood, H: shade(hood, -0.3), s: '#dcb08a', c: cloth, C: shade(cloth, -0.3), w: '#7a5332', W: '#5a5f66', L: '#3a2a1e',
+    };
+    P.pattern(x, y, [
+      '..hhh...',
+      '.hhhhh..',
+      '.Hssh...',
+      '..ss....',
+      '.cccc...',
+      'ccCccs..',
+      'c.cCc...',
+      '..cCc...',
+      f ? '..c.c...' : '.c..c...',
+      f ? '..c.c...' : '.c...c..',
+      f ? '.LL.LL..' : 'LL...LL.',
+    ], pal);
+    if (weapon === 'club') {
+      P.vline(x + 6, y + 2, y + 6, '#7a5332');
+      P.rect(x + 6, y + 1, 2, 2, '#5a3a22');
+    } else if (weapon === 'axe') {
+      P.vline(x + 6, y + 2, y + 7, '#7a5332');
+      P.rect(x + 7, y + 2, 1, 3, '#9aa0a8');
+    } else {
+      for (let t = 0; t < 9; t++) P.p(x + 6 + (t > 1 && t < 7 ? 1 : 0), y + t, '#7a5332');
+    }
+  };
+  fig(1, 6, '#6a5a40', 'club', frame);
+  fig(16, 5, '#5a4a3a', 'bow', frame ^ 1);
+  fig(8, 8, '#7a6048', 'axe', frame);
+  P.outline(OUT);
+  P.rect(2, 19, 22, 1, 'rgba(0,0,0,0.25)');
   return P.canvas;
 }
 
@@ -367,7 +417,7 @@ export function drawBoat(main: string, sec: string, frame: 0 | 1): HTMLCanvasEle
 
 // ───────────────────────── портреты воинов ─────────────────────────
 
-const SKIN: Record<FactionId, string> = { aurelia: '#e8bf98', nordmark: '#f0c8a8', horde: '#d8a878', sultanate: '#c89068' };
+const SKIN: Record<FactionId | 'outlaw', string> = { aurelia: '#e8bf98', nordmark: '#f0c8a8', horde: '#d8a878', sultanate: '#c89068', outlaw: '#dcb08a' };
 
 /** Портрет-бюст воина 24×24 для интерфейса. */
 export function drawPortrait(t: TroopDef): HTMLCanvasElement {
@@ -543,7 +593,7 @@ export function drawPortrait(t: TroopDef): HTMLCanvasElement {
     P.rect(2, 22, 4, 1, cloth);
     P.vline(1, 14, 21, shade(cloth, 0.2));
     P.vline(6, 14, 21, shade(cloth, -0.3));
-    P.rect(3, 16, 2, 3, FACTIONS[t.faction].css2);
+    P.rect(3, 16, 2, 3, t.faction === 'outlaw' ? '#3a2a1e' : FACTIONS[t.faction].css2);
   }
   P.outline(OUT);
   return P.canvas;

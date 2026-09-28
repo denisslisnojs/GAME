@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body style="background:#6b8a45;margin:8px">
+<script type="module">
+import { drawUnitSheet } from '/src/gfx/units.ts';
+import { troopLook, heroLook } from '/src/battle/looks.ts';
+import { TROOPS } from '/src/data/troops.ts';
+import { drawRider, drawBandits } from '/src/gfx/sprites.ts';
+const ids = new URLSearchParams(location.search).get('ids')?.split(',') ?? Object.keys(TROOPS);
+const scale = +(new URLSearchParams(location.search).get('s') ?? 3);
+const add = (c, s=scale) => { c.style.width = c.width*s+'px'; c.style.imageRendering='pixelated'; c.style.display='block'; c.style.marginBottom='2px'; document.body.append(c); };
+if (ids[0]==='map') { const row=document.createElement('div'); for (const c of [drawRider('#3a6cc4','#e8c04a',0,true), drawRider('#c24040','#f0ece0',1,false), drawRider('#5a2a22','#000',0,false,false,'#5e3a22'), drawBandits(0), drawBandits(1)]) { c.style.width=c.width*6+'px'; c.style.imageRendering='pixelated'; c.style.margin='6px'; row.append(c);} document.body.append(row); }
+else { if (ids.includes('hero')) add(drawUnitSheet(heroLook('aurelia')));
+for (const id of ids) if (TROOPS[id]) add(drawUnitSheet(troopLook(TROOPS[id]))); }
+window.__done = true;
+</script></body></html>

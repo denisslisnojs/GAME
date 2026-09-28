@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import './styles.css';
 import { music } from './audio/music';
+import { world } from './game/world';
+import { BattleScene } from './scenes/BattleScene';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
 import { loadSettings } from './ui/screens';
@@ -31,8 +33,8 @@ const game = new Phaser.Game({
   },
   input: { activePointers: 3 },
   fps: { target: 60 },
-  scene: [BootScene, WorldScene],
+  scene: [BootScene, WorldScene, BattleScene],
 });
 
 // Для автотестов в режиме разработки
-if (import.meta.env.DEV) (window as unknown as { __game: Phaser.Game }).__game = game;
+if (import.meta.env.DEV) Object.assign(window, { __game: game, __world: world });

@@ -3,13 +3,19 @@ import { music } from '../audio/music';
 import { ART_SCALE, GRID_H, GRID_W, PARTY_SPEED, SECONDS_PER_DAY, TILE, WORLD_H, WORLD_W } from '../config';
 import { FACTIONS, type FactionId } from '../data/factions';
 import { settlementTextureKey } from '../gfx/sprites';
-import { canEnter, dailyTick, ownerOf, relationTo } from '../game/logic';
+import { atWar, canEnter, dailyTick, ownerOf, relationTo } from '../game/logic';
+import { enemyArmy, playerArmy } from '../battle/setup';
+import { Battle, type Formation } from '../battle/sim';
+import type { BattleTerrain } from '../battle/background';
+import { applyBattle, enemyDisplayColor, retreat } from '../game/battleResult';
+import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
 import { hasSave, loadGame, newGame, saveGame, type GameState } from '../game/state';
 import { isWaterCell, world, type Settlement } from '../game/world';
 import { cellCenterWorld, geoToWorld, worldToCell } from '../map/geo';
 import { findPath, smoothPath } from '../map/pathfinding';
 import { computeTerritory, drawTerritory } from '../map/territory';
-import { TERRAIN_COST, TERRAIN_NAME } from '../map/terrain';
+import { T, TERRAIN_COST, TERRAIN_NAME } from '../map/terrain';
+import { openBattleResult, openEncounter } from '../ui/encounter';
 import { btn, h, openModal, panel, toast, uiRoot } from '../ui/dom';
 import { Hud } from '../ui/hud';
 import { openParty, openRealms, openSettlement, type GameCtx } from '../ui/panels';
@@ -39,6 +45,10 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   private marker!: Phaser.GameObjects.Graphics;
 
   private settleSprites = new Map<string, Phaser.GameObjects.Image>();
+  private partySprites = new Map<number, { s: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; frameT: number; frame: number }>();
+  private targetParty: MapParty | null = null;
+  private targetRepath = 0;
+  private inBattle = false;
   private labels: { t: Phaser.GameObjects.Text; s: Settlement }[] = [];
   private territoryCanvas!: HTMLCanvasElement;
   private tooltip: HTMLElement | null = null;
@@ -104,6 +114,12 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.hud?.destroy();
     this.hud = null;
     this.party.setVisible(false);
+    for (const v of this.partySprites.values()) {
+      v.s.destroy();
+      v.label.destroy();
+    }
+    this.partySprites.clear();
+    this.targetParty = null;
     this.pathGfx.clear();
     this.marker.clear();
     this.path = [];
@@ -174,6 +190,10 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.path = [];
     this.targetSettlement = null;
     this.refreshOwnership();
+    resetPartyRuntime();
+    this.targetParty = null;
+    state.parties ??= [];
+    if (!state.parties.length) for (let i = 0; i < 6; i++) dailySpawn(state);
     this.party.setVisible(true).setPosition(state.party.x, state.party.y);
     this.updatePartyTexture(0);
     const cam = this.cameras.main;
@@ -388,6 +408,19 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
   private hover(p: Phaser.Input.Pointer) {
     const wp = this.cameras.main.getWorldPoint(p.x, p.y);
+    const mp = this.modals === 0 ? this.partyAt(wp.x, wp.y) : null;
+    if (mp) {
+      if (!this.tooltip) {
+        this.tooltip = h('div', { class: 'tooltip' });
+        document.body.append(this.tooltip);
+      }
+      const r = powerRatio(this.state, mp);
+      const verdict = r < 0.5 ? 'слабее вас' : r < 0.9 ? 'чуть слабее' : r < 1.2 ? 'равны по силе' : 'сильнее вас';
+      this.tooltip.replaceChildren(h('b', { style: `color:${enemyDisplayColor(mp)}` }, mp.name), ` · ${partyCount(mp)} ⚔ · ${verdict}`);
+      this.tooltip.style.left = `${p.x + 14}px`;
+      this.tooltip.style.top = `${p.y + 14}px`;
+      return;
+    }
     const s = this.modals === 0 ? this.settlementAt(wp.x, wp.y) : null;
     if (!s) {
       this.tooltip?.remove();
@@ -411,6 +444,21 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   }
 
   private onTap(x: number, y: number) {
+    const mp = this.partyAt(x, y);
+    if (mp) {
+      const hostile = mp.kind !== 'patrol' || atWar(this.state, mp.faction as FactionId, this.state.hero.faction);
+      if (!hostile) {
+        toast(`${mp.name}: мирный отряд`);
+        return;
+      }
+      const c = worldToCell(mp.x, mp.y);
+      this.goTo(c.cx, c.cy, null);
+      this.targetParty = mp;
+      this.targetRepath = 0;
+      toast(`Преследуем: ${mp.name}`);
+      return;
+    }
+    this.targetParty = null;
     const s = this.settlementAt(x, y);
     if (s) {
       this.goTo(s.cx, s.cy, s);
@@ -426,7 +474,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.goTo(cx, cy, null);
   }
 
-  private goTo(cx: number, cy: number, target: Settlement | null) {
+  private goTo(cx: number, cy: number, target: Settlement | null, quiet = false) {
     const start = worldToCell(this.party.x, this.party.y);
     if (start.cx === cx && start.cy === cy && target) {
       this.arrive(target);
@@ -434,7 +482,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     }
     const raw = findPath(world.map.cost, start.cx, start.cy, cx, cy);
     if (!raw) {
-      toast('Туда не найти дороги');
+      if (!quiet) toast('Туда не найти дороги');
       return;
     }
     const cells = smoothPath(world.map.cost, isWaterCell, raw);
@@ -505,10 +553,27 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       while (Math.floor(this.state.time) > this.state.lastDay) {
         this.state.lastDay++;
         dailyTick(this.state);
+        dailySpawn(this.state);
         this.commit();
       }
       if (moving) this.moveParty(dtDays);
+      // Преследование выбранного отряда
+      if (this.targetParty) {
+        const tp = this.targetParty;
+        if (!(this.state.parties ?? []).includes(tp)) this.targetParty = null;
+        else {
+          this.targetRepath -= dtDays;
+          if (this.targetRepath <= 0) {
+            this.targetRepath = 0.1;
+            const c = worldToCell(tp.x, tp.y);
+            this.goTo(c.cx, c.cy, null, true);
+          }
+        }
+      }
+      const met = updateParties(this.state, dtDays, this.targetParty?.id ?? null);
+      if (met && !this.inBattle) this.encounter(met);
     }
+    this.syncParties(deltaMs);
 
     // Анимация шага
     if (moving) {
@@ -558,6 +623,158 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       this.commit();
       if (s) this.arrive(s);
     }
+  }
+
+  // ───────────────────────── отряды на карте ─────────────────────────
+
+  private partyTexture(p: MapParty, frame: number): string {
+    switch (p.kind) {
+      case 'raiders':
+        return `raider_${frame}`;
+      case 'desert':
+        return `desertr_${frame}`;
+      case 'pirates':
+        return `band_p_${frame}`;
+      case 'deserters':
+        return `band_d_${frame}`;
+      case 'patrol':
+        return `rider_${p.faction}_${frame}`;
+      default:
+        return `band_${frame}`;
+    }
+  }
+
+  private syncParties(deltaMs: number) {
+    const list = this.state.parties ?? [];
+    const alive = new Set(list.map((p) => p.id));
+    for (const [id, v] of this.partySprites) {
+      if (!alive.has(id)) {
+        v.s.destroy();
+        v.label.destroy();
+        this.partySprites.delete(id);
+      }
+    }
+    const z = this.cameras.main.zoom;
+    const k = Phaser.Math.Clamp(1 / z, 0.6, 6);
+    for (const p of list) {
+      let v = this.partySprites.get(p.id);
+      if (!v) {
+        const s = this.add.sprite(p.x, p.y, this.partyTexture(p, 0)).setOrigin(0.5, 0.9).setScale(ART_SCALE);
+        const hostile = p.kind !== 'patrol' || atWar(this.state, p.faction as FactionId, this.state.hero.faction);
+        const label = this.add
+          .text(p.x, p.y + 6, '', { fontFamily: '"Kurale", Georgia, serif', fontSize: '13px', color: hostile ? '#ffb8a0' : '#e8e0c8', stroke: '#1a1410', strokeThickness: 4 })
+          .setOrigin(0.5, 0)
+          .setResolution(Math.min(3, window.devicePixelRatio || 1))
+          .setDepth(9990);
+        v = { s, label, frameT: 0, frame: 0 };
+        this.partySprites.set(p.id, v);
+      }
+      const r = partyRuntime(p);
+      if (r.moving && !this.paused && this.modals === 0) {
+        v.frameT += deltaMs * this.speed;
+        if (v.frameT > 200) {
+          v.frameT = 0;
+          v.frame ^= 1;
+        }
+      }
+      v.s.setTexture(this.partyTexture(p, v.frame)).setPosition(p.x, p.y).setFlipX(r.facing < 0).setDepth(p.y);
+      v.label.setText(`${p.name} · ${partyCount(p)}`).setPosition(p.x, p.y + 8).setScale(k).setVisible(z > 0.35);
+    }
+  }
+
+  private partyAt(x: number, y: number): MapParty | null {
+    const cam = this.cameras.main;
+    const r = Math.max(40, 22 / cam.zoom);
+    let best: MapParty | null = null;
+    let bestD = Infinity;
+    for (const p of this.state?.parties ?? []) {
+      const d = Math.hypot(p.x - x, p.y - 40 - y);
+      if (d < r && d < bestD) {
+        best = p;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  private battleTerrain(): BattleTerrain {
+    const { cx, cy } = worldToCell(this.party.x, this.party.y);
+    const t = world.map.terrain[cy * GRID_W + cx];
+    if (t === T.STEPPE) return 'steppe';
+    if (t === T.DESERT) return 'desert';
+    if (t === T.SNOW || t === T.TUNDRA) return 'snow';
+    if (t === T.FOREST || t === T.TAIGA || t === T.JUNGLE) return 'forest';
+    if (t === T.DRY || t === T.HILLS || t === T.MOUNTAIN) return 'dry';
+    return 'grass';
+  }
+
+  private encounter(p: MapParty) {
+    this.path = [];
+    this.targetSettlement = null;
+    this.pathGfx.clear();
+    this.marker.clear();
+    const attacked = this.targetParty?.id !== p.id;
+    this.targetParty = null;
+    if (this.state.party.troops.reduce((s, t) => s + t.count, 0) === 0 && attacked) {
+      // Героя без отряда разбойники просто грабят
+      const lost = Math.floor(this.state.gold * 0.3);
+      this.state.gold -= lost;
+      p.calmUntil = this.state.time + 1;
+      toast(`${p.name} ограбили вас: −${lost} ¤. Наймите воинов!`, 4000);
+      this.commit();
+      return;
+    }
+    this.modal(() =>
+      openEncounter(this.state, p, attacked, {
+        fight: (f) => this.startBattle(p, f, false),
+        auto: (f) => this.startBattle(p, f, true),
+        retreat: () => {
+          const { lost } = retreat(this.state, p);
+          if (lost.length) toast(`Отступили, но потеряли ${lost.reduce((s, l) => s + l.n, 0)} воинов арьергарда`, 3500);
+          else toast('Вы ушли от погони');
+          this.commit();
+        },
+      }),
+    );
+  }
+
+  private startBattle(p: MapParty, formation: Formation, auto: boolean) {
+    const battle = new Battle([playerArmy(this.state, formation), enemyArmy(p.name, p.faction, p.troops)]);
+    if (auto) {
+      battle.runToEnd();
+      this.finishBattle(battle, p);
+      return;
+    }
+    this.inBattle = true;
+    this.hud?.setVisible(false);
+    this.tooltip?.remove();
+    this.tooltip = null;
+    this.scene.launch('battle', {
+      battle,
+      terrain: this.battleTerrain(),
+      heroFaction: this.state.hero.faction,
+      enemyName: p.name,
+      enemyColor: enemyDisplayColor(p),
+      onFinish: (b: Battle) => {
+        this.scene.stop('battle');
+        this.scene.wake();
+        this.inBattle = false;
+        this.hud?.setVisible(true);
+        music.play('calm');
+        this.finishBattle(b, p);
+      },
+    });
+    this.scene.sleep();
+  }
+
+  private finishBattle(b: Battle, p: MapParty) {
+    const res = applyBattle(this.state, b, p);
+    if (!res.won) {
+      this.party.setPosition(this.state.party.x, this.state.party.y);
+      this.cameras.main.centerOn(this.state.party.x, this.state.party.y);
+    }
+    this.commit();
+    this.modal(() => openBattleResult(this.state, res, p.name, () => this.commit()));
   }
 
   private updatePartyTexture(frame: number) {

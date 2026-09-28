@@ -284,7 +284,7 @@ export function openParty(ctx: GameCtx) {
             h('div', { class: 'row', style: 'gap:8px' },
               h('span', { class: 'name' }, t.name),
               h('span', { class: 'stars' }, stars(t.tier)),
-              t.faction !== state.hero.faction ? h('span', { style: `font-size:12px;color:${FACTIONS[t.faction].css}` }, FACTIONS[t.faction].short) : null,
+              t.faction !== state.hero.faction && t.faction !== 'outlaw' ? h('span', { style: `font-size:12px;color:${FACTIONS[t.faction].css}` }, FACTIONS[t.faction].short) : null,
             ),
             troopStats(t),
             t.upgradesTo.length

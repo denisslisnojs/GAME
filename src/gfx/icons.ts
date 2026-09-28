@@ -79,7 +79,17 @@ export function vistaURL(s: Settlement, owner: FactionId): string {
     // Само поселение
     const spr = s.type === 'town' ? drawTown(s.culture, owner) : s.type === 'castle' ? drawCastle(s.culture, owner) : drawVillage(s.culture, owner);
     const ctx = P.canvas.getContext('2d')!;
-    ctx.drawImage(spr, Math.floor(64 - spr.width / 2), 45 - spr.height);
+    ctx.imageSmoothingEnabled = false;
+    if (s.type === 'village') {
+      // Деревня мелкая: показываем крупнее, с полями вокруг
+      for (let i = 0; i < 3; i++) {
+        const fx = 14 + i * 34;
+        for (let y = 46; y < 54; y++) P.hline(fx, fx + 22, y, y % 2 ? '#c9b35a' : '#a8983f');
+      }
+      ctx.drawImage(spr, Math.floor(64 - spr.width), 47 - spr.height * 2, spr.width * 2, spr.height * 2);
+    } else {
+      ctx.drawImage(spr, Math.floor(64 - spr.width / 2), 45 - spr.height);
+    }
     // Деревья по бокам
     for (let i = 0; i < 6; i++) {
       const x = i < 3 ? 8 + i * 12 + Math.floor(hash2(i, 5, s.cx) * 6) : 84 + (i - 3) * 13 + Math.floor(hash2(i, 6, s.cy) * 6);

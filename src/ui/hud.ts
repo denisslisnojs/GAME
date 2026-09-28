@@ -82,6 +82,10 @@ export class Hud {
     this.night.style.opacity = dark.toFixed(3);
   }
 
+  setVisible(v: boolean) {
+    this.root.style.display = v ? '' : 'none';
+  }
+
   destroy() {
     this.root.remove();
   }
