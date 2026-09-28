@@ -2,6 +2,7 @@
 // Логика без Phaser. Бои между ИИ считаются той же симуляцией (автобой).
 
 import { strength } from '../battle/setup';
+import type { ArmyDef } from '../battle/sim';
 import { GRID_W, TILE } from '../config';
 import { FACTIONS, FACTION_IDS, type FactionId } from '../data/factions';
 import { LORDS } from '../data/lords';
@@ -521,6 +522,8 @@ export function warUpdate(state: GameState, dtDays: number, targetId: number | n
       if (b.lord!.status !== 'active' || a.faction === b.faction || state.time < (b.lord!.truceUntil ?? 0)) continue;
       if (!atWar(state, a.faction as FactionId, b.faction as FactionId)) continue;
       if (Math.hypot(a.x - b.x, a.y - b.y) / TILE > 1.6) continue;
+      // Рядом с игроком бой ИИ не считается: игрок сам вступит в него
+      if (Math.hypot(a.x - state.party.x, a.y - state.party.y) / TILE < 4 || Math.hypot(b.x - state.party.x, b.y - state.party.y) / TILE < 4) continue;
       // Союзники поблизости вступают в бой
       const sideA = lords.filter((l) => l.faction === a.faction && l.lord!.status === 'active' && Math.hypot(l.x - a.x, l.y - a.y) / TILE < 4);
       const sideB = lords.filter((l) => l.faction === b.faction && l.lord!.status === 'active' && Math.hypot(l.x - b.x, l.y - b.y) / TILE < 4);
@@ -531,6 +534,22 @@ export function warUpdate(state: GameState, dtDays: number, targetId: number | n
     }
   }
   return met;
+}
+
+/** Союзные лорды рядом с точкой (в клетках): вступают в бой на стороне игрока. */
+export function alliesNear(state: GameState, x: number, y: number, cells: number): MapParty[] {
+  return activeLords(state, state.hero.faction).filter((l) => Math.hypot(l.x - x, l.y - y) / TILE < cells);
+}
+
+/** Лорды державы f рядом с точкой, кроме exclude. */
+export function lordsNear(state: GameState, f: FactionId, x: number, y: number, cells: number, exclude?: MapParty): MapParty[] {
+  return activeLords(state, f).filter((l) => l !== exclude && Math.hypot(l.x - x, l.y - y) / TILE < cells);
+}
+
+/** Добавить войска союзников в армию игрока (ключи A<i>|<id>, чтобы потери легли на лордов). */
+export function withAllies(army: ArmyDef, allies: MapParty[]): ArmyDef {
+  allies.forEach((l, i) => l.troops.forEach((t) => army.troops.push({ id: t.id, count: t.count, key: `A${i}|${t.id}` })));
+  return army;
 }
 
 /** Состав обороняющихся для осады игроком: гарнизон и лорды рядом. */

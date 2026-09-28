@@ -9,6 +9,7 @@ import { KIND_INFO, type MapParty } from '../game/parties';
 import { dateString, type GameState } from '../game/state';
 import { world, type Settlement } from '../game/world';
 import { canTurnIn, fiefIncome, questProgress } from '../game/quests';
+import { mergeTroops } from '../game/war';
 import { FACTIONS } from '../data/factions';
 import { btn, h, img, openModal, panel, plural } from './dom';
 
@@ -34,10 +35,13 @@ export function openEncounter(
   party: MapParty,
   attackedByThem: boolean,
   on: { fight: (f: Formation) => void; auto: (f: Formation) => void; retreat: () => void },
+  extra: { allies: MapParty[]; others: MapParty[] } = { allies: [], others: [] },
 ) {
   let close = () => {};
-  const mine = strength(state.party.troops, true);
-  const theirs = strength(party.troops);
+  const allyTroops = extra.allies.flatMap((l) => l.troops);
+  const otherTroops = extra.others.flatMap((l) => l.troops);
+  const mine = strength(state.party.troops, true) + strength(allyTroops);
+  const theirs = strength(party.troops) + strength(otherTroops);
   const pct = Math.round((mine / (mine + theirs)) * 100);
   const count = (list: { count: number }[]) => list.reduce((s, t) => s + t.count, 0);
   const verdict = pct > 70 ? 'Лёгкая добыча' : pct > 55 ? 'Перевес на нашей стороне' : pct > 45 ? 'Силы равны' : pct > 30 ? 'Враг сильнее' : 'Смертельно опасно';
@@ -70,12 +74,14 @@ export function openEncounter(
       'div',
       { class: 'body col' },
       h('div', { class: 'muted', style: 'font-size:13px' }, KIND_INFO[party.kind].about),
+      extra.allies.length ? h('div', { style: 'color:#7ad06a;font-size:13px' }, `На вашей стороне: ${extra.allies.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
+      extra.others.length ? h('div', { style: 'color:#e07a6a;font-size:13px' }, `К врагу подходят: ${extra.others.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
       h(
         'div',
         { class: 'versus' },
-        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Ваш отряд · ${count(state.party.troops) + 1}`), armyList(state.party.troops, state.hero.name, state.hero.faction, heroPortraitURL(state))),
+        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Ваш отряд · ${count(state.party.troops) + 1 + count(allyTroops)}`), armyList(state.party.troops, state.hero.name, state.hero.faction, heroPortraitURL(state))),
         h('div', { class: 'vs' }, 'VS'),
-        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `${party.name} · ${count(party.troops)}`), armyList(party.troops)),
+        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `${party.name} · ${count(party.troops) + count(otherTroops)}`), armyList(mergeTroops([party.troops, otherTroops]))),
       ),
       h(
         'div',
@@ -154,6 +160,7 @@ export function openSiegeDialog(
   garrison: { id: string; count: number }[],
   lords: MapParty[],
   on: { assault: () => void; auto: () => void },
+  allies: MapParty[] = [],
 ) {
   let close = () => {};
   const owner = state.settlements[s.id].owner;
@@ -164,7 +171,8 @@ export function openSiegeDialog(
     if (x) x.count += t.count;
     else merged.push({ id: t.id, count: t.count });
   }
-  const mine = strength(state.party.troops, true);
+  const allyTroops = allies.flatMap((l) => l.troops);
+  const mine = strength(state.party.troops, true) + strength(allyTroops);
   const theirs = strength(merged) * 1.35; // стены удваивают стойкость
   const pct = Math.round((mine / (mine + theirs)) * 100);
   const count = (list: { count: number }[]) => list.reduce((a, t) => a + t.count, 0);
@@ -177,10 +185,11 @@ export function openSiegeDialog(
       { class: 'body col' },
       h('div', { class: 'muted', style: 'font-size:13px' }, 'Лучники на стенах бьют дальше и укрыты зубцами. Пока пехота держит ворота, на стены не взобраться. Взятая крепость отойдёт вашему государю.'),
       lords.length ? h('div', { style: 'color:#e07a6a;font-size:13px' }, `В крепости укрылись: ${lords.map((l) => l.name).join(', ')}`) : null,
+      allies.length ? h('div', { style: 'color:#7ad06a;font-size:13px' }, `С вами на штурм идут: ${allies.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
       h(
         'div',
         { class: 'versus' },
-        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Ваш отряд · ${count(state.party.troops) + 1}`), armyList(state.party.troops, state.hero.name, state.hero.faction, heroPortraitURL(state))),
+        h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Ваш отряд · ${count(state.party.troops) + 1 + count(allyTroops)}`), armyList(state.party.troops, state.hero.name, state.hero.faction, heroPortraitURL(state))),
         h('div', { class: 'vs' }, 'VS'),
         h('div', { class: 'col' }, h('div', { class: 'col-title' }, `Защитники · ${count(merged)}`), armyList(merged)),
       ),

@@ -9,7 +9,7 @@ import { Battle, type Formation } from '../battle/sim';
 import type { BattleTerrain } from '../battle/background';
 import { applyBattle, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
 import { questsDaily } from '../game/quests';
-import { activeLords, capture, placeName, initWar, isLooted, mergeTroops, onNews, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
+import { activeLords, alliesNear, capture, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
 import { hasSave, loadGame, newGame, saveGame, type GameState } from '../game/state';
 import { heroLook } from '../game/hero';
@@ -784,25 +784,30 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       this.commit();
       return;
     }
+    // Кто рядом вступит в бой: союзные лорды за нас, лорды той же державы — за врага
+    const allies = p.kind === 'bandits' || p.faction === 'outlaw' || p.kind === 'lord' || p.kind === 'patrol' ? alliesNear(this.state, this.party.x, this.party.y, 3) : [];
+    const others = p.kind === 'lord' ? lordsNear(this.state, p.faction as FactionId, p.x, p.y, 3, p) : [];
     this.modal(() =>
       openEncounter(this.state, p, attacked, {
-        fight: (f) => this.startBattle(p, f, false),
-        auto: (f) => this.startBattle(p, f, true),
+        fight: (f) => this.startBattle(p, f, false, allies, others),
+        auto: (f) => this.startBattle(p, f, true, allies, others),
         retreat: () => {
           const { lost } = retreat(this.state, p);
           if (lost.length) toast(`Отступили, но потеряли ${lost.reduce((s, l) => s + l.n, 0)} воинов арьергарда`, 3500);
           else toast('Вы ушли от погони');
           this.commit();
         },
-      }),
+      }, { allies, others }),
     );
   }
 
-  private startBattle(p: MapParty, formation: Formation, auto: boolean) {
-    const battle = new Battle([playerArmy(this.state, formation), enemyArmy(p.name, p.faction, p.troops)]);
-    this.runBattle(battle, auto, { enemyName: p.name, enemyColor: enemyDisplayColor(p) }, (b) => {
-      const res = applyBattle(this.state, b, p);
-      this.afterBattle(res, p.name);
+  private startBattle(p: MapParty, formation: Formation, auto: boolean, allies: MapParty[] = [], others: MapParty[] = []) {
+    const name = others.length ? `${p.name} и союзники` : p.name;
+    const enemy = enemyArmy(name, p.faction, others.length ? mergeTroops([p.troops, ...others.map((o) => o.troops)]) : p.troops);
+    const battle = new Battle([withAllies(playerArmy(this.state, formation), allies), enemy]);
+    this.runBattle(battle, auto, { enemyName: name, enemyColor: enemyDisplayColor(p) }, (b) => {
+      const res = applyBattle(this.state, b, p, allies, others);
+      this.afterBattle(res, name);
     });
   }
 
@@ -874,11 +879,12 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       this.checkOutcome();
       return;
     }
+    const allies = alliesNear(this.state, s.x, s.y, 6);
     this.modal(() =>
       openSiegeDialog(this.state, s, garrison, lords, {
         assault: () => this.assault(s, false),
         auto: () => this.assault(s, true),
-      }),
+      }, allies),
     );
   }
 
@@ -892,9 +898,10 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const { garrison, lords } = siegeDefenders(this.state, s);
     const def = enemyArmy(`Гарнизон: ${s.name}`, owner, mergeTroops([garrison, ...lords.map((l) => l.troops)]));
     def.morale = 115;
-    const battle = new Battle([playerArmy(this.state, 'classic'), def], 0, { siege: true });
+    const allies = alliesNear(this.state, s.x, s.y, 6);
+    const battle = new Battle([withAllies(playerArmy(this.state, 'classic'), allies), def], 0, { siege: true });
     this.runBattle(battle, auto, { enemyName: s.name, enemyColor: f.css, wall: { culture: s.culture, color: f.css, color2: f.css2 } }, (b) => {
-      const res = applySiege(this.state, b, s, garrison, lords);
+      const res = applySiege(this.state, b, s, garrison, lords, allies);
       this.afterBattle(res, `Гарнизон ${s.name}`);
     });
   }

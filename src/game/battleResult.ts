@@ -7,7 +7,7 @@ import { dismiss } from './logic';
 import { KIND_INFO, removeParty, type MapParty } from './parties';
 import type { GameState } from './state';
 import { capture, defeatLord, distributeLosses, news, placeName, type Troops } from './war';
-import { onPartyDefeated, onVillageRaided } from './quests';
+import { addRelation, onPartyDefeated, onVillageRaided } from './quests';
 import { spawnPointNear, world, type Settlement } from './world';
 
 export interface AppliedResult {
@@ -45,7 +45,7 @@ interface EnemyInfo {
 }
 
 /** Общая часть: наши потери и опыт, потери врага, трофеи или отступление. */
-function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo): AppliedResult {
+function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies: MapParty[] = []): AppliedResult {
   const won = battle.winner === battle.playerSide;
   const ours = battle.summary(battle.playerSide);
   const theirs = battle.summary(battle.playerSide === 0 ? 1 : 0);
@@ -53,6 +53,13 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo): Appli
   const ourLosses: AppliedResult['ourLosses'] = [];
   let troopXp = 0;
   for (const [id, s] of ours.stacks) {
+    if (/^A\d+\|/.test(id)) {
+      // Потери союзных лордов
+      const [a, tid] = id.split('|');
+      const t = allies[+a.slice(1)]?.troops.find((x) => x.id === tid);
+      if (t) t.count = Math.max(0, t.count - s.dead);
+      continue;
+    }
     let killed = 0;
     for (let i = 0; i < s.dead; i++) if (Math.random() < 0.62) killed++;
     const wounded = s.dead - killed;
@@ -77,6 +84,7 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo): Appli
   }
   distributeLosses(dead, enemy.lists);
 
+  for (const l of allies) l.troops = l.troops.filter((t) => t.count > 0);
   const res: AppliedResult = { won, heroWounded: ours.heroDead, ourLosses, enemyKilled, enemyTotal, gold: 0, goods: {}, heroXp: 0, levelUp: 0, troopXp, lostGold: 0, items: [] };
   state.stats ??= { won: 0, lost: 0, killed: 0 };
   state.stats.killed += enemyKilled;
@@ -147,18 +155,23 @@ export function gainHeroXp(state: GameState, xp: number): number {
 const ITEM_CHANCE: Record<string, number> = { bandits: 0.14, raiders: 0.2, desert: 0.22, pirates: 0.16, deserters: 0.35, patrol: 0.45, lord: 0.8 };
 const ITEM_CAP: Record<string, number> = { bandits: 2, raiders: 3, desert: 3, pirates: 2, deserters: 3, patrol: 4, lord: 5 };
 
-/** Бой с отрядом на карте (разбойники, разъезд, лорд). */
-export function applyBattle(state: GameState, battle: Battle, party: MapParty): AppliedResult {
+/** Бой с отрядом на карте (разбойники, разъезд, лорд). others — вражеские лорды, вступившие в бой. */
+export function applyBattle(state: GameState, battle: Battle, party: MapParty, allies: MapParty[] = [], others: MapParty[] = []): AppliedResult {
   const res = applyOutcome(state, battle, {
-    lists: [party.troops],
+    lists: [party.troops, ...others.map((o) => o.troops)],
     gold: party.gold,
     loot: party.loot,
     itemChance: ITEM_CHANCE[party.kind] ?? 0.1,
     itemCap: ITEM_CAP[party.kind] ?? 2,
     culture: party.faction === 'outlaw' ? null : party.faction,
     bonusGoods: party.kind === 'patrol' || party.kind === 'deserters' || party.kind === 'lord',
-  });
+  }, allies);
+  afterAllies(state, allies, res.won, party.faction);
   if (res.won) {
+    for (const o of others) {
+      onPartyDefeated(state, o);
+      defeatLord(state, o, 'player');
+    }
     onPartyDefeated(state, party);
     if (party.kind === 'lord') {
       defeatLord(state, party, 'player');
@@ -172,7 +185,7 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty): 
 }
 
 /** Штурм крепости игроком. */
-export function applySiege(state: GameState, battle: Battle, s: Settlement, garrison: Troops, lords: MapParty[]): AppliedResult {
+export function applySiege(state: GameState, battle: Battle, s: Settlement, garrison: Troops, lords: MapParty[], allies: MapParty[] = []): AppliedResult {
   const owner = state.settlements[s.id].owner;
   const res = applyOutcome(state, battle, {
     lists: [garrison, ...lords.map((l) => l.troops)],
@@ -182,7 +195,8 @@ export function applySiege(state: GameState, battle: Battle, s: Settlement, garr
     itemCap: s.type === 'town' ? 5 : 4,
     culture: owner,
     bonusGoods: true,
-  });
+  }, allies);
+  afterAllies(state, allies, res.won, owner);
   if (res.won) {
     for (const l of lords) if (l.lord?.status === 'active') defeatLord(state, l, 'player');
     capture(state, s, state.hero.faction, true);
@@ -193,6 +207,14 @@ export function applySiege(state: GameState, battle: Battle, s: Settlement, garr
     news(state, `Гарнизон отбил штурм: ${placeName(s)} устоял. ${state.hero.name} отступает.`, 'player');
   }
   return res;
+}
+
+/** Союзники: при победе благодарны герою, при поражении разбиты вместе с ним. */
+function afterAllies(state: GameState, allies: MapParty[], won: boolean, enemy: FactionId | 'outlaw') {
+  for (const l of allies) {
+    if (won) addRelation(state, `lord:${l.lord!.name}`, 3);
+    else if (l.lord?.status === 'active' && enemy !== 'outlaw') defeatLord(state, l, enemy);
+  }
 }
 
 /** Разорение деревни. */
