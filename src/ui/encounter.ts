@@ -21,6 +21,14 @@ const FORMATIONS: { id: Formation; name: string; hint: string }[] = [
 
 let lastFormation: Formation = 'classic';
 
+/** Итог поединка перед боем: поправки к духу армий и здоровью героя. */
+export interface DuelMods {
+  ours: number;
+  theirs: number;
+  heroHp: number;
+  won: boolean;
+}
+
 function armyList(troops: { id: string; count: number }[], heroName?: string, heroFaction?: string, heroPortrait?: string) {
   const box = h('div', { class: 'army-list' });
   if (heroName && heroFaction) box.append(h('div', { class: 'row' }, img(heroPortrait ?? portraitURL(`${heroFaction}_c3m`)), h('span', { class: 'gold' }, heroName), h('span', { class: 'muted' }, 'герой')));
@@ -34,9 +42,10 @@ export function openEncounter(
   state: GameState,
   party: MapParty,
   attackedByThem: boolean,
-  on: { fight: (f: Formation) => void; auto: (f: Formation) => void; retreat: () => void },
-  extra: { allies: MapParty[]; others: MapParty[] } = { allies: [], others: [] },
+  on: { fight: (f: Formation, mods?: DuelMods) => void; auto: (f: Formation, mods?: DuelMods) => void; retreat: () => void; duel?: () => void },
+  extra: { allies: MapParty[]; others: MapParty[]; duel?: DuelMods; ambush?: boolean } = { allies: [], others: [] },
 ) {
+  const mods = extra.duel;
   let close = () => {};
   const allyTroops = extra.allies.flatMap((l) => l.troops);
   const otherTroops = extra.others.flatMap((l) => l.troops);
@@ -74,6 +83,8 @@ export function openEncounter(
       'div',
       { class: 'body col' },
       h('div', { class: 'muted', style: 'font-size:13px' }, KIND_INFO[party.kind].about),
+      extra.ambush ? h('div', { style: 'color:#e07a6a;font-size:13px' }, 'Засада! Разбойники выскочили из чащи — строй не успел сомкнуться.') : null,
+      mods ? h('div', { style: `color:${mods.won ? '#7ad06a' : '#e07a6a'};font-size:13px` }, mods.won ? 'Вы победили в поединке: враг пал духом, ваши воины ликуют.' : 'Вы проиграли поединок: герой изранен, воины приуныли.') : null,
       extra.allies.length ? h('div', { style: 'color:#7ad06a;font-size:13px' }, `На вашей стороне: ${extra.allies.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
       extra.others.length ? h('div', { style: 'color:#e07a6a;font-size:13px' }, `К врагу подходят: ${extra.others.map((l) => `${l.name} (${count(l.troops)})`).join(', ')}`) : null,
       h(
@@ -97,8 +108,9 @@ export function openEncounter(
       fBox,
       h('div', { class: 'grow' }),
       btn('Отступить', () => { close(); on.retreat(); }, 'ghost', false, fast ? 'Враг быстрее: арьергард понесёт потери' : 'Уйти без боя'),
-      btn('Автобой', () => { close(); on.auto(formation); }),
-      btn('В бой!', () => { close(); on.fight(formation); }, 'primary'),
+      on.duel && !mods ? btn('Вызвать на поединок', () => { close(); on.duel!(); }, '', false, 'Один на один с вожаком: победа сломит дух врага') : null,
+      btn('Автобой', () => { close(); on.auto(formation, mods); }),
+      btn('В бой!', () => { close(); on.fight(formation, mods); }, 'primary'),
     ),
   );
   close = openModal(content, { closeOnBack: false });

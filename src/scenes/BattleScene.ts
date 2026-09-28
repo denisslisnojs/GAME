@@ -3,7 +3,7 @@ import { sfx } from '../audio/sfx';
 import { music } from '../audio/music';
 import { drawArena, drawFar, drawGround, drawMid, drawSky, drawStake, drawWall, type BattleTerrain } from '../battle/background';
 import { lookKey, troopLook } from '../battle/looks';
-import { FIELD_W, FIELD_Y0, MID_Y, WALL_X, type Battle, type BattleEvent, type BUnit } from '../battle/sim';
+import { FIELD_W, FIELD_Y0, FORD_HALF, FORD_X, MID_Y, WALL_X, type Battle, type BattleEvent, type BUnit } from '../battle/sim';
 import type { FactionId } from '../data/factions';
 import { drawUnitSheet, FEET_Y, FRAME_H, FRAME_W, type UnitLook } from '../gfx/units';
 import { BattleHud } from '../ui/battleHud';
@@ -86,6 +86,8 @@ export class BattleScene extends Phaser.Scene {
   private floats: { t: Phaser.GameObjects.Text; life: number }[] = [];
   private particles: Particle[] = [];
   private smokePuffs: Particle[] = [];
+  private dust: Particle[] = [];
+  private nightG: Phaser.GameObjects.Graphics | null = null;
   private hud!: BattleHud;
   private speed = 1;
   private paused = false;
@@ -109,6 +111,8 @@ export class BattleScene extends Phaser.Scene {
     this.floats = [];
     this.particles = [];
     this.smokePuffs = [];
+    this.dust = [];
+    this.nightG = null;
     this.stakeImgs = [];
     this.heroLabel = null;
     this.compLabels = new Map();
@@ -165,6 +169,8 @@ export class BattleScene extends Phaser.Scene {
       this.add.image(WALL_X - 20, WALL_TOP - 48, key).setOrigin(0, 0).setScale(SCALE).setDepth(380);
       this.ladders = this.add.graphics().setDepth(390);
     }
+    if (this.battle.opts.ford && !this.battle.siege) this.drawFord();
+    this.nightG = this.battle.opts.night && !this.cfg.arena ? this.add.graphics().setDepth(5450).setScrollFactor(0) : null;
     this.shadows = this.add.graphics().setDepth(1);
     this.fx = this.add.graphics().setDepth(5000);
     this.overlay = this.add.graphics().setDepth(6000);
@@ -198,9 +204,57 @@ export class BattleScene extends Phaser.Scene {
       },
     });
     music.play('battle');
+    // Условия поля — коротко в начале боя
+    const o = this.battle.opts;
+    const tips: string[] = [];
+    if (o.ambush) tips.push('Засада!');
+    if (o.night && !this.cfg.arena) tips.push('Ночь: стрелки бьют вслепую');
+    if (o.ford && !this.battle.siege) tips.push('Брод: в реке все вязнут');
+    if (o.terrain === 'forest') tips.push('Лес: конница вязнет, стрелы путаются в ветвях');
+    else if (o.terrain === 'snow') tips.push('Снег: войска идут медленнее');
+    else if (o.terrain === 'dry') tips.push('Холмы: стрелки бьют дальше');
+    if (tips.length) this.time.delayedCall(500, () => this.hud.banner(tips.join(' · ')));
+    if (o.ambush) sfx.play('horn');
     const front = this.battle.units.filter((u) => u.side === 0).reduce((m, u) => Math.max(m, u.x), 0);
     cam.scrollX = front + 300 - cam.width / 2;
     this.fitCamera();
+  }
+
+  /** Брод: река поперёк поля, мелкая вода с камнями. */
+  private drawFord() {
+    const g = this.add.graphics().setDepth(0.5);
+    const top = FIELD_Y0 - 30;
+    const bot = 640;
+    const w0 = FORD_HALF * 0.8;
+    const w1 = FORD_HALF * 1.25;
+    const skew = 40;
+    const x = FORD_X;
+    // Берега
+    g.fillStyle(0x5a4a30, 1);
+    g.fillPoints([{ x: x - w0 - 10 - skew, y: top }, { x: x + w0 + 10 - skew, y: top }, { x: x + w1 + 14, y: bot }, { x: x - w1 - 14, y: bot }], true);
+    // Вода
+    g.fillStyle(0x3b6a8f, 0.95);
+    g.fillPoints([{ x: x - w0 - skew, y: top }, { x: x + w0 - skew, y: top }, { x: x + w1, y: bot }, { x: x - w1, y: bot }], true);
+    // Блики и рябь
+    for (let i = 0; i < 70; i++) {
+      const t = Math.random();
+      const y = top + t * (bot - top);
+      const half = w0 + (w1 - w0) * t;
+      const cx = x - skew * (1 - t) + (Math.random() - 0.5) * half * 1.7;
+      g.fillStyle(Math.random() < 0.5 ? 0x7fb0d0 : 0x5d8fb3, 0.9);
+      g.fillRect(Math.round(cx), Math.round(y), 6 + Math.random() * 10, 2);
+    }
+    // Камни брода
+    for (let i = 0; i < 26; i++) {
+      const t = Math.random();
+      const y = top + t * (bot - top);
+      const half = w0 + (w1 - w0) * t;
+      const cx = x - skew * (1 - t) + (Math.random() - 0.5) * half * 1.6;
+      g.fillStyle(0x8a8a80, 1);
+      g.fillEllipse(cx, y, 8 + Math.random() * 6, 4);
+      g.fillStyle(0xb0b0a8, 1);
+      g.fillEllipse(cx - 1, y - 1, 4, 2);
+    }
   }
 
   private addLayer(key: string, make: () => HTMLCanvasElement, x: number, y: number, sf: number) {
@@ -430,6 +484,15 @@ export class BattleScene extends Phaser.Scene {
 
   /** Дождь или снег в экранных координатах. */
   private drawWeather(dt: number) {
+    if (this.nightG) {
+      const cam = this.cameras.main;
+      const z = cam.zoom;
+      const W = cam.width;
+      const H = cam.height;
+      this.nightG.clear();
+      this.nightG.fillStyle(0x08102e, 0.52);
+      this.nightG.fillRect((0 - W / 2) / z + W / 2, (0 - H / 2) / z + H / 2, W / z, H / z);
+    }
     const g = this.weatherG;
     if (!g) return;
     g.clear();
@@ -496,6 +559,12 @@ export class BattleScene extends Phaser.Scene {
       else s.clearTint();
       // тень
       const cav = u.troop.line === 'cavalry';
+      // Пыль (или снежная крошка) из-под копыт
+      if (cav && u.state === 'walk' && dt > 0 && Math.random() < dt * 7 && this.dust.length < 90) {
+        const t = this.cfg.terrain;
+        const col = t === 'snow' ? 0xf2f4f8 : t === 'desert' || t === 'steppe' || t === 'dry' ? 0xc8b07a : 0xa89a80;
+        this.dust.push({ x: u.x - u.facing * 24 + (Math.random() - 0.5) * 16, y: u.y - 4, vx: -u.facing * (10 + Math.random() * 20), vy: -8 - Math.random() * 10, life: 0.9, max: 0.9, color: col, size: 6 + Math.random() * 8, gravity: 0 });
+      }
       if (!onTop) {
         g.fillStyle(0x000000, 0.22);
         g.fillEllipse(u.x, u.y + 1, cav ? 66 : 30, 8);
@@ -606,6 +675,14 @@ export class BattleScene extends Phaser.Scene {
       f.fillCircle(p.x, p.y, p.size * (1.2 - p.life / p.max / 2));
     }
     this.smokePuffs = this.smokePuffs.filter((p) => p.life > 0);
+    for (const p of this.dust) {
+      p.life -= dtReal;
+      p.x += p.vx * dtReal;
+      p.y += p.vy * dtReal;
+      f.fillStyle(p.color, Math.max(0, Math.min(0.35, p.life / p.max * 0.4)));
+      f.fillCircle(p.x, p.y, p.size * (1.3 - p.life / p.max / 2));
+    }
+    this.dust = this.dust.filter((p) => p.life > 0);
 
     // Всплывающие надписи
     for (const fl of this.floats) {
@@ -649,6 +726,7 @@ export class BattleScene extends Phaser.Scene {
           break;
         case 'block':
           this.burst(e.x + 10, e.y - 45, 0xfff0b0, 5, 110);
+          this.burst(e.x + 8, e.y - 40, 0x8a6a45, 3, 90); // щепки от щита
           if (Math.random() < 0.5) this.floatText(e.x, e.y - 90, 'Блок', '#9ad0ff');
           sfx.play('block');
           break;

@@ -6,10 +6,14 @@ import { settlementTextureKey } from '../gfx/sprites';
 import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo, totalReady } from '../game/logic';
 import { hint, openHelp, resetHints } from '../ui/hints';
 import { enemyArmy, playerArmy } from '../battle/setup';
-import { Battle, type Formation } from '../battle/sim';
+import { Battle, type BattleOpts, type Formation } from '../battle/sim';
+import { nearRiver } from '../map/rivers';
+import type { DuelMods } from '../ui/encounter';
+import { TROOPS } from '../data/troops';
+import { FIELD_W } from '../battle/sim';
 import type { BattleTerrain } from '../battle/background';
 import { prewarmBattleTerrain } from './BattleScene';
-import { applyBattle, applyDefense, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
+import { applyBattle, applyDefense, gainHeroXp, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
 import { questsDaily } from '../game/quests';
 import { companionDeed, companionsDaily, partySkill, trainingDaily } from '../game/companions';
 import { pickEvent, type RoadEvent } from '../game/events';
@@ -688,6 +692,18 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       if (st.time > 1.5) hint(st, 'war');
       if (st.quests?.length) hint(st, 'quest');
       if (st.plague?.started) hint(st, 'plague');
+      // Лад музыки — по культуре ближайшего поселения
+      let near = world.settlements[0];
+      let nd = Infinity;
+      for (const t of world.settlements) {
+        if (t.type === 'village') continue;
+        const d = Math.abs(t.x - this.party.x) + Math.abs(t.y - this.party.y);
+        if (d < nd) {
+          nd = d;
+          near = t;
+        }
+      }
+      music.setCulture(near.culture);
     }
   }
 
@@ -834,6 +850,12 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     return Math.random() < 0.18 ? 'rain' : undefined;
   }
 
+  /** Условия поля боя: местность, ночь, брод через реку. */
+  private battleOpts(extra: BattleOpts = {}): BattleOpts {
+    const hr = (this.state.time % 1) * 24;
+    return { terrain: this.battleTerrain(), night: hr >= 21 || hr < 5, ford: nearRiver(this.party.x, this.party.y), ...extra };
+  }
+
   private battleTerrain(): BattleTerrain {
     const { cx, cy } = worldToCell(this.party.x, this.party.y);
     const t = world.map.terrain[cy * GRID_W + cx];
@@ -864,13 +886,20 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       this.commit();
       return;
     }
+    // Разбойники в лесу, напавшие сами, часто устраивают засаду
+    const ambush = attacked && p.faction === 'outlaw' && this.battleTerrain() === 'forest' && Math.random() < 0.6;
     // Кто рядом вступит в бой: союзные лорды за нас, лорды той же державы — за врага
     const allies = p.kind === 'bandits' || p.faction === 'outlaw' || p.kind === 'lord' || p.kind === 'patrol' ? alliesNear(this.state, this.party.x, this.party.y, 3) : [];
     const others = p.kind === 'lord' ? lordsNear(this.state, p.faction as FactionId, p.x, p.y, 3, p) : [];
+    this.openEncounterDialog(p, attacked, allies, others, ambush);
+  }
+
+  private openEncounterDialog(p: MapParty, attacked: boolean, allies: MapParty[], others: MapParty[], ambush: boolean, duel?: DuelMods) {
     this.modal(() =>
       openEncounter(this.state, p, attacked, {
-        fight: (f) => this.startBattle(p, f, false, allies, others),
-        auto: (f) => this.startBattle(p, f, true, allies, others),
+        fight: (f, mods) => this.startBattle(p, f, false, allies, others, ambush, mods),
+        auto: (f, mods) => this.startBattle(p, f, true, allies, others, ambush, mods),
+        duel: p.kind === 'lord' && !ambush ? () => this.duel(p, attacked, allies, others) : undefined,
         retreat: () => {
           const { lost } = retreat(this.state, p);
           for (const msg of companionDeed(this.state, 'retreat')) news(this.state, msg, 'party');
@@ -878,14 +907,45 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
           else toast('Вы ушли от погони');
           this.commit();
         },
-      }, { allies, others }),
+      }, { allies, others, duel, ambush }),
     );
   }
 
-  private startBattle(p: MapParty, formation: Formation, auto: boolean, allies: MapParty[] = [], others: MapParty[] = []) {
+  /** Поединок с лордом перед боем: только герой против вожака. */
+  private duel(p: MapParty, attacked: boolean, allies: MapParty[], others: MapParty[]) {
+    const f = p.faction as FactionId;
+    const rank = p.lord?.rank ?? 1;
+    const base = TROOPS[`${f}_${rank >= 2 ? 'c4m' : 'c3m'}`];
+    const champion = { ...base, id: 'lordduel', name: p.name, hp: Math.round(base.hp * (1.4 + rank * 0.25)), damage: Math.round(base.damage * (1.1 + rank * 0.1)) };
+    const me = playerArmy(this.state, 'classic');
+    const battle = new Battle([
+      { name: this.state.hero.name, culture: this.state.hero.faction, troops: [], hero: me.hero, formation: 'classic', morale: 100 },
+      { name: p.name, culture: f, troops: [], hero: { name: p.name, level: 10, def: champion }, formation: 'classic', morale: 100 },
+    ], 0, { terrain: this.battleTerrain() });
+    // Бойцы сходятся в середине поля
+    for (const u of battle.units) u.x = u.side === 0 ? FIELD_W / 2 - 160 : FIELD_W / 2 + 160;
+    this.runBattle(battle, false, { enemyName: p.name, enemyColor: enemyDisplayColor(p) }, (b) => {
+      const hero = b.units.find((u) => u.isHero && u.side === 0);
+      const won = b.winner === 0;
+      const mods: DuelMods = won
+        ? { ours: 10, theirs: -30, heroHp: Math.max(0.3, (hero?.hp ?? 1) / (hero?.maxHp ?? 1)), won }
+        : { ours: -20, theirs: 10, heroHp: 0.35, won };
+      news(this.state, won ? `${this.state.hero.name} одолел ${p.name} в поединке перед строем.` : `${p.name} одолел ${this.state.hero.name} в поединке.`, 'player');
+      if (won) gainHeroXp(this.state, 40);
+      this.openEncounterDialog(p, attacked, allies, others, false, mods);
+    });
+  }
+
+  private startBattle(p: MapParty, formation: Formation, auto: boolean, allies: MapParty[] = [], others: MapParty[] = [], ambush = false, mods?: DuelMods) {
     const name = others.length ? `${p.name} и союзники` : p.name;
     const enemy = enemyArmy(name, p.faction, others.length ? mergeTroops([p.troops, ...others.map((o) => o.troops)]) : p.troops);
-    const battle = new Battle([withAllies(playerArmy(this.state, formation), allies), enemy]);
+    const mine = withAllies(playerArmy(this.state, formation), allies);
+    if (mods) {
+      mine.morale += mods.ours;
+      enemy.morale = Math.max(20, enemy.morale + mods.theirs);
+      if (mine.hero && mods.heroHp < 1) mine.hero = { ...mine.hero, def: { ...mine.hero.def, hp: Math.max(20, Math.round(mine.hero.def.hp * mods.heroHp)) } };
+    }
+    const battle = new Battle([mine, enemy], 0, this.battleOpts({ ambush }));
     this.runBattle(battle, auto, { enemyName: name, enemyColor: enemyDisplayColor(p) }, (b) => {
       const res = applyBattle(this.state, b, p, allies, others);
       this.afterBattle(res, name);

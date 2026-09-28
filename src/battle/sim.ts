@@ -134,6 +134,23 @@ function ed(dx: number, dy: number) {
   return Math.hypot(dx, dy * Y_SCALE);
 }
 
+/** Условия поля боя. */
+export interface BattleOpts {
+  siege?: boolean;
+  /** Местность: лес мешает коннице и стрелкам, снег замедляет, холмы добавляют дальности. */
+  terrain?: 'grass' | 'forest' | 'steppe' | 'desert' | 'snow' | 'dry';
+  /** Ночь: стрелки почти слепы. */
+  night?: boolean;
+  /** Посреди поля брод: в реке все идут медленно. */
+  ford?: boolean;
+  /** Засада: враг начинает ближе, наш дух ниже. */
+  ambush?: boolean;
+}
+
+/** Полоса брода посреди поля. */
+export const FORD_X = FIELD_W / 2;
+export const FORD_HALF = 110;
+
 export class Battle {
   units: BUnit[] = [];
   reserves: [BUnit[], BUnit[]] = [[], []];
@@ -160,11 +177,14 @@ export class Battle {
   breached = false;
   private attackers = new Map<number, number>();
 
+  readonly opts: BattleOpts;
+
   constructor(
     readonly armies: [ArmyDef, ArmyDef],
     readonly playerSide: Side = 0,
-    opts: { siege?: boolean } = {},
+    opts: BattleOpts = {},
   ) {
+    this.opts = opts;
     this.siege = !!opts.siege;
     this.morale = [armies[0].morale, armies[1].morale];
     this.maxMorale = [armies[0].morale, armies[1].morale];
@@ -198,6 +218,12 @@ export class Battle {
       else this.deploy(side, all, army.formation);
     }
     this.initialCount = counts;
+    if (opts.ambush && !this.siege) {
+      // Враг выскакивает из засады: ближе к нашему строю, а наши не успели построиться
+      const es = (1 - playerSide) as Side;
+      for (const u of this.units) if (u.side === es) u.x += (es === 1 ? -1 : 1) * 380;
+      this.morale[playerSide] = Math.max(20, this.morale[playerSide] - 15);
+    }
     if (this.siege) {
       this.orders[1] = { hero: 'hold', inf: 'hold', ranged: 'hold', cav: 'hold' };
       this.aiCavDelay = 0;
@@ -476,7 +502,7 @@ export class Battle {
     const reach = t.onWall || u.onWall ? this.reach(u) + 60 : this.reach(u);
     const inMelee = t.onWall || u.onWall ? Math.abs(dx) <= reach : dist <= reach;
     const ranged = u.troop.role === 'ranged' && u.ammo > 0;
-    const rangePx = u.troop.range * METER * (u.onWall ? 1.35 : 1);
+    const rangePx = u.troop.range * METER * (u.onWall ? 1.35 : 1) * (this.opts.terrain === 'dry' ? 1.15 : 1) * (this.opts.night ? 0.75 : 1);
 
     if (inMelee) {
       u.state = 'attack';
@@ -636,7 +662,7 @@ export class Battle {
 
   /** Движение к точке (gx, gy — вектор цели) с обходом соседей и кольев. */
   private steer(u: BUnit, gx: number, gy: number, dt: number, k: number) {
-    let speed = u.troop.speed * SPEED_K * k;
+    let speed = u.troop.speed * SPEED_K * k * this.terrainSpeed(u);
     const len = ed(gx, gy) || 1;
     let vx = gx / len;
     let vy = (gy * Y_SCALE) / len;
@@ -678,8 +704,18 @@ export class Battle {
     u.state = 'walk';
     if (u.troop.line === 'cavalry') {
       u.chargeDist += Math.hypot(stepX, stepY);
-      if (u.chargeDist > 140) u.charge = true;
+      if (u.chargeDist > (this.opts.terrain === 'forest' ? 230 : 140)) u.charge = true;
     }
+  }
+
+  /** Множитель скорости от местности. */
+  private terrainSpeed(u: BUnit): number {
+    let k = 1;
+    const t = this.opts.terrain;
+    if (t === 'forest' && u.troop.line === 'cavalry') k *= 0.75;
+    if (t === 'snow') k *= 0.85;
+    if (this.opts.ford && Math.abs(u.x - FORD_X) < FORD_HALF) k *= 0.55;
+    return k;
   }
 
   private moveUnit(u: BUnit, dt: number) {
@@ -723,6 +759,8 @@ export class Battle {
     if (this.smoke && u.side !== this.playerSide && Math.abs(t.x - this.smoke.x) < 260) hitChance *= 0.35;
     if (this.smoke && u.side === this.playerSide && Math.abs(u.x - this.smoke.x) < 200) hitChance *= 0.6;
     if (t.onWall) hitChance *= 0.55;
+    if (this.opts.terrain === 'forest') hitChance *= 0.8;
+    if (this.opts.night) hitChance *= 0.65;
     if (u.onWall) hitChance = Math.min(0.95, hitChance + 0.12);
     const willHit = Math.random() < hitChance;
     const dur = 0.25 + dist / 520;

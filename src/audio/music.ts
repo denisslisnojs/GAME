@@ -16,6 +16,18 @@ interface NoteEv {
 const BEATS_PER_BAR = 3;
 const DORIAN = [0, 2, 3, 5, 7, 9, 10]; // от ре
 const AEOLIAN = [0, 2, 3, 5, 7, 8, 10];
+/** Лады культур: спокойный и боевой. Семь ступеней, внутри октавы. */
+const CULTURE_SCALES: Record<string, [number[], number[]]> = {
+  aurelia: [DORIAN, AEOLIAN],
+  // Север: натуральный минор и суровый фригийский
+  nordmark: [AEOLIAN, [0, 1, 3, 5, 7, 8, 10]],
+  // Степь: минорная пентатоника (ступени повторяются)
+  horde: [[0, 3, 3, 5, 7, 10, 10], [0, 3, 5, 5, 7, 10, 10]],
+  // Восток: хиджаз (фригийский доминантовый)
+  sultanate: [[0, 1, 4, 5, 7, 8, 10], [0, 1, 4, 5, 7, 8, 11]],
+};
+let CALM_SCALE = DORIAN;
+let WAR_SCALE = AEOLIAN;
 /** Боевые последовательности аккордов (ступени натурального минора): Dm Bb C Dm и т.п. */
 const BATTLE_PROGS = [
   [0, 5, 6, 0],
@@ -35,13 +47,13 @@ const PROGRESSIONS = [
 function degreeToMidi(deg: number, base = ROOT): number {
   const oct = Math.floor(deg / 7);
   const d = ((deg % 7) + 7) % 7;
-  return base + oct * 12 + DORIAN[d];
+  return base + oct * 12 + CALM_SCALE[d];
 }
 
 function aeolian(deg: number, base: number): number {
   const oct = Math.floor(deg / 7);
   const d = ((deg % 7) + 7) % 7;
-  return base + oct * 12 + AEOLIAN[d];
+  return base + oct * 12 + WAR_SCALE[d];
 }
 
 function mtof(m: number): number {
@@ -95,6 +107,14 @@ class MusicEngine {
 
   getVolume() {
     return this.volume;
+  }
+
+  /** Музыка звучит в ладу культуры тех мест, где сейчас отряд. */
+  setCulture(c: string) {
+    const s = CULTURE_SCALES[c];
+    if (!s) return;
+    CALM_SCALE = s[0];
+    WAR_SCALE = s[1];
   }
 
   play(mode: Mode) {

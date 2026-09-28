@@ -1052,7 +1052,7 @@ input.text:focus {
 
 .b-banner {
   position: fixed;
-  top: 64px;
+  top: 100px;
   left: 50%;
   transform: translateX(-50%);
   font-family: var(--font-title);
