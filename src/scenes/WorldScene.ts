@@ -1015,6 +1015,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const ts = info.target ? world.byId.get(info.target) : undefined;
     if (info.task === 'campaign' && ts) return this.state.war?.sieges[ts.id] ? `осаждает ${placeName(ts)}` : `в походе на ${placeName(ts)}`;
     if (info.task === 'relieve' && ts) return `спешит на выручку: ${ts.name}`;
+    if (info.task === 'follow') return `идёт с вашим отрядом ещё ${Math.max(1, Math.ceil((info.followUntil ?? 0) - this.state.time))} дн.`;
     return `стережёт свои земли (${world.byId.get(info.home)?.name ?? 'дом'})`;
   }
 

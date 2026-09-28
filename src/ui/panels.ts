@@ -419,7 +419,7 @@ export function openRealms(ctx: GameCtx) {
       const where = info.target ? world.byId.get(info.target)?.name : '';
       const task = info.status === 'defeated'
         ? `разбит, вернётся через ${Math.max(1, Math.ceil(info.recoverAt - state.time))} дн.`
-        : info.task === 'campaign' ? (state.war?.sieges[info.target!] ? `осаждает ${where}` : `идёт на ${where}`) : info.task === 'relieve' ? `спешит к ${where}` : 'в своих землях';
+        : info.task === 'campaign' ? (state.war?.sieges[info.target!] ? `осаждает ${where}` : `идёт на ${where}`) : info.task === 'relieve' ? `спешит к ${where}` : info.task === 'follow' ? 'идёт с вашим отрядом' : 'в своих землях';
       lordList.append(h('div', { class: 'row', style: 'gap:6px' }, h('span', { style: info.status === 'defeated' ? 'color:#8a8070;text-decoration:line-through' : '' }, l.name), h('span', { class: 'muted' }, `· ${info.status === 'active' ? troopCount(l.troops) + ' ⚔ · ' : ''}${task}`)));
     }
     if (state.war?.eliminated.includes(id)) lordList.append(h('div', { style: 'color:#e07a6a' }, 'Держава пала.'));

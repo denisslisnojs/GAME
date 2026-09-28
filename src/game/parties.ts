@@ -43,7 +43,9 @@ export interface LordInfo {
   rank: 1 | 2 | 3;
   status: 'active' | 'defeated';
   recoverAt: number;
-  task: 'idle' | 'campaign' | 'relieve';
+  task: 'idle' | 'campaign' | 'relieve' | 'follow';
+  /** До какого дня лорд идёт за героем. */
+  followUntil?: number;
   target?: string;
   home: string;
   /** Не вступать в бой с другими лордами до этого времени. */

@@ -330,7 +330,7 @@ export function warDaily(state: GameState) {
       if (target) {
         w.campaigns[f] = { target: target.id, since: state.time };
         const lords = activeLords(state, f);
-        const go = lords.filter((l) => l.lord!.task !== 'relieve' && l.lord!.rank < 3).slice(0, Math.max(2, Math.ceil(lords.length * 0.75)));
+        const go = lords.filter((l) => l.lord!.task !== 'relieve' && l.lord!.task !== 'follow' && l.lord!.rank < 3).slice(0, Math.max(2, Math.ceil(lords.length * 0.75)));
         if (lords.find((l) => l.lord!.rank === 3) && r() < 0.5) go.push(lords.find((l) => l.lord!.rank === 3)!);
         for (const l of go) {
           l.lord!.task = 'campaign';
@@ -385,7 +385,7 @@ export function warDaily(state: GameState) {
     const s = world.byId.get(sid)!;
     const owner = state.settlements[sid].owner;
     for (const l of activeLords(state, owner)) {
-      if (l.lord!.task === 'relieve' || distCells(l, s) > 55) continue;
+      if (l.lord!.task === 'relieve' || l.lord!.task === 'follow' || distCells(l, s) > 55) continue;
       l.lord!.task = 'relieve';
       l.lord!.target = sid;
       partyRuntime(l).repathAt = 0;
@@ -394,6 +394,10 @@ export function warDaily(state: GameState) {
   for (const l of state.lords ?? []) {
     const info = l.lord!;
     if (info.task === 'relieve' && (!info.target || !w.sieges[info.target])) info.task = 'idle';
+    if (info.task === 'follow' && state.time >= (info.followUntil ?? 0)) {
+      info.task = 'idle';
+      news(state, `${l.name} покидает отряд ${state.hero.name} и возвращается к своим делам.`, 'lord');
+    }
   }
 }
 
@@ -468,7 +472,8 @@ export function warUpdate(state: GameState, dtDays: number, targetId: number | n
     const f = l.faction as FactionId;
     const playerEnemy = atWar(state, f, state.hero.faction);
     const dPlayer = Math.hypot(l.x - state.party.x, l.y - state.party.y) / TILE;
-    const chase = playerEnemy && state.time >= l.calmUntil && dPlayer < 9 && powerRatio(state, l) > 1.1 && info.task !== 'relieve';
+    // Первую неделю лорды не охотятся за новичком
+    const chase = playerEnemy && state.time > 7 && state.time >= l.calmUntil && dPlayer < 9 && powerRatio(state, l) > 1.1 && info.task !== 'relieve';
     r.repathAt -= dtDays;
     if (chase) {
       if (goalOf.get(l.id) !== 'chase') {
@@ -478,6 +483,16 @@ export function warUpdate(state: GameState, dtDays: number, targetId: number | n
       if (r.repathAt <= 0) {
         r.path = dPlayer < 2.5 ? [{ x: state.party.x, y: state.party.y }] : pathTo(l, pc.cx, pc.cy);
         r.repathAt = 0.15;
+      }
+    } else if (info.task === 'follow') {
+      // Идёт следом за героем, держась в клетке-двух
+      if (goalOf.get(l.id) !== 'follow') {
+        goalOf.set(l.id, 'follow');
+        r.repathAt = 0;
+      }
+      if (r.repathAt <= 0) {
+        r.path = dPlayer < 1.5 ? [] : dPlayer < 4 ? [{ x: state.party.x - 12, y: state.party.y + 8 }] : pathTo(l, pc.cx, pc.cy);
+        r.repathAt = 0.2;
       }
     } else if (info.target && (info.task === 'campaign' || info.task === 'relieve')) {
       const s = world.byId.get(info.target)!;
@@ -508,7 +523,7 @@ export function warUpdate(state: GameState, dtDays: number, targetId: number | n
       if (isFinite(getLandCost()[ty * GRID_W + tx])) r.path = pathTo(l, tx, ty);
       r.repathAt = 1 + rr() * 2;
     }
-    advance(l, dtDays, chase ? 17 : info.task === 'idle' ? 10 : 16);
+    advance(l, dtDays, chase ? 17 : info.task === 'follow' ? 19 : info.task === 'idle' ? 10 : 16);
     const dNow = Math.hypot(l.x - state.party.x, l.y - state.party.y) / TILE;
     if (!met && playerEnemy && state.time >= l.calmUntil && dNow < 1.3 && (chase || l.id === targetId)) met = l;
   }

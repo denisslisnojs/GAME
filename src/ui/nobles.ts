@@ -5,6 +5,7 @@ import { TROOPS } from '../data/troops';
 import {
   abandonQuest,
   acceptQuest,
+  addRelation,
   canTurnIn,
   declineQuest,
   fiefCandidate,
@@ -24,7 +25,7 @@ import { world, type Settlement } from '../game/world';
 import { btn, h, img, openModal, panel, sfxCoins, toast } from './dom';
 import type { GameCtx } from './panels';
 
-const TASK_WORD = { idle: 'объезжает свои земли', campaign: 'в походе', relieve: 'спешит на помощь осаждённым' } as const;
+const TASK_WORD = { idle: 'объезжает свои земли', campaign: 'в походе', relieve: 'спешит на помощь осаждённым', follow: 'идёт в походе с вами' } as const;
 
 function portraitOf(h0: Host, s: Settlement): string {
   if (h0.rank === 0) return portraitURL(`${s.culture}_i1`);
@@ -137,6 +138,26 @@ export function openHost(ctx: GameCtx, s: Settlement) {
         }),
       );
     else if (host.faction !== state.hero.faction && s.type !== 'village') options.append(opt('Есть ли для меня дело?', 'только своей державе', () => {}, '', true));
+    const lordInfo = host.lord?.lord;
+    if (host.lord && lordInfo && host.faction === state.hero.faction && lordInfo.rank < 3 && host.present && lordInfo.status === 'active') {
+      const rel = relation(state, host.key);
+      const following = lordInfo.task === 'follow';
+      options.append(
+        opt(following ? 'Вы уже идёте со мной' : 'Присоединитесь ко мне в походе', following ? `ещё ${Math.ceil((lordInfo.followUntil ?? 0) - state.time)} дн.` : rel >= 10 ? 'на 7 дней' : `нужно отношение 10 (сейчас ${rel})`, () => {
+          if (rel < 10) {
+            say('«Я не знаю вас настолько, чтобы водить за вами своих людей. Послужите державе — тогда поговорим.»');
+            return;
+          }
+          lordInfo.task = 'follow';
+          lordInfo.followUntil = state.time + 7;
+          lordInfo.target = undefined;
+          addRelation(state, host.key, -2);
+          ctx.commit();
+          say('«Что ж, веди. Мои люди пойдут за твоим знаменем неделю — а там посмотрим.»');
+          render();
+        }, '', following),
+      );
+    }
     if (host.lord)
       options.append(
         opt('Расскажите о себе', '', () => {
