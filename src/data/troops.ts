@@ -300,7 +300,85 @@ const OUTLAWS: TroopDef[] = [
   }),
 ];
 
-export const TROOPS: Record<string, TroopDef> = { ...buildTroops(), ...Object.fromEntries(OUTLAWS.map((t) => [t.id, t])) };
+/** Наёмные отряды из таверн: опытные бойцы без повышения, дорогие, но готовые сразу. */
+const MERCS: TroopDef[] = [
+  outlaw('merc_genoese', 'Генуэзский арбалетчик', {
+    tier: 3,
+    role: 'ranged',
+    hp: 70,
+    damage: 20,
+    range: 75,
+    attackTime: 2.8,
+    armor: { cut: 0.22, pierce: 0.2, blunt: 0.12 },
+    block: 0.2,
+    hireCost: 160,
+    look: { helmet: 'kettle', cloth: '#c83030', armor: '#9aa0a8', weapon: 'crossbow', shield: true },
+    description: 'Лучшие стрелки Европы: большой арбалет и павеза за спиной. Служат за звонкую монету.',
+  }),
+  outlaw('merc_swiss', 'Швейцарский алебардщик', {
+    tier: 3,
+    hp: 85,
+    damage: 21,
+    attackTime: 1.7,
+    armor: { cut: 0.25, pierce: 0.2, blunt: 0.14 },
+    hireCost: 150,
+    look: { helmet: 'kettle', cloth: '#b83a3a', armor: '#a0a6ae', weapon: 'halberd', shield: false },
+    description: 'Горцы из лесных кантонов. После Моргартена рыцари их побаиваются.',
+  }),
+  outlaw('merc_almogavar', 'Альмогавар', {
+    tier: 3,
+    hp: 75,
+    damage: 18,
+    speed: 1.2,
+    dodge: 0.2,
+    armor: { cut: 0.12, pierce: 0.1, blunt: 0.06 },
+    hireCost: 130,
+    look: { helmet: 'cap', cloth: '#8a5a2a', armor: '#6a5a40', weapon: 'spear', shield: false },
+    description: 'Каталонские ветераны Великой компании: легки, быстры и безжалостны.',
+  }),
+  outlaw('merc_knight', 'Странствующий рыцарь', {
+    tier: 4,
+    line: 'cavalry',
+    hp: 150,
+    damage: 30,
+    speed: 2.1,
+    armor: { cut: 0.42, pierce: 0.36, blunt: 0.22 },
+    block: 0.25,
+    hireCost: 320,
+    look: { helmet: 'great', cloth: '#3a3a4a', armor: '#b8bec6', weapon: 'lance', shield: true },
+    description: 'Рыцарь без земли, продающий копьё. Страшен в таранном ударе.',
+  }),
+  outlaw('merc_turcopole', 'Туркопол-наёмник', {
+    tier: 3,
+    line: 'cavalry',
+    role: 'ranged',
+    hp: 95,
+    damage: 17,
+    range: 60,
+    attackTime: 2.0,
+    speed: 2.4,
+    dodge: 0.18,
+    armor: { cut: 0.16, pierce: 0.12, blunt: 0.08 },
+    hireCost: 220,
+    look: { helmet: 'spired', cloth: '#5a4a3a', armor: '#8a7a5a', weapon: 'bow', shield: false },
+    description: 'Конный лучник, служивший и крестоносцам, и султанам.',
+  }),
+  outlaw('merc_varangian', 'Варяг', {
+    tier: 4,
+    hp: 120,
+    damage: 27,
+    attackTime: 1.8,
+    armor: { cut: 0.4, pierce: 0.32, blunt: 0.2 },
+    block: 0.3,
+    hireCost: 260,
+    look: { helmet: 'nasal', cloth: '#6a2a2a', armor: '#9aa0a8', weapon: 'axe', shield: true },
+    description: 'Северянин из бывшей стражи василевса. Секира и щит — вот и вся его вера.',
+  }),
+];
+
+export const MERC_IDS = MERCS.map((t) => t.id);
+
+export const TROOPS: Record<string, TroopDef> = { ...buildTroops(), ...Object.fromEntries([...OUTLAWS, ...MERCS].map((t) => [t.id, t])) };
 
 export function peasantOf(faction: FactionId): string {
   return `${faction}_i1`;

@@ -39,7 +39,7 @@ function direction(dx: number, dy: number): string {
   return dirs[Math.round(((a + 360) % 360) / 45) % 8];
 }
 
-function rumor(ctx: GameCtx, s: Settlement): string {
+export function rumor(ctx: GameCtx, s: Settlement): string {
   const { state } = ctx;
   const bands = (state.parties ?? []).filter((p) => p.kind !== 'patrol');
   let near = bands[0];
@@ -55,7 +55,7 @@ function rumor(ctx: GameCtx, s: Settlement): string {
   if (near && bd < 16 * 30) lines.push(`Пастухи видели отряд «${near.name}» ${direction(near.x - s.x, near.y - s.y)} отсюда.`);
   const towns = world.settlements.filter((t) => t.type === 'town' && tourneyReady(state, t) === 0);
   const tn = towns.sort((a, b) => Math.hypot(a.x - s.x, a.y - s.y) - Math.hypot(b.x - s.x, b.y - s.y))[0];
-  if (tn) lines.push(`Говорят, в ${tn.name} скоро турнир — герольды зовут всех, кто держит копьё.`);
+  if (tn) lines.push(`Говорят, в городе ${tn.name} скоро турнир — герольды зовут всех, кто держит копьё.`);
   const n = state.war?.news.find((x) => x.kind === 'capture' || x.kind === 'war');
   if (n) lines.push(`Купцы принесли весть: ${n.text.charAt(0).toLowerCase()}${n.text.slice(1)}`);
   return lines.join(' ');

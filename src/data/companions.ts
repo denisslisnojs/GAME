@@ -5,7 +5,7 @@ import type { SkillId } from './skills';
 import type { TroopLook } from './troops';
 
 /** Поступки героя, о которых у спутников есть мнение. */
-export type Deed = 'raid' | 'caravan' | 'retreat' | 'defeat' | 'victory' | 'siege' | 'tourney' | 'lord';
+export type Deed = 'raid' | 'caravan' | 'retreat' | 'defeat' | 'victory' | 'siege' | 'tourney' | 'lord' | 'cruelty';
 
 export interface CompanionDef {
   id: string;
@@ -40,7 +40,7 @@ export const COMPANIONS: CompanionDef[] = [
     greet: 'Мне нужен сеньор, достойный моего меча. Надеюсь, это вы.',
     skills: { tactics: 3, weapon: 2, riding: 2 },
     likes: ['victory', 'lord', 'tourney'],
-    dislikes: ['raid', 'caravan', 'retreat'],
+    dislikes: ['raid', 'caravan', 'retreat', 'cruelty'],
     rival: 'halvar',
     price: 700,
     wage: 40,
@@ -55,7 +55,7 @@ export const COMPANIONS: CompanionDef[] = [
     greet: 'Ваши люди истекают кровью, а вы тратите время на разговоры? Ведите меня к раненым.',
     skills: { surgery: 5 },
     likes: ['victory'],
-    dislikes: ['raid', 'caravan', 'siege'],
+    dislikes: ['raid', 'caravan', 'siege', 'cruelty'],
     rival: 'halvar',
     price: 350,
     wage: 20,
@@ -70,7 +70,7 @@ export const COMPANIONS: CompanionDef[] = [
     bio: 'Бывший варяг императорской стражи в Константинополе. Выгнан за пьяную драку с сыном протостратора. Любит добычу, хмель и хорошую сечу.',
     greet: 'Плати вовремя, наливай щедро — и мой топор твой.',
     skills: { weapon: 4, athletics: 3 },
-    likes: ['raid', 'caravan', 'siege', 'victory'],
+    likes: ['raid', 'caravan', 'siege', 'victory', 'cruelty'],
     dislikes: ['retreat'],
     rival: 'bertrand',
     price: 500,
@@ -132,7 +132,7 @@ export const COMPANIONS: CompanionDef[] = [
     greet: 'Меч отнимает жизнь за миг, а я возвращаю её неделями. Дайте мне место в обозе.',
     skills: { surgery: 4, trade: 1, tactics: 1 },
     likes: ['victory'],
-    dislikes: ['raid', 'siege'],
+    dislikes: ['raid', 'siege', 'cruelty'],
     rival: 'giovanni',
     price: 450,
     wage: 25,
@@ -177,7 +177,7 @@ export const COMPANIONS: CompanionDef[] = [
     greet: 'Ты, видно, воевать умеешь. А воинов растить — умеешь? Я научу.',
     skills: { training: 3, trade: 2, athletics: 1 },
     likes: ['victory', 'lord'],
-    dislikes: ['raid', 'defeat'],
+    dislikes: ['raid', 'defeat', 'cruelty'],
     price: 450,
     wage: 24,
     look: { helmet: 'hood', cloth: '#8a2a2a' },
@@ -196,6 +196,7 @@ export const DISLIKE_LINE: Record<Deed, string> = {
   siege: 'штурмы губят людей понапрасну',
   tourney: '',
   lord: '',
+  cruelty: 'обижать беззащитных подло',
 };
 
 /** Что спутник говорит о поступке, который ему нравится. */
@@ -208,4 +209,5 @@ export const LIKE_LINE: Record<Deed, string> = {
   siege: 'стены пали',
   tourney: 'люблю турниры',
   lord: 'сам лорд бежал от нас',
+  cruelty: 'слабаки не нужны',
 };

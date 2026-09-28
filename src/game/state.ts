@@ -10,6 +10,7 @@ import type { Quest } from './quests';
 import type { PlagueState } from './plague';
 import { initCompanions, type CompanionState } from './companions';
 import type { SkillId } from '../data/skills';
+import type { CaptiveLord } from './prisoners';
 
 export interface TroopStack {
   id: string;
@@ -93,6 +94,20 @@ export interface GameState {
   hints?: string[];
   /** Спутники: где сидят и кто в отряде. */
   companions?: CompanionState[];
+  /** Наёмники в тавернах: город → предложение. */
+  mercs?: Record<string, { id: string; count: number; until: number }>;
+  /** Сыграно в кости сегодня. */
+  dice?: { day: number; n: number };
+  /** Благословение реликвии: боевой дух армии выше до этого дня. */
+  blessUntil?: number;
+  /** День последнего дорожного события. */
+  lastEvent?: number;
+  /** Когда было каждое событие. */
+  eventsSeen?: Record<string, number>;
+  /** Пленные воины в обозе. */
+  prisoners?: TroopStack[];
+  /** Пленённые лорды. */
+  captives?: CaptiveLord[];
 }
 
 export function recruitSlots(s: Settlement): { id: string; max: number; perDay: number }[] {

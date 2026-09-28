@@ -32,6 +32,7 @@ import { openTroopTree } from './troopTree';
 import { openTavern, skillLine } from './tavern';
 import { companionsAt, dismissCompanion, inParty, isWounded, mood } from '../game/companions';
 import { companionPortraitURL } from '../gfx/icons';
+import { lordRansom, prisonerCap, prisonerCount, ransomPrice, recruitPrisoner, releaseLord } from '../game/prisoners';
 import { heroPortraitURL } from '../gfx/icons';
 
 export interface GameCtx {
@@ -407,6 +408,37 @@ export function openParty(ctx: GameCtx) {
       );
     }
     if (!troops.length) body.append(h('div', { class: 'muted', style: 'padding:8px' }, 'Отряд пуст. Наймите воинов в деревнях и городах.'));
+
+    // Пленные
+    const pris = state.prisoners ?? [];
+    const lords = state.captives ?? [];
+    if (pris.length || lords.length) body.append(h('div', { class: 'col-title', style: 'margin-top:6px' }, `Пленные · ${prisonerCount(state)} из ${prisonerCap(state)} под стражей`));
+    for (const c of lords) {
+      body.append(
+        h(
+          'div',
+          { class: 'item', style: 'border-color:#6a5a3a' },
+          img(emblemURL(c.faction), 'px', 'width:32px;height:36px'),
+          h('div', { class: 'grow col', style: 'gap:2px' }, h('span', { class: 'name gold' }, c.name), h('div', { class: 'sub' }, `В плену ${Math.floor(state.time - c.since)} дн. Выкуп — ${lordRansom(c)} ¤ у торговца в любой таверне.`)),
+          btn('Отпустить', () => { releaseLord(state, c); toast(`${c.name} отпущен и запомнит вашу щедрость`); ctx.commit(); render(); }, 'small ghost'),
+        ),
+      );
+    }
+    for (const p of pris) {
+      const t = TROOPS[p.id];
+      body.append(
+        h(
+          'div',
+          { class: 'item' },
+          img(portraitURL(p.id), 'px portrait'),
+          h('div', { class: 'grow col', style: 'gap:2px' }, h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name' }, t.name), h('span', { class: 'stars' }, stars(t.tier))), h('div', { class: 'sub' }, `Выкуп ${ransomPrice(p.id)} ¤ за голову. Можно уговорить служить.`)),
+          h('div', { class: 'col', style: 'align-items:flex-end;gap:4px' },
+            h('span', { class: 'count' }, `×${p.count}`),
+            btn('Уговорить служить', () => { toast(recruitPrisoner(state, p.id) ? `${t.name} согласился служить вам` : `${t.name} плюнул под ноги и отказался`); ctx.commit(); render(); }, 'small'),
+          ),
+        ),
+      );
+    }
   };
 
   const head = header('Отряд', sub, () => close(), emblemURL(state.hero.faction));
@@ -427,6 +459,7 @@ const DEED_NAME: Record<string, string> = {
   siege: 'штурмы',
   tourney: 'турниры',
   lord: 'победы над лордами',
+  cruelty: 'жестокость',
 };
 function deedName(d: string) {
   return DEED_NAME[d] ?? d;

@@ -11,6 +11,7 @@ import { addRelation, onPartyDefeated, onVillageRaided } from './quests';
 import { spawnPointNear, world, type Settlement } from './world';
 import { companionDeed, companionsAfterBattle, partySkill } from './companions';
 import { COMPANION_BY_ID, type Deed } from '../data/companions';
+import { maybeCaptureLord, onDefeat, takePrisoners } from './prisoners';
 
 export interface AppliedResult {
   won: boolean;
@@ -31,6 +32,10 @@ export interface AppliedResult {
   headline?: string;
   /** Спутники: ранения, уровни, реплики. */
   party?: string[];
+  /** Взято пленных. */
+  prisoners?: number;
+  /** Сколько дней герой провёл в плену после поражения. */
+  captiveDays?: number;
 }
 
 export function heroXpToLevel(level: number) {
@@ -115,9 +120,11 @@ function applyOutcome(state: GameState, battle: Battle, enemy: EnemyInfo, allies
       }
     }
     for (const [g, n] of Object.entries(res.goods) as [GoodId, number][]) state.cargo[g] = (state.cargo[g] ?? 0) + n;
+    res.prisoners = takePrisoners(state, dead);
   } else {
     state.stats.lost++;
-    res.lostGold = Math.floor(state.gold * 0.25);
+    res.captiveDays = onDefeat(state);
+    res.lostGold = Math.floor(state.gold * (res.captiveDays ? 0.45 : 0.25));
     state.gold -= res.lostGold;
     // Отступаем к ближайшему своему городу или замку
     const own = world.settlements.filter((s) => s.type !== 'village' && state.settlements[s.id].owner === state.hero.faction);
@@ -202,7 +209,7 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty, a
     if (party.kind === 'lord') {
       deed(res, state, 'lord');
       defeatLord(state, party, 'player');
-      res.headline = `${party.name} разбит и бежал!`;
+      res.headline = maybeCaptureLord(state, party) ? `${party.name} разбит и взят в плен! Выкуп можно получить в любой таверне.` : `${party.name} разбит и бежал!`;
     } else removeParty(state, party.id);
   } else {
     party.calmUntil = state.time + 1.5;
@@ -225,7 +232,11 @@ export function applySiege(state: GameState, battle: Battle, s: Settlement, garr
   }, allies);
   afterAllies(state, allies, res.won, owner);
   if (res.won) {
-    for (const l of lords) if (l.lord?.status === 'active') defeatLord(state, l, 'player');
+    for (const l of lords)
+      if (l.lord?.status === 'active') {
+        defeatLord(state, l, 'player');
+        maybeCaptureLord(state, l);
+      }
     deed(res, state, 'siege');
     capture(state, s, state.hero.faction, true);
     (state.capturedByHero ??= []).push(s.id);

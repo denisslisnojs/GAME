@@ -13,7 +13,7 @@ export function playerArmy(state: GameState, formation: Formation): ArmyDef {
     hero: { name: state.hero.name, level: state.hero.level, def: heroTroop(state) },
     companions: fightingCompanions(state).map(({ def, cs }) => ({ id: def.id, def: companionTroop(def, cs) })),
     formation,
-    morale: 100 + heroStats(state.hero).morale + partySkill(state, 'tactics') * 4,
+    morale: 100 + heroStats(state.hero).morale + partySkill(state, 'tactics') * 4 + ((state.blessUntil ?? 0) > state.time ? 10 : 0),
   };
 }
 

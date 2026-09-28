@@ -12,6 +12,9 @@ import { prewarmBattleTerrain } from './BattleScene';
 import { applyBattle, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
 import { questsDaily } from '../game/quests';
 import { companionDeed, companionsDaily, partySkill, trainingDaily } from '../game/companions';
+import { pickEvent, type RoadEvent } from '../game/events';
+import { prisonersDaily } from '../game/prisoners';
+import { openRoadEvent } from '../ui/events';
 import { isPlagued, plagueDaily } from '../game/plague';
 import { activeLords, alliesNear, capture, news, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
@@ -614,16 +617,24 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     if (running) {
       const dtDays = (deltaMs / 1000 / SECONDS_PER_DAY) * this.speed;
       this.state.time += dtDays;
+      let roadEvent: RoadEvent | null = null;
       while (Math.floor(this.state.time) > this.state.lastDay) {
         this.state.lastDay++;
+        // В пути иногда случается дорожное событие (не чаще раза в пару дней)
+        if (moving && !roadEvent && this.state.time - (this.state.lastEvent ?? -99) >= 2.5 && Math.random() < 0.3) roadEvent = pickEvent(this.state);
         dailyTick(this.state);
         dailySpawn(this.state);
         warDaily(this.state);
         for (const msg of questsDaily(this.state)) this.hud?.news(msg, '#ffd24a');
         for (const msg of plagueDaily(this.state)) this.hud?.news(msg, '#9ab87a');
         for (const msg of companionsDaily(this.state)) news(this.state, msg, 'party');
+        for (const msg of prisonersDaily(this.state)) news(this.state, msg, 'party');
         trainingDaily(this.state, partySkill(this.state, 'training'));
         this.commit();
+      }
+      if (roadEvent && !this.inBattle) {
+        const ev = roadEvent;
+        this.modal(() => openRoadEvent(this, ev));
       }
       if (moving) this.moveParty(dtDays);
       // Преследование выбранного отряда

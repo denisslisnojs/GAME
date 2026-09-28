@@ -1570,3 +1570,49 @@ input.text:focus {
   background: #7a5aa0;
   border-color: #4a3a5a;
 }
+
+.tavern-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .tavern-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dice-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 4px;
+  background: rgba(20, 21, 23, 0.5);
+}
+
+.dice {
+  font-size: 30px;
+  line-height: 1;
+  color: #efe6d0;
+  letter-spacing: 2px;
+}
+
+.event-text {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.event-text p {
+  margin: 0;
+}
+
+.event-modal .options .btn {
+  text-align: left;
+}

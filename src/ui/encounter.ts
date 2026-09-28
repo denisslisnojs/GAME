@@ -123,7 +123,9 @@ export function openBattleResult(state: GameState, r: AppliedResult, enemyName: 
     for (const [g, n] of Object.entries(r.goods) as [GoodId, number][]) {
       loot.append(h('div', { class: 'row' }, h('div', { class: 'good-icon', style: `background:${GOODS[g].color}` }), h('span', {}, GOODS[g].name), h('span', { class: 'muted' }, `×${n}`)));
     }
+    if (r.prisoners) loot.append(h('div', { class: 'row' }, h('span', {}, `Пленные: ${r.prisoners}`), h('span', { class: 'muted' }, 'продать или завербовать')));
   } else {
+    if (r.captiveDays) loot.append(h('div', { style: 'color:#e07a6a' }, `Вас взяли в плен! Лишь через ${r.captiveDays} дн. удалось бежать. Пленные разбежались.`));
     loot.append(h('div', { style: 'color:#e07a6a' }, `Потеряно золота: ${r.lostGold} ¤`));
     loot.append(h('div', { class: 'muted' }, `Отряд отступил к: ${r.respawnAt}`));
   }
