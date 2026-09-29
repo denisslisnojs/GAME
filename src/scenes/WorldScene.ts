@@ -27,7 +27,7 @@ import { sfx } from '../audio/sfx';
 import { applyCrown } from '../game/crown';
 import { openRoadEvent } from '../ui/events';
 import { isPlagued, plagueDaily } from '../game/plague';
-import { activeLords, alliesNear, capture, news, lordsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeAttackers, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
+import { activeLords, alliesNear, capture, news, lordsNear, outlawsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeAttackers, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
 import { hasSave, listSlots, loadGame, newGame, saveGame, type GameState } from '../game/state';
 import { heroLook } from '../game/hero';
@@ -1046,7 +1046,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const ambush = attacked && p.faction === 'outlaw' && this.battleTerrain() === 'forest' && Math.random() < 0.6;
     // Кто рядом вступит в бой: союзные лорды за нас, лорды той же державы — за врага
     const allies = p.kind === 'bandits' || p.faction === 'outlaw' || p.kind === 'lord' || p.kind === 'patrol' ? alliesNear(this.state, this.party.x, this.party.y, 3) : [];
-    const others = p.kind === 'lord' ? lordsNear(this.state, p.faction as FactionId, p.x, p.y, 3, p) : [];
+    // Лорды той же державы — за врага; шайки, стоящие вплотную, объединяются против героя
+    const others = p.kind === 'lord' ? lordsNear(this.state, p.faction as FactionId, p.x, p.y, 3, p) : outlawsNear(this.state, p, 2.5);
     this.openEncounterDialog(p, attacked, allies, others, ambush);
   }
 
@@ -1096,7 +1097,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   }
 
   private startBattle(p: MapParty, formation: Formation, auto: boolean, allies: MapParty[] = [], others: MapParty[] = [], ambush = false, mods?: DuelMods) {
-    const name = others.length ? tr`${p.name} и союзники` : p.name;
+    const name = !others.length ? p.name : p.faction === 'outlaw' ? tr`${p.name} и другие шайки` : tr`${p.name} и союзники`;
     const enemy = enemyArmy(name, p.faction, others.length ? mergeTroops([p.troops, ...others.map((o) => o.troops)]) : p.troops);
     const mine = withAllies(playerArmy(this.state, formation), allies);
     if (mods) {

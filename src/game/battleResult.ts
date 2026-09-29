@@ -197,8 +197,8 @@ const ITEM_CAP: Record<string, number> = { caravan: 3, bandits: 2, raiders: 3, d
 export function applyBattle(state: GameState, battle: Battle, party: MapParty, allies: MapParty[] = [], others: MapParty[] = []): AppliedResult {
   const res = applyOutcome(state, battle, {
     lists: [party.troops, ...others.map((o) => o.troops)],
-    gold: party.gold,
-    loot: party.loot,
+    gold: party.gold + others.reduce((n, o) => n + (o.kind === 'lord' ? 0 : o.gold), 0),
+    loot: mergeLoot([party, ...others.filter((o) => o.kind !== 'lord')]),
     itemChance: ITEM_CHANCE[party.kind] ?? 0.1,
     itemCap: ITEM_CAP[party.kind] ?? 2,
     culture: party.faction === 'outlaw' ? null : party.faction,
@@ -208,7 +208,8 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty, a
   if (res.won) {
     for (const o of others) {
       onPartyDefeated(state, o);
-      defeatLord(state, o, 'player');
+      if (o.kind === 'lord') defeatLord(state, o, 'player');
+      else removeParty(state, o.id);
     }
     onPartyDefeated(state, party);
     if (party.kind === 'caravan') {
@@ -222,10 +223,21 @@ export function applyBattle(state: GameState, battle: Battle, party: MapParty, a
       res.headline = maybeCaptureLord(state, party) ? tr`${party.name} разбит и взят в плен! Выкуп можно получить в любой таверне.` : tr`${party.name} разбит и бежал!`;
     } else removeParty(state, party.id);
   } else {
-    party.calmUntil = state.time + 1.5;
+    for (const o of [party, ...others]) o.calmUntil = state.time + 1.5;
+    for (const o of others) {
+      o.troops = o.troops.filter((t) => t.count > 0);
+      if (!o.troops.length && o.kind !== 'lord') removeParty(state, o.id);
+    }
     if (party.kind === 'lord') news(state, tr`${party.name} разбил отряд ${state.hero.name}.`, 'player');
   }
   return res;
+}
+
+/** Добыча нескольких отрядов вместе. */
+function mergeLoot(parties: MapParty[]): Partial<Record<GoodId, number>> {
+  const out: Partial<Record<GoodId, number>> = {};
+  for (const p of parties) for (const [g, n] of Object.entries(p.loot ?? {}) as [GoodId, number][]) out[g] = (out[g] ?? 0) + n;
+  return out;
 }
 
 /** Штурм крепости игроком. */

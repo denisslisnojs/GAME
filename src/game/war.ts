@@ -574,6 +574,15 @@ export function lordsNear(state: GameState, f: FactionId, x: number, y: number, 
   return activeLords(state, f).filter((l) => l !== exclude && Math.hypot(l.x - x, l.y - y) / TILE < cells);
 }
 
+/** Вольные шайки (разбойники, налётчики, дезертиры) вплотную к p: при нападении на одну встают заодно. */
+export function outlawsNear(state: GameState, p: MapParty, cells: number, max = 3): MapParty[] {
+  if (p.faction !== 'outlaw' || p.kind === 'caravan' || p.camp) return [];
+  return (state.parties ?? [])
+    .filter((o) => o !== p && o.faction === 'outlaw' && o.kind !== 'caravan' && !o.camp && o.troops.some((t) => t.count > 0) && Math.hypot(o.x - p.x, o.y - p.y) / TILE < cells)
+    .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))
+    .slice(0, max);
+}
+
 /** Добавить войска союзников в армию игрока (ключи A<i>|<id>, чтобы потери легли на лордов). */
 export function withAllies(army: ArmyDef, allies: MapParty[]): ArmyDef {
   allies.forEach((l, i) => l.troops.forEach((t) => army.troops.push({ id: t.id, count: t.count, key: `A${i}|${t.id}` })));
