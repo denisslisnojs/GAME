@@ -25,7 +25,12 @@ export class BootScene extends Phaser.Scene {
 
     await progress(tr('Шрифты'));
     try {
-      await Promise.all([document.fonts.load('16px "Kurale"', tr('Кириллица')), document.fonts.load('16px "Ruslan Display"', tr('Кириллица'))]);
+      await Promise.all([
+        document.fonts.load('16px "Kurale"', tr('Кириллица')),
+        document.fonts.load('16px "Ruslan Display"', tr('Кириллица')),
+        document.fonts.load('500 16px "Fira Sans Condensed"', tr('Кириллица') + ' 0123'),
+        document.fonts.load('700 16px "Fira Sans Condensed"', tr('Кириллица') + ' 0123'),
+      ]);
     } catch {
       /* шрифты не критичны */
     }

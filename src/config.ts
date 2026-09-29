@@ -32,3 +32,6 @@ export const PARTY_SPEED = 18;
 export const START_YEAR = 1347;
 export const SAVE_KEY = 'w1347_save_v1';
 export const SETTINGS_KEY = 'w1347_settings_v1';
+
+/** Шрифт подписей на карте и в бою: ровные цифры, легко читать на телефоне. */
+export const LABEL_FONT = '"Fira Sans Condensed", "Arial Narrow", sans-serif';

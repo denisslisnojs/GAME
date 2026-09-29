@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { LABEL_FONT } from '../config';
 import { sfx } from '../audio/sfx';
 import { music } from '../audio/music';
 import { drawArena, drawBush, drawCart, drawFar, drawFieldTree, drawGround, drawHill, drawMid, drawSky, drawStake, drawWall, type BattleTerrain } from '../battle/background';
@@ -928,7 +929,7 @@ export class BattleScene extends Phaser.Scene {
     const b = this.battle;
     // Подписи холмов и рощ: где выгодно встать
     if (!this.fieldLabels.length) {
-      const style = { fontFamily: 'Kurale, Georgia, serif', fontSize: '16px', color: '#fff2c8', stroke: '#140f0c', strokeThickness: 4 };
+      const style = { fontFamily: LABEL_FONT, fontStyle: '700', fontSize: '16px', color: '#fff2c8', stroke: '#140f0c', strokeThickness: 4 };
       for (const h of b.field.hills) this.fieldLabels.push(this.add.text((h.x0 + h.x1) / 2, FIELD_Y0 - HILL_LIFT - 78, tr('▲ Холм'), style).setOrigin(0.5, 1).setDepth(6400));
       for (const gr of b.field.groves) this.fieldLabels.push(this.add.text(gr.x, gr.y - gr.ry - 70, tr('Роща'), style).setOrigin(0.5, 1).setDepth(6400));
     }
@@ -952,7 +953,7 @@ export class BattleScene extends Phaser.Scene {
         continue;
       }
       if (!t) {
-        t = this.add.text(0, 0, '', { fontFamily: 'Kurale, Georgia, serif', fontSize: '18px', color: '#f4ecd8', stroke: '#140f0c', strokeThickness: 4 }).setOrigin(0.5, 1).setDepth(6500);
+        t = this.add.text(0, 0, '', { fontFamily: LABEL_FONT, fontStyle: '700', fontSize: '18px', color: '#f4ecd8', stroke: '#140f0c', strokeThickness: 4 }).setOrigin(0.5, 1).setDepth(6500);
         this.groupTexts.set(grp, t);
       }
       const on = sel === 'all' || sel === grp;
@@ -1024,7 +1025,7 @@ export class BattleScene extends Phaser.Scene {
   private floatText(x: number, y: number, text: string, color: string) {
     if (this.floats.length > 18) return;
     const t = this.add
-      .text(x, y, text, { fontFamily: 'Kurale, Georgia, serif', fontSize: '20px', color, stroke: '#140f0c', strokeThickness: 4 })
+      .text(x, y, text, { fontFamily: LABEL_FONT, fontStyle: '700', fontSize: '20px', color, stroke: '#140f0c', strokeThickness: 4 })
       .setOrigin(0.5, 1)
       .setDepth(7000);
     this.floats.push({ t, life: 0.9 });

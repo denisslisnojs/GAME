@@ -1996,4 +1996,9 @@ export const EN: Record<string, string> = {
   "Людей слишком мало для боя с шайкой ({0}). Наймите крестьян в деревнях, потом разбейте Чёрного Лиса у деревни {1}.": "Too few men to fight the gang ({0}). Hire peasants in villages, then defeat the Black Fox near {1}.",
   "Отмена": "Cancel",
   "{0} и другие шайки": "{0} and other bands",
+  "пленных": "captives",
+  "Пленные в обозе: продать или завербовать": "Captives in the baggage train: sell or recruit them",
+  "Опыт до следующего уровня": "Experience to the next level",
+  "Казна героя": "Hero's purse",
+  "Отряд: открыть": "Open the party",
 };

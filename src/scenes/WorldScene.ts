@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { drawSnowCover, hash01 } from '../map/season';
 import { music } from '../audio/music';
-import { ART_SCALE, GRID_H, GRID_W, PARTY_SPEED, SECONDS_PER_DAY, TILE, WORLD_H, WORLD_W } from '../config';
+import { ART_SCALE, GRID_H, GRID_W, LABEL_FONT, PARTY_SPEED, SECONDS_PER_DAY, TILE, WORLD_H, WORLD_W } from '../config';
 import { FACTIONS, type FactionId } from '../data/factions';
 import { drawRider, settlementTextureKey } from '../gfx/sprites';
 import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo, totalReady } from '../game/logic';
@@ -81,7 +81,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   private questMark!: Phaser.GameObjects.Graphics;
 
   private settleSprites = new Map<string, Phaser.GameObjects.Image>();
-  private partySprites = new Map<number, { s: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; frameT: number; frame: number; color: string }>();
+  private partySprites = new Map<number, { s: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; badge: Phaser.GameObjects.Text; frameT: number; frame: number; color: string; badgeColor: string }>();
   /** Метки на карте: осадные лагеря и дым над разорёнными деревнями. */
   private warMarks = new Map<string, Phaser.GameObjects.Sprite>();
   private warMarkT = 0;
@@ -138,7 +138,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       this.settleSprites.set(s.id, img);
       const t = this.add
         .text(s.x, s.y + TILE * 0.5, s.name, {
-          fontFamily: '"Kurale", Georgia, serif',
+          fontFamily: LABEL_FONT,
+          fontStyle: s.type === 'village' ? '500' : '700',
           fontSize: s.type === 'town' ? '17px' : s.type === 'castle' ? '15px' : '13px',
           color: s.type === 'town' ? '#fff4d6' : s.type === 'castle' ? '#e8dcc0' : '#d8d0bc',
           stroke: '#1a1410',
@@ -921,6 +922,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       if (!alive.has(id)) {
         v.s.destroy();
         v.label.destroy();
+        v.badge.destroy();
         this.partySprites.delete(id);
       }
     }
@@ -930,12 +932,19 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       let v = this.partySprites.get(p.id);
       if (!v) {
         const s = this.add.sprite(p.x, p.y, this.partyTexture(p, 0)).setOrigin(0.5, 0.9).setScale(ART_SCALE * PARTY_K);
+        const res = Math.min(3, window.devicePixelRatio || 1);
         const label = this.add
-          .text(p.x, p.y + 6, '', { fontFamily: '"Kurale", Georgia, serif', fontSize: p.kind === 'lord' ? '12.5px' : '11.5px', color: '#e8e0c8', stroke: '#1a1410', strokeThickness: 3 })
-          .setOrigin(0.5, 0)
-          .setResolution(Math.min(3, window.devicePixelRatio || 1))
+          .text(p.x, p.y + 6, '', { fontFamily: LABEL_FONT, fontStyle: '500', fontSize: p.kind === 'lord' ? '12.5px' : '11.5px', color: '#e8e0c8', stroke: '#1a1410', strokeThickness: 3 })
+          .setOrigin(0, 0)
+          .setResolution(res)
           .setDepth(9990);
-        v = { s, label, frameT: 0, frame: 0, color: '' };
+        // Численность — на цветной плашке: зелёная — слабее вас, жёлтая — вровень, красная — сильнее
+        const badge = this.add
+          .text(p.x, p.y + 6, '', { fontFamily: LABEL_FONT, fontStyle: '700', fontSize: p.kind === 'lord' ? '12px' : '11px', color: '#ffffff', backgroundColor: '#555555', padding: { x: 3, y: 1 } })
+          .setOrigin(0, 0)
+          .setResolution(res)
+          .setDepth(9991);
+        v = { s, label, badge, frameT: 0, frame: 0, color: '', badgeColor: '' };
         this.partySprites.set(p.id, v);
       }
       const quarry = p.questId || (this.state.quests ?? []).some((q) => q.kind === 'hunt' && !q.done && q.lordId === p.id);
@@ -954,7 +963,15 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       }
       v.s.setTexture(this.partyTexture(p, v.frame)).setPosition(p.x, p.y).setFlipX(r.facing < 0).setDepth(p.y);
       v.s.setScale(ART_SCALE * (p.kind === 'lord' ? LORD_K : PARTY_K));
-      v.label.setText(`${p.name} · ${partyCount(p)}`).setPosition(p.x, p.y + 4).setScale(k);
+      v.label.setText(p.name).setScale(k);
+      v.badge.setText(String(partyCount(p))).setScale(k);
+      // Плашка слева от имени, вместе по центру отряда
+      const bw = v.badge.width * k;
+      const gap = 3 * k;
+      const x0 = p.x - (bw + gap + v.label.width * k) / 2;
+      const ty = p.y + 4;
+      v.badge.setPosition(x0, ty + ((v.label.height - v.badge.height) * k) / 2);
+      v.label.setPosition(x0 + bw + gap, ty);
     }
     // Подписи отрядов не налезают на подписи городов и друг на друга: сначала лорды, потом ближние к игроку.
     // Раскладка раз в 150 мс — дешевле для телефона.
@@ -964,17 +981,33 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const placed = [...this.labelBoxes];
     const order = [...list].sort((a, b) => (a.kind === 'lord' ? 0 : 1) - (b.kind === 'lord' ? 0 : 1) || Math.hypot(a.x - this.party.x, a.y - this.party.y) - Math.hypot(b.x - this.party.x, b.y - this.party.y));
     for (const p of order) {
-      const t = this.partySprites.get(p.id)!.label;
+      const v = this.partySprites.get(p.id)!;
+      const t = v.label;
+      // Цвет плашки — по опасности отряда для героя
+      const bc = this.threatColor(p);
+      if (bc !== v.badgeColor) {
+        v.badgeColor = bc;
+        v.badge.setBackgroundColor(bc);
+      }
       if (z <= 0.35) {
         t.setVisible(false);
+        v.badge.setVisible(false);
         continue;
       }
-      const w = t.width * k;
-      const box: [number, number, number, number] = [t.x - w / 2, t.y, t.x + w / 2, t.y + t.height * k];
+      const box: [number, number, number, number] = [v.badge.x, t.y, t.x + t.width * k, t.y + t.height * k];
       const overlap = placed.some(([a0, b0, a1, b1]) => !(box[2] < a0 || box[0] > a1 || box[3] < b0 || box[1] > b1));
       t.setVisible(!overlap);
+      v.badge.setVisible(!overlap);
       if (!overlap) placed.push(box);
     }
+  }
+
+  /** Плашка численности: свои — синие, мирные — серые, враги — от зелёного (слабее) до красного (сильнее). */
+  private threatColor(p: MapParty): string {
+    if (p.faction === this.state.hero.faction) return '#35608f';
+    if (!this.isHostile(p)) return '#5b5850';
+    const r = powerRatio(this.state, p);
+    return r < 0.5 ? '#3d7a34' : r < 0.9 ? '#6b7a24' : r < 1.2 ? '#9a7418' : '#a3231d';
   }
 
   private partyAt(x: number, y: number): MapParty | null {

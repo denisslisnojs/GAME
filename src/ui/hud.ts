@@ -1,4 +1,5 @@
 import { FACTIONS } from '../data/factions';
+import { heroXpToLevel } from '../game/battleResult';
 import { heroPortraitURL } from '../gfx/icons';
 import { partySize, totalReady } from '../game/logic';
 import { dateString, timeOfDay, type GameState } from '../game/state';
@@ -26,17 +27,23 @@ export type Flow = 'march' | 'wait' | 'still';
 
 export class Hud {
   private root: HTMLElement;
-  private date = h('span', {});
-  private gold = h('span', { class: 'gold' });
-  private men = h('span', {});
+  private date = h('span', { class: 'hud-date' });
+  private dayTime = h('span', { class: 'hud-daytime' });
+  private gold = h('b', { class: 'num gold' });
+  private men = h('b', { class: 'num' });
+  private captives = h('b', { class: 'num' });
+  private captivesChip: HTMLElement;
   private terrain = h('span', { class: 'muted' });
   private waitBtn: HTMLButtonElement;
   private speedBtn: HTMLButtonElement;
   private partyBtn: HTMLButtonElement;
+  private heroBtn: HTMLButtonElement;
   private partyBadge = h('span', { class: 'badge-dot' });
   private heroBadge = h('span', { class: 'badge-dot' });
-  private heroLine = h('span', {});
-  private heroImg = h('img', { class: 'px emblem', style: 'width:28px;height:28px' }) as HTMLImageElement;
+  private heroBtnBadge = h('span', { class: 'badge-dot' });
+  private heroLine = h('span', { class: 'hud-hero-sub' });
+  private xpFill = h('div');
+  private heroImg = h('img', { class: 'px hud-portrait' }) as HTMLImageElement;
   private feed = h('div', { class: 'news-feed' });
   private tutText = h('span', {});
   private tut: HTMLElement;
@@ -44,13 +51,18 @@ export class Hud {
   private night = h('div', { class: 'passthrough', style: 'position:fixed;inset:0;pointer-events:none;background:#10183a;opacity:0;transition:opacity 1s' });
 
   constructor(state: GameState, a: HudActions) {
-    const f = FACTIONS[state.hero.faction];
     this.waitBtn = btn(tr('⌛ Ждать'), () => a.toggleWait(), '', false, tr('Ждать на месте: время идёт (пробел)'));
     this.speedBtn = btn('×1', () => a.cycleSpeed(), 'small', false, tr('Скорость времени'));
     this.partyBtn = btn(tr('Отряд'), () => a.openParty());
+    this.heroBtn = btn(tr('Герой'), () => a.openHero(), '', false, tr('Герой и снаряжение'));
     this.tutGo = btn('◎', () => a.showTarget(), 'small', false, tr('Показать на карте'));
     this.tut = h('div', { class: 'tut-card' }, this.tutText, this.tutGo, btn('✕', () => a.skipTutorial(), 'small ghost', false, tr('Пропустить обучение')));
     this.partyBtn.append(this.partyBadge);
+    this.heroBtn.append(this.heroBtnBadge);
+    // Показатель: крупное число и подпись под ним
+    const chip = (value: HTMLElement, caption: string, title: string, onclick?: () => void) =>
+      h('div', { class: `hud-chip${onclick ? ' tap' : ''}`, title, onclick }, value, h('span', { class: 'cap' }, caption));
+    this.captivesChip = chip(this.captives, tr('пленных'), tr('Пленные в обозе: продать или завербовать'), () => a.openParty());
     this.root = h(
       'div',
       { class: 'passthrough', style: 'position:fixed;inset:0' },
@@ -60,13 +72,24 @@ export class Hud {
         { class: 'hud-top' },
         h(
           'div',
-          { class: 'hud-box', onclick: () => a.openHero(), style: 'cursor:pointer', title: tr('Герой и снаряжение') },
-          this.heroImg,
-          h('div', { class: 'col', style: 'gap:0' }, h('span', {}, state.hero.name, this.heroBadge), h('span', { class: 'muted small', style: `color:${f.css}` }, this.heroLine)),
+          { class: 'hud-cluster' },
+          h(
+            'div',
+            { class: 'hud-box hud-hero', onclick: () => a.openHero(), title: tr('Герой и снаряжение') },
+            this.heroImg,
+            h('div', { class: 'col', style: 'gap:1px;min-width:0' }, h('span', { class: 'hud-hero-name' }, state.hero.name, this.heroBadge), this.heroLine, h('div', { class: 'hud-xp', title: tr('Опыт до следующего уровня') }, this.xpFill)),
+          ),
+          h(
+            'div',
+            { class: 'hud-box hud-stats' },
+            chip(this.gold, tr('золото'), tr('Казна героя')),
+            chip(this.men, tr('воинов'), tr('Отряд: открыть'), () => a.openParty()),
+            this.captivesChip,
+          ),
         ),
-        h('div', { class: 'hud-box col', style: 'gap:0;align-items:flex-end' }, h('span', { class: 'row', style: 'gap:6px' }, this.gold, h('span', { class: 'muted' }, '·'), this.men), h('span', { class: 'muted small' }, this.date)),
+        h('div', { class: 'hud-box hud-when' }, this.date, this.dayTime),
       ),
-      h('div', { class: 'hud-left' }, h('div', { class: 'hud-group' }, this.waitBtn, this.speedBtn), h('div', { class: 'hud-terrain' }, this.terrain)),
+      h('div', { class: 'hud-left' }, h('div', { class: 'hud-terrain' }, this.terrain), h('div', { class: 'hud-group' }, this.waitBtn, this.speedBtn)),
       this.tut,
       h(
         'div',
@@ -76,6 +99,7 @@ export class Hud {
           { class: 'hud-group' },
           btn('◎', () => a.centerParty(), 'icon', false, tr('К отряду')),
           this.partyBtn,
+          this.heroBtn,
           btn(tr('Хроника'), () => a.openChronicle()),
           btn(tr('Державы'), () => a.openRealms()),
           btn('☰', () => a.openMenu(), 'icon', false, tr('Меню')),
@@ -87,14 +111,24 @@ export class Hud {
   }
 
   update(state: GameState, flow: Flow, speed: number, terrain: string) {
-    this.date.textContent = `${dateString(state.time)}, ${timeOfDay(state.time)}`;
+    this.date.textContent = dateString(state.time);
+    const hour = (state.time % 1) * 24;
+    this.dayTime.textContent = `${hour >= 6 && hour < 20 ? '☀' : '☾'} ${timeOfDay(state.time)}`;
     this.gold.textContent = `${state.gold} ¤`;
-    this.men.textContent = `${partySize(state)} ⚔`;
+    this.men.textContent = String(partySize(state));
+    const caps = (state.prisoners ?? []).reduce((n, t) => n + t.count, 0);
+    this.captives.textContent = String(caps);
+    this.captivesChip.style.display = caps ? '' : 'none';
+    this.xpFill.style.width = `${Math.max(0, Math.min(100, (state.hero.xp / heroXpToLevel(state.hero.level)) * 100)).toFixed(1)}%`;
     this.terrain.textContent = flow === 'still' ? tr`${terrain} · время стоит` : terrain;
     const pts = state.hero.points ?? 0;
+    const allPts = pts + (state.hero.skillPoints ?? 0);
     this.heroBadge.textContent = pts ? `+${pts}` : '';
     this.heroBadge.style.display = pts ? '' : 'none';
+    this.heroBtnBadge.textContent = allPts ? `+${allPts}` : '';
+    this.heroBtnBadge.style.display = allPts ? '' : 'none';
     this.heroLine.textContent = tr`${FACTIONS[state.hero.faction].short} · ур. ${state.hero.level}`;
+    this.heroLine.style.color = FACTIONS[state.hero.faction].css;
     const portrait = heroPortraitURL(state);
     if (this.heroImg.src !== portrait) this.heroImg.src = portrait;
     const ready = totalReady(state);
