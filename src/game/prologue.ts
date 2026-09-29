@@ -197,6 +197,8 @@ export function prologueGuideJoins(state: GameState) {
     cs.loyalty = 75;
     cs.movedAt = state.time;
   }
+  // Сразу к следующему шагу: иначе таверна после диалога снова покажет ту же сцену
+  if (prologueStep(state) === 'tavern') advance(state);
 }
 
 export function prologueVictoryTold(state: GameState) {

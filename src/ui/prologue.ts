@@ -127,6 +127,7 @@ export function prologueOnTavern(ctx: GameCtx, s: Settlement, then: () => void):
   if (prologueStep(ctx.state) !== 'tavern') return false;
   const { p, village, guide } = names(ctx);
   if (s.id !== p.town) return false;
+  if (ctx.state.companions?.find((c) => c.id === p.comp)?.where === 'party') return false;
   const line = GUIDE_LINE[p.comp]?.(village.name) ?? '';
   const show = (open: () => void) => {
     if (ctx.modal) ctx.modal(open);
