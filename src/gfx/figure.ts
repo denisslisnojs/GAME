@@ -243,3 +243,20 @@ export function rotateShapes(shapes: Shape[], cx: number, cy: number, ang: numbe
     return { ...s, ell: [c[0], c[1], swap ? ry : rx, swap ? rx : ry] };
   });
 }
+
+/** Увеличить фигуру относительно (cx, cy): по x в s раз, по y в sy раз (точки, радиусы, толщины). */
+export function scaleShapes(shapes: Shape[], cx: number, cy: number, s: number, sy = s): Shape[] {
+  const f = (x: number, y: number): Pt => [cx + (x - cx) * s, cy + (y - cy) * sy];
+  const sw = (s + sy) / 2;
+  return shapes.map((sh) => {
+    if (sh.poly) return { ...sh, poly: sh.poly.map(([x, y]) => f(x, y)) };
+    if (sh.cap) {
+      const a = f(sh.cap[0], sh.cap[1]);
+      const b = f(sh.cap[2], sh.cap[3]);
+      return { ...sh, cap: [a[0], a[1], b[0], b[1], sh.cap[4] * sw, sh.cap[5] * sw] };
+    }
+    const [ex, ey, rx, ry] = sh.ell!;
+    const c = f(ex, ey);
+    return { ...sh, ell: [c[0], c[1], rx * s, ry * sy] };
+  });
+}

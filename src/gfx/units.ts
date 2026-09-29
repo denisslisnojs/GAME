@@ -6,17 +6,32 @@
 import type { BodyKind } from '../data/items';
 import type { Helmet, Weapon } from '../data/troops';
 import { lumOf, mix } from './color';
-import { cap, ell, poly, rasterize, rotateShapes, type Mat, type Pat, type Pt, type Shape } from './figure';
+import { cap, ell, poly, rasterize, rotateShapes, scaleShapes, type Mat, type Pat, type Pt, type Shape } from './figure';
 
 /** Размер кадра в пикселях (рисуется в 1:1, без растяжения). */
 export const FRAME_W = 112;
-export const FRAME_H = 104;
+export const FRAME_H = 128;
 /** Где в кадре стоят ступни. */
-export const FEET_Y = 100;
+export const FEET_Y = 124;
 export const FRAMES = { idle: 0, walk: [1, 2, 3, 4], attack: [5, 6, 7], dead: 8 } as const;
 /** Пикселей на дизайн-единицу (рост пешего воина — 64 единицы). */
 const K = 1.08;
 const OX = 50;
+/**
+ * Пропорции «крепыша»: крупная голова со шлемом, короткие толстые ноги, широкий торс, большой щит —
+ * силуэт читается издалека и на маленьком экране.
+ */
+const HEAD_K = 1.72;
+const LIMB_K = 1.32;
+const SHIELD_K = 1.5;
+const TORSO_KX = 1.36;
+const TORSO_KY = 0.96;
+/** Одноручное оружие крупнее; древковое — чуть, иначе копья не влезут в кадр. */
+const WEAPON_K = 1.3;
+const POLE_K = 1.1;
+/** Конь крупнее — под рослого всадника. */
+const HORSE_K = 1.18;
+const CAMEL_K = 1.14;
 
 export type Culture = 'aurelia' | 'nordmark' | 'horde' | 'sultanate' | 'outlaw';
 
@@ -484,14 +499,14 @@ function torso(k: Kit): Shape[] {
 }
 
 function arm(k: Kit, S: Pt, T: Pt, far: boolean): { shapes: Shape[]; hand: Pt } {
-  const [E, Hd] = ik(S, T, 10.2, 9.4);
+  const [E, Hd] = ik(S, T, 9.4, 8.8);
   const dim = (c: string) => (far ? mix(c, '#000000', 0.12) : c);
   const shapes: Shape[] = [
-    cap(dim(k.sleeve), k.sleeveMat, S, E, 4.4, 3.8, k.sleevePat),
-    cap(dim(k.forearm), k.forearmMat, E, Hd, 3.7, 3.1, k.forearmMat === 'metal' ? k.sleevePat : 'none'),
+    cap(dim(k.sleeve), k.sleeveMat, S, E, 4.4 * LIMB_K, 3.8 * LIMB_K, k.sleevePat),
+    cap(dim(k.forearm), k.forearmMat, E, Hd, 3.7 * LIMB_K, 3.1 * LIMB_K, k.forearmMat === 'metal' ? k.sleevePat : 'none'),
   ];
   if (k.kind === 'plate') shapes.push(ell(dim(mix(k.metal, '#ffffff', 0.1)), 'metal', E[0], E[1], 2.4, 2.2));
-  shapes.push(ell(dim(k.hand), k.handMat, Hd[0], Hd[1], 1.9, 1.8));
+  shapes.push(ell(dim(k.hand), k.handMat, Hd[0], Hd[1], 1.9 * LIMB_K, 1.8 * LIMB_K));
   return { shapes, hand: Hd };
 }
 
@@ -619,36 +634,41 @@ function upperBody(k: Kit, cls: Cls, frame: number, mounted: boolean): { shapes:
   let nearT: Pt | null = p.hs;
   if (cls === 'bow') {
     const bowHand = p.hs!;
-    wShapes = weapon(k, bowHand, 0, { pull: bowHand[0] - p.hw[0], arrow: p.arrow });
+    wShapes = scaleShapes(weapon(k, bowHand, 0, { pull: bowHand[0] - p.hw[0], arrow: p.arrow }), bowHand[0], bowHand[1], POLE_K);
   } else {
-    wShapes = weapon(k, far.hand, p.wa, { loaded: p.loaded });
+    const wk = cls === 'one' || cls === 'crossbow' ? WEAPON_K : POLE_K;
+    wShapes = scaleShapes(weapon(k, far.hand, p.wa, { loaded: p.loaded }), far.hand[0], far.hand[1], wk);
     if (!p.hs) nearT = add(far.hand, dir(p.wa), cls === 'crossbow' ? 5 : 8);
   }
   if (!p.front) out.push(...far.shapes, ...wShapes);
   else out.push(...far.shapes);
-  out.push(...torso(k));
-  out.push(...head(k, 1.6, -24.6));
+  out.push(...scaleShapes(torso(k), 0.6, -2, TORSO_KX, TORSO_KY));
+  // Голова крупнее, растёт вверх от подбородка
+  out.push(...scaleShapes(head(k, 1.6, -24.6), 1.8, -19.4, HEAD_K));
   if (p.front) out.push(...wShapes);
   const near = arm(k, SN, nearT ?? [3, -3], false);
   out.push(...near.shapes);
-  if (L.shield && !pavise && cls !== 'bow' && cls !== 'crossbow' && (cls === 'one' || cls === 'spearShield' || cls === 'lance')) out.push(...shield(k, [near.hand[0] + 1.2, near.hand[1] - 0.5]));
+  if (L.shield && !pavise && cls !== 'bow' && cls !== 'crossbow' && (cls === 'one' || cls === 'spearShield' || cls === 'lance')) out.push(...scaleShapes(shield(k, [near.hand[0] + 1.2, near.hand[1] - 0.5]), near.hand[0] + 1.2, near.hand[1] - 0.5, SHIELD_K));
   return { shapes: out, lean: p.lean, reinHand: mounted && !L.shield && cls !== 'bow' ? near.hand : null };
 }
 
 // ───────────────────────── пеший ─────────────────────────
 
-const THIGH = 15;
-const SHIN = 14.2;
+const THIGH = 12.6;
+const SHIN = 11.8;
 
 function legShapes(k: Kit, hip: Pt, th: number, sh: number, far: boolean): Shape[] {
   const knee = add(hip, down(th, THIGH));
   const ankle = add(knee, down(sh, SHIN));
   const dim = (c: string) => (far ? mix(c, '#000000', 0.14) : c);
-  const out: Shape[] = [cap(dim(k.pants), k.pantsMat, hip, knee, 6, 5), cap(dim(k.pants), k.pantsMat, knee, ankle, 5, 4.2)];
-  if (k.pantsMat === 'metal') out.push(ell(dim(mix(k.pants, '#ffffff', 0.12)), 'metal', knee[0], knee[1], 2.6, 2.5));
-  else if (k.L.tier >= 2) out.push(cap(dim(k.boots), k.bootsMat, add(ankle, [0, -5]), ankle, 4.6, 4.4));
+  const out: Shape[] = [cap(dim(k.pants), k.pantsMat, hip, knee, 6 * LIMB_K, 5 * LIMB_K), cap(dim(k.pants), k.pantsMat, knee, ankle, 5 * LIMB_K, 4.2 * LIMB_K)];
+  const foot: Shape[] = [];
+  if (k.pantsMat === 'metal') out.push(ell(dim(mix(k.pants, '#ffffff', 0.12)), 'metal', knee[0], knee[1], 2.6 * LIMB_K, 2.5 * LIMB_K));
+  else if (k.L.tier >= 2) foot.push(cap(dim(k.boots), k.bootsMat, add(ankle, [0, -5]), ankle, 4.6, 4.4));
   const [ax, ay] = ankle;
-  out.push(poly(dim(k.boots), k.bootsMat, [[ax - 2.4, ay - 1.8], [ax + 2.2, ay - 1.8], [ax + 2.6, ay + 0.4], [ax + 5.6, ay + 1.6], [ax + 5.6, ay + 3], [ax - 2.6, ay + 3]]));
+  foot.push(poly(dim(k.boots), k.bootsMat, [[ax - 2.4, ay - 1.8], [ax + 2.2, ay - 1.8], [ax + 2.6, ay + 0.4], [ax + 5.6, ay + 1.6], [ax + 5.6, ay + 3], [ax - 2.6, ay + 3]]));
+  // Сапог тоже крупнее, подошва остаётся на земле
+  out.push(...scaleShapes(foot, ax, ay + 3, LIMB_K));
   return out;
 }
 
@@ -702,20 +722,22 @@ function horseShapes(k: Kit, frame: number, rider: Shape[], reinHand: Pt | null,
     return [cap(c, 'horse', top, knee, 5.4, 3.6), cap(c, 'horse', knee, hoof, 3, 2.5), ell('#2a2018', 'dark', hoof[0] + 0.7, hoof[1] + 1, 2, 1.3)];
   };
   const out: Shape[] = [];
-  out.push(...leg(11, g[1], farC, true), ...leg(-12, g[3], farC, false));
-  out.push(cap(mane, 'hair', [-18, y0 - 5], [-24, y0 + 10], 3.8, 1.6), cap(mane, 'hair', [-18, y0 - 5], [-22, y0 + 12], 2.6, 1.2));
-  out.push(ell(base, 'horse', 0, y0, 17, 9.5));
-  out.push(ell(base, 'horse', 11.5, y0 + 0.5, 8, 9), ell(base, 'horse', -11, y0 - 0.5, 9, 9.6));
-  out.push(...leg(12, g[0], base, true), ...leg(-11, g[2], base, false));
+  out.push(...leg(13, g[1], farC, true), ...leg(-14, g[3], farC, false));
+  out.push(cap(mane, 'hair', [-20.5, y0 - 5], [-26.5, y0 + 10], 4.2, 1.8), cap(mane, 'hair', [-20.5, y0 - 5], [-24.5, y0 + 12], 2.8, 1.3));
+  out.push(ell(base, 'horse', 0, y0, 19.5, 10));
+  out.push(ell(base, 'horse', 13.5, y0 + 0.5, 8.6, 9.6), ell(base, 'horse', -13, y0 - 0.5, 9.6, 10));
+  out.push(...leg(14, g[0], base, true), ...leg(-13, g[2], base, false));
   // Шея и голова
-  out.push(cap(base, 'horse', [13, y0 - 4], [21, y0 - 17], 10.5, 6.8));
-  out.push(cap(base, 'horse', [21.5, y0 - 19], [30.5, y0 - 10], 7.2, 4.4));
-  out.push(cap(base, 'horse', [20.4, y0 - 20.5], [20.8, y0 - 24.5], 1.8, 0.9));
-  out.push(ell(mix(base, '#000000', 0.28), 'horse', 30.4, y0 - 10.4, 2.6, 2.3));
-  out.push(ell(DARK, 'dark', 31.4, y0 - 10.8, 0.45, 0.45));
-  out.push(ell(DARK, 'dark', 24, y0 - 17, 0.7, 0.7));
-  out.push(cap(mane, 'hair', [12.5, y0 - 8], [20.4, y0 - 21.5], 3.2, 2.4));
-  out.push(cap('#3a2618', 'leather', [23, y0 - 19.5], [26.5, y0 - 12], 0.7), cap('#3a2618', 'leather', [26.5, y0 - 12], [31, y0 - 12.5], 0.7));
+  // Шея дугой: толстая у груди, гребень выгнут
+  out.push(cap(base, 'horse', [14.5, y0 - 3], [21, y0 - 13], 12.5, 9), cap(base, 'horse', [20, y0 - 12], [23, y0 - 19], 9, 7));
+  // Голова длинная, с мордой
+  out.push(cap(base, 'horse', [23, y0 - 20.5], [33, y0 - 11], 8.6, 5.4));
+  out.push(cap(base, 'horse', [21.6, y0 - 22], [21.8, y0 - 26.8], 2, 1));
+  out.push(ell(mix(base, '#000000', 0.26), 'horse', 33.2, y0 - 10.8, 3.2, 2.8));
+  out.push(ell(DARK, 'dark', 34.6, y0 - 11.2, 0.55, 0.5));
+  out.push(ell(DARK, 'dark', 25.6, y0 - 18.6, 0.9, 0.9));
+  out.push(cap(mane, 'hair', [13, y0 - 9], [17.5, y0 - 18], 4.2, 3.4), cap(mane, 'hair', [17.5, y0 - 18], [22, y0 - 23], 3.4, 2.4));
+  out.push(cap('#3a2618', 'leather', [24.4, y0 - 21], [28.6, y0 - 12.6], 0.8), cap('#3a2618', 'leather', [28.6, y0 - 12.6], [34, y0 - 13], 0.8));
   if (L.heavy) {
     // Попона по контуру коня, со складками и зубчатым краем; налобник
     const hem: Pt[] = [];
@@ -723,22 +745,36 @@ function horseShapes(k: Kit, frame: number, rider: Shape[], reinHand: Pt | null,
       const x = 20 - i * 4.6;
       hem.push([x, y0 + (i % 2 ? 12 : 10.2) - Math.max(0, x - 12) * 0.4]);
     }
-    out.push(poly(L.cloth, 'cloth', [[-21.5, y0 - 5], [-15, y0 - 9.6], [-2, y0 - 10.2], [9, y0 - 9.6], [16, y0 - 11], [21.5, y0 - 4], [22, y0 + 4], ...hem, [-22.5, y0 + 9]], 'plank'));
-    out.push(cap(L.cloth2, 'gold', [-22.5, y0 + 9.4], [15, y0 + 9.4], 1.2));
-    out.push(ell(L.cloth2, 'gold', -9, y0 + 0.5, 3.2, 3.4), ell(L.cloth2, 'gold', 10, y0 + 0.5, 3.2, 3.4));
-    out.push(poly(L.cloth, 'cloth', [[13, y0 - 6], [18.5, y0 - 13], [21.5, y0 - 18], [24, y0 - 15.5], [20.5, y0 - 7]], 'plank'));
-    out.push(poly('#9aa2aa', 'metal', [[20.5, y0 - 21], [24, y0 - 20.4], [30.4, y0 - 12.4], [28.4, y0 - 10.4], [21.4, y0 - 16.8]]));
+    // Попона растянута по удлинённому корпусу
+    out.push(
+      ...scaleShapes(
+        [
+          poly(L.cloth, 'cloth', [[-21.5, y0 - 5], [-15, y0 - 9.6], [-2, y0 - 10.2], [9, y0 - 9.6], [16, y0 - 11], [21.5, y0 - 4], [22, y0 + 4], ...hem, [-22.5, y0 + 9]], 'plank'),
+          cap(L.cloth2, 'gold', [-22.5, y0 + 9.4], [15, y0 + 9.4], 1.2),
+          ell(L.cloth2, 'gold', -9, y0 + 0.5, 3.2, 3.4),
+          ell(L.cloth2, 'gold', 10, y0 + 0.5, 3.2, 3.4),
+        ],
+        0,
+        y0,
+        1.13,
+        1.03,
+      ),
+    );
+    out.push(poly(L.cloth, 'cloth', [[14.5, y0 - 5], [20, y0 - 13], [23, y0 - 20], [26, y0 - 17], [22.5, y0 - 6]], 'plank'));
+    out.push(poly('#9aa2aa', 'metal', [[22.6, y0 - 22.4], [26.2, y0 - 21.8], [33.4, y0 - 13], [31.2, y0 - 10.6], [23.4, y0 - 17.4]]));
   } else {
     out.push(poly(L.cloth2 === '#2a2320' ? '#8a3a2a' : L.cloth, 'cloth', [[-7, y0 - 10], [7.5, y0 - 9.8], [8.6, y0 + 1.5], [-8, y0 + 1.5]], 'quilt'));
     out.push(cap(L.cloth2 === '#2a2320' ? '#c8a050' : L.cloth2, 'gold', [-8, y0 + 1.2], [8.6, y0 + 1.2], 0.9));
   }
   // Седло
   out.push(poly('#4e3220', 'leather', [[-7, y0 - 12.5], [-5, y0 - 9.6], [5.4, y0 - 9.6], [7.4, y0 - 13], [5.4, y0 - 11.4], [-4.8, y0 - 11.4]]));
+  // Конь целиком крупнее, от земли
+  const big = scaleShapes(out, 0, 0, HORSE_K);
   // Всадник
-  out.push(...transform(rider, 0, 0, 0));
-  out.push(...riderLeg);
-  if (reinHand) out.push(cap('#3a2618', 'string', reinHand, [26, y0 - 13], 0.5));
-  return out;
+  big.push(...transform(rider, 0, 0, 0));
+  big.push(...riderLeg);
+  if (reinHand) big.push(cap('#3a2618', 'string', reinHand, [28.6 * HORSE_K, (y0 - 12.6) * HORSE_K], 0.5));
+  return big;
 }
 
 // ───────────────────────── верблюд ─────────────────────────
@@ -790,15 +826,17 @@ function camelShapes(k: Kit, frame: number, rider: Shape[], reinHand: Pt | null,
   for (const x of [-9, -3, 3, 8]) out.push(cap('#c8a050', 'gold', [x, y0 - 1], [x, y0 + 2], 0.8, 0.5));
   // Седло на горбу
   out.push(poly('#4e3220', 'leather', [[-8, CAMEL_SEAT + 2.5 + bob], [-6, CAMEL_SEAT + 5 + bob], [4.4, CAMEL_SEAT + 5 + bob], [6.6, CAMEL_SEAT + 2 + bob], [4.4, CAMEL_SEAT + 3.6 + bob], [-5.8, CAMEL_SEAT + 3.6 + bob]]));
-  out.push(...rider, ...riderLeg);
-  if (reinHand) out.push(cap('#3a2618', 'string', reinHand, [29, y0 - 12.5], 0.5));
-  return out;
+  // Верблюд крупнее, как и конь
+  const big = scaleShapes(out, 0, 0, CAMEL_K);
+  big.push(...rider, ...riderLeg);
+  if (reinHand) big.push(cap('#3a2618', 'string', reinHand, [29 * CAMEL_K, (y0 - 12.5) * CAMEL_K], 0.5));
+  return big;
 }
 
 function mounted(k: Kit, frame: number): Shape[] {
   const cls = clsOf(k.L);
   const bob = frame === 2 || frame === 4 ? -0.8 : 0;
-  const hip: Pt = k.L.camel ? [-2, CAMEL_SEAT + 1.5 + bob] : [-1, -38.8 + bob];
+  const hip: Pt = k.L.camel ? [-2, (CAMEL_SEAT + 1.5 + bob) * CAMEL_K] : [-1, (-38.8 + bob) * HORSE_K];
   const ub = upperBody(k, cls, frame, true);
   const rider = transform(ub.shapes, ub.lean, hip[0], hip[1]);
   // Ближняя нога всадника вдоль бока коня, стопа в стремени
@@ -806,10 +844,17 @@ function mounted(k: Kit, frame: number): Shape[] {
   const ankle = add(knee, down(-6, 11.5));
   const legC = k.pants;
   const riderLeg: Shape[] = [
-    cap(legC, k.pantsMat, hip, knee, 6, 5),
-    cap(legC, k.pantsMat, knee, ankle, 5, 4.2),
-    poly(k.boots, k.bootsMat, [[ankle[0] - 2.2, ankle[1] - 1.6], [ankle[0] + 2.2, ankle[1] - 1.6], [ankle[0] + 5, ankle[1] + 1.2], [ankle[0] + 5, ankle[1] + 2.6], [ankle[0] - 2.4, ankle[1] + 2.6]]),
-    cap('#8f969e', 'metal', [ankle[0] - 1.5, ankle[1] + 3], [ankle[0] + 4, ankle[1] + 3], 0.9),
+    cap(legC, k.pantsMat, hip, knee, 6 * LIMB_K, 5 * LIMB_K),
+    cap(legC, k.pantsMat, knee, ankle, 5 * LIMB_K, 4.2 * LIMB_K),
+    ...scaleShapes(
+      [
+        poly(k.boots, k.bootsMat, [[ankle[0] - 2.2, ankle[1] - 1.6], [ankle[0] + 2.2, ankle[1] - 1.6], [ankle[0] + 5, ankle[1] + 1.2], [ankle[0] + 5, ankle[1] + 2.6], [ankle[0] - 2.4, ankle[1] + 2.6]]),
+        cap('#8f969e', 'metal', [ankle[0] - 1.5, ankle[1] + 3], [ankle[0] + 4, ankle[1] + 3], 0.9),
+      ],
+      ankle[0],
+      ankle[1],
+      LIMB_K,
+    ),
   ];
   // Рука всадника перекрывается ногой: рисуем её после
   return k.L.camel ? camelShapes(k, frame, rider, ub.reinHand, riderLeg) : horseShapes(k, frame, rider, ub.reinHand, riderLeg);
@@ -823,7 +868,7 @@ function frameShapes(L: UnitLook, frame: number): Shape[] {
     // Павший: пеший облик в стойке, опрокинутый на спину
     const standing = footSoldier(kitOf({ ...L, mounted: false }), 0);
     const lying = rotateShapes(standing, 0, 0, -86);
-    return transform(lying, 0, 26, -6);
+    return transform(lying, 0, 36, -6);
   }
   return L.mounted ? mounted(k, frame) : footSoldier(k, frame);
 }

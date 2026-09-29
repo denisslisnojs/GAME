@@ -15,7 +15,7 @@ for (const id of ids) {
   row.style.cssText = 'display:flex;align-items:center;gap:6px';
   const lab = document.createElement('span'); lab.textContent = id; lab.style.width = '90px'; row.append(lab);
   if (frames) {
-    for (const f of frames) { const cc = document.createElement('canvas'); cc.width = 112; cc.height = 104; cc.getContext('2d').drawImage(c, f * 112, 0, 112, 104, 0, 0, 112, 104); cc.style.cssText = `width:${112*s}px;image-rendering:pixelated`; row.append(cc); }
+    for (const f of frames) { const cc = document.createElement('canvas'); cc.width = 112; cc.height = c.height; cc.getContext('2d').drawImage(c, f * 112, 0, 112, c.height, 0, 0, 112, c.height); cc.style.cssText = `width:${112*s}px;image-rendering:pixelated`; row.append(cc); }
   } else { c.style.cssText = `width:${c.width*s}px;image-rendering:pixelated`; row.append(c); }
   document.body.append(row);
 }

@@ -88,6 +88,8 @@ export class BattleScene extends Phaser.Scene {
   private battle!: Battle;
   private sprites = new Map<number, Phaser.GameObjects.Sprite>();
   private shadows!: Phaser.GameObjects.Graphics;
+  /** Пятна крови на траве: где упал воин или прошёл сильный удар. */
+  private splats: { x: number; y: number; r: number; life: number; seed: number }[] = [];
   private overlay!: Phaser.GameObjects.Graphics;
   private fx!: Phaser.GameObjects.Graphics;
   private weatherG: Phaser.GameObjects.Graphics | null = null;
@@ -154,6 +156,7 @@ export class BattleScene extends Phaser.Scene {
     this.fogPuffs = [];
     this.flames = [];
     this.lastFloat = {};
+    this.splats = [];
     // Большие сражения (50+ воинов) — камера заранее дальше; приблизить можно вручную
     const total = data.battle.armies.reduce((n, a) => n + a.troops.reduce((m, t) => m + t.count, 0) + (a.hero ? 1 : 0), 0);
     this.zoomMul = total < 50 ? 1 : total < 90 ? 0.8 : 0.68;
@@ -696,6 +699,7 @@ export class BattleScene extends Phaser.Scene {
     const b = this.battle;
     const g = this.shadows;
     g.clear();
+    this.drawSplats(g, dt);
     const bars = this.overlay;
     bars.clear();
 
@@ -726,6 +730,8 @@ export class BattleScene extends Phaser.Scene {
       else s.clearTint();
       // тень
       const cav = u.troop.line === 'cavalry';
+      // Над головой: всадник на верблюде сидит выше всех
+      const headUp = cav ? (u.troop.look?.camel ? 12 : 0) : 0;
       // Пыль (или снежная крошка) из-под копыт
       if (cav && u.state === 'walk' && dt > 0 && Math.random() < dt * 7 && this.dust.length < 90) {
         const t = this.cfg.terrain;
@@ -742,7 +748,7 @@ export class BattleScene extends Phaser.Scene {
       }
       // Оглушён: звёздочки над головой
       if (u.stun > 0) {
-        const hy = ry - (cav ? 104 : 80);
+        const hy = ry - (cav ? 104 : 80) - headUp;
         for (let k = 0; k < 3; k++) {
           const a = this.time.now / 180 + (k * Math.PI * 2) / 3;
           bars.fillStyle(0xffe060, 1);
@@ -752,16 +758,16 @@ export class BattleScene extends Phaser.Scene {
       // полоска здоровья у раненых
       if (u.hp < u.maxHp) {
         const w = cav ? 30 : 22;
-        const top = ry - (cav ? 108 : 86);
+        const top = ry - (cav ? 108 : 86) - headUp;
         bars.fillStyle(0x140f0c, 0.8);
         bars.fillRect(u.x - w / 2 - 1, top - 1, w + 2, 5);
         bars.fillStyle(u.side === b.playerSide ? 0x5aa04a : 0xc24040, 1);
         bars.fillRect(u.x - w / 2, top, Math.max(1, (w * u.hp) / u.maxHp), 3);
       }
       const cl = this.compLabels.get(u.uid);
-      if (cl) cl.setPosition(u.x, ry - (cav ? 108 : 88));
+      if (cl) cl.setPosition(u.x, ry - (cav ? 108 : 88) - headUp);
       if (u.isHero && this.heroLabel && u.side === b.playerSide) {
-        this.heroLabel.setPosition(u.x, ry - (cav ? 112 : 92));
+        this.heroLabel.setPosition(u.x, ry - (cav ? 112 : 92) - headUp);
         // Блок: золотая дуга щита перед героем
         if (u.blocking) {
           const a0 = u.facing > 0 ? -0.9 : Math.PI - 0.9;
@@ -1031,6 +1037,33 @@ export class BattleScene extends Phaser.Scene {
     this.floats.push({ t, life: 0.9 });
   }
 
+  private splat(x: number, y: number, r: number) {
+    if (this.cfg.arena || (this.battle.siege && x > WALL_X - 20)) return;
+    if (this.splats.length >= 60) this.splats.shift();
+    this.splats.push({ x: x + (Math.random() - 0.5) * 14, y: y - this.lift(x) + (Math.random() - 0.5) * 6, r, life: 45, seed: Math.floor(Math.random() * 1000) });
+  }
+
+  /** Пятна крови лежат на земле под воинами и медленно выцветают. */
+  private drawSplats(g: Phaser.GameObjects.Graphics, dt: number) {
+    for (let i = this.splats.length - 1; i >= 0; i--) {
+      const sp = this.splats[i];
+      sp.life -= dt;
+      if (sp.life <= 0) {
+        this.splats.splice(i, 1);
+        continue;
+      }
+      const a = Math.min(1, sp.life / 12) * 0.55;
+      g.fillStyle(0x6a1010, a);
+      g.fillEllipse(sp.x, sp.y, sp.r * 2.2, sp.r * 0.8);
+      for (let k = 0; k < 3; k++) {
+        const ox = (((sp.seed * (k + 3)) % 17) - 8) * (sp.r / 6);
+        const oy = (((sp.seed * (k + 7)) % 7) - 3) * 0.6;
+        g.fillStyle(k === 0 ? 0x8a1a14 : 0x5a0c0c, a);
+        g.fillEllipse(sp.x + ox, sp.y + oy, sp.r * 0.7, sp.r * 0.3);
+      }
+    }
+  }
+
   private burst(x: number, y: number, color: number, n: number, speed = 80) {
     for (let i = 0; i < n; i++) {
       this.particles.push({ x, y, vx: (Math.random() - 0.5) * speed * 2, vy: -Math.random() * speed, life: 0.5 + Math.random() * 0.3, max: 0.8, color, size: 3, gravity: 300 });
@@ -1043,10 +1076,12 @@ export class BattleScene extends Phaser.Scene {
       switch (e.kind) {
         case 'hit':
           this.burst(e.x, e.y - 40, 0xa02020, 4);
+          if (Math.random() < 0.25) this.splat(e.x, e.y, 4);
           sfx.play('hit');
           break;
         case 'crit':
           this.burst(e.x, e.y - 40, 0xc02020, 9, 120);
+          this.splat(e.x, e.y, 6);
           this.floatText(e.x, e.y - 90, tr('Крит!'), '#ffd24a');
           sfx.play('crit');
           break;
@@ -1062,6 +1097,7 @@ export class BattleScene extends Phaser.Scene {
           break;
         case 'death':
           this.burst(e.x, e.y - 20, 0x7a1a1a, 6, 60);
+          this.splat(e.x, e.y, 8);
           sfx.play('death');
           if (this.cfg.arena) sfx.play('cheer');
           break;
