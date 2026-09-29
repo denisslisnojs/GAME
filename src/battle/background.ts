@@ -888,33 +888,35 @@ export function drawHill(t: BattleTerrain, w: number, h: number, lift: number): 
   const top0 = 30; // где у подножия проходит дальний край поля
   for (let x = 0; x < w; x++) {
     const u = x / (w - 1);
-    const e = Math.min(1, Math.sin(u * Math.PI) * 1.35);
+    // Плавный бугор без «плато» и отвесных краёв
+    const e = Math.pow(Math.sin(u * Math.PI), 1.5);
     const crest = Math.round(top0 - e * (lift + 12) + fbm(x * 0.05, 2, 2, 3) * 3 * e);
-    const face = Math.round(h - 16 - e * lift * 0.9);
     const slope = Math.cos(u * Math.PI); // + — левый склон (к свету)
-    for (let y = Math.max(0, crest); y < h; y++) {
-      const edgeFade = Math.min(1, e * 3);
-      if (bayer(x, y) > edgeFade) continue;
-      let c: string;
-      if (y > face) {
-        // Передняя грань — в тени, с полосками земли
-        c = y - face < 2 ? ramp(g[1], -1) : hash2(x, y, 5) < 0.2 ? pal.dirt : ramp(g[1], -1);
-        if (y > h - 6) c = mix(c, g[0], 0.5);
-      } else {
-        // Освещённый левый склон светлее, правый — в тени; горизонтали подчёркивают рельеф
-        const lit = slope * 0.8 + e * 0.35;
-        c = lit > 0.55 ? ramp(g[2], 1) : lit > 0.2 ? g[2] : lit > -0.15 ? g[0] : lit > -0.45 ? g[1] : ramp(g[1], -1);
-        const contour = Math.abs(((e * 5) % 1) - 0.5) < 0.04 && e < 0.95;
-        if (contour && bayer(x, y) < 0.6) c = ramp(c, -1);
-        const n = hash2(x, y, 9);
-        if (n < 0.08) c = ramp(c, -1);
-        else if (n > 0.95) c = ramp(c, 1);
-        if (y - crest < 2) c = ramp(c, 1);
-      }
+    // Силуэт над дальним краем поля — сплошной
+    for (let y = Math.max(0, crest); y < top0 + 2; y++) {
+      let c = slope > 0.2 ? ramp(g[2], 1) : slope < -0.2 ? g[1] : g[0];
+      if (y === crest && e > 0.05) c = ramp(g[1], -2);
+      else if (y - crest < 3) c = ramp(c, 1);
+      else if (hash2(x, y, 9) < 0.08) c = ramp(c, -1);
       B.p(x, y, c);
     }
-    // Травинки по гребню
     if (e > 0.3 && hash2(x, 3, 7) < 0.35 && t !== 'desert') for (let k = 1; k < 3; k++) B.p(x, crest - k, pal.tuft);
+    // На самом поле — только светотень поверх земли: свет слева, тень справа, горизонтали
+    const face = h - 18 - e * lift * 0.9;
+    for (let y = top0 + 2; y < h; y++) {
+      const d = bayer(x, y);
+      if (y > face) {
+        // Передняя кромка склона — в тени
+        if (d < e * 0.75 * Math.min(1, (y - face) / 4) * (y > h - 5 ? 0.4 : 1)) B.p(x, y, ramp(g[1], -1));
+        continue;
+      }
+      const light = slope * e;
+      const contour = e > 0.15 && e < 0.95 && Math.abs(((e * 4) % 1) - 0.5) < 0.05;
+      if (contour && d < 0.5) B.p(x, y, ramp(g[1], -1));
+      else if (light > 0.1 && d < light * 0.7) B.p(x, y, ramp(g[2], 1));
+      else if (light < -0.1 && d < -light * 0.6) B.p(x, y, ramp(g[1], -1));
+      else if (e > 0.5 && d < (e - 0.5) * 0.3) B.p(x, y, g[2]);
+    }
   }
   return B.canvas();
 }

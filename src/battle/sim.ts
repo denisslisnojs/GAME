@@ -636,7 +636,7 @@ export class Battle {
     for (const h of this.field.hills) {
       if (x <= h.x0 || x >= h.x1) continue;
       const t = (x - h.x0) / (h.x1 - h.x0);
-      return Math.min(1, Math.sin(t * Math.PI) * 1.35);
+      return Math.pow(Math.sin(t * Math.PI), 1.5);
     }
     return 0;
   }

@@ -90,9 +90,10 @@ function onEnter(state: GameState) {
   const p = state.prologue!;
   if (step === 'gang' && !p.gangId && !p.beaten) spawnGang(state);
   if (step === 'upgrade') {
-    // После боя кто-то точно должен быть готов к повышению
+    // После боя кто-то точно должен быть готов к повышению — и на него должно хватить денег
     const stack = state.party.troops.find((t) => TROOPS[t.id].upgradesTo.length && TROOPS[t.id].xpToUpgrade);
     if (stack && !state.party.troops.some((t) => TROOPS[t.id].xpToUpgrade && t.xp >= TROOPS[t.id].xpToUpgrade)) stack.xp = Math.max(stack.xp, TROOPS[stack.id].xpToUpgrade * Math.min(stack.count, 3));
+    if (stack) state.gold = Math.max(state.gold, TROOPS[stack.id].upgradeCost);
   }
 }
 
@@ -151,10 +152,27 @@ function stepDone(state: GameState, step: PStep): boolean {
     case 'gang':
       return !!p.beaten && !!p.victoryTold;
     case 'upgrade':
-      return !!state.flags?.upgraded;
+      // Повышать некого (все пали или все на высшем уровне) — шаг засчитан
+      return !!state.flags?.upgraded || !state.party.troops.some((t) => TROOPS[t.id].upgradesTo.length && TROOPS[t.id].xpToUpgrade);
     default:
       return false;
   }
+}
+
+/** Мир меняется: деревню могли захватить, шайку — разбить без героя. Не даём прологу застрять. */
+function keepPrologueSane(state: GameState) {
+  const p = state.prologue;
+  if (!p || p.off) return;
+  const step = prologueStep(state);
+  const f = state.hero.faction;
+  const v = world.byId.get(p.village);
+  if (v && state.settlements[v.id].owner !== f && (step === 'village' || step === 'hire' || step === 'return')) {
+    // Деревня отошла врагу: староста с дочерью бежали в ближнюю свою деревню
+    const own = world.settlements.filter((x) => x.type === 'village' && state.settlements[x.id].owner === f);
+    const near = own.sort((a, b) => Math.hypot(a.x - v.x, a.y - v.y) - Math.hypot(b.x - v.x, b.y - v.y))[0];
+    if (near) p.village = near.id;
+  }
+  if (step === 'gang' && p.gangId && !p.beaten && !prologueGang(state)) p.beaten = true;
 }
 
 export type PrologueEvent = { kind: 'done'; step: PStep } | { kind: 'victory' };
@@ -162,6 +180,7 @@ export type PrologueEvent = { kind: 'done'; step: PStep } | { kind: 'victory' };
 /** Проверить шаги, выполненные сами собой. Рассказ о победе — отдельным событием. */
 export function prologueTick(state: GameState): PrologueEvent[] {
   const out: PrologueEvent[] = [];
+  keepPrologueSane(state);
   for (let guard = 0; guard < 12; guard++) {
     const step = prologueStep(state);
     if (!step || step === 'intro') break;

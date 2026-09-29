@@ -37,5 +37,5 @@ const game = new Phaser.Game({
   scene: [BootScene, WorldScene, BattleScene],
 });
 
-// Для автотестов в режиме разработки
-if (import.meta.env.DEV) Object.assign(window, { __game: game, __world: world });
+// Для автотестов: в режиме разработки или при сборке с VITE_QA=1
+if (import.meta.env.DEV || import.meta.env.VITE_QA) Object.assign(window, { __game: game, __world: world });

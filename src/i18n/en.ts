@@ -1991,4 +1991,6 @@ export const EN: Record<string, string> = {
   "{0}: — Хорошая работа. Твои люди понюхали крови — теперь их можно и подучить. А девушку пора вернуть домой, в деревню {1}.": "{0}: — Good work. Your men have tasted blood — now they can be trained up. And it's time to take the girl home to {1}.",
   "Воины набирают опыт в боях. Готовых к повышению видно в окне «Отряд» — по значку со стрелкой.": "Warriors gain experience in battle. Those ready to upgrade are marked with an arrow in the “Party” window.",
   "Так и сделаем": "Let's do it",
+  "▲ Холм": "▲ Hill",
+  "Роща": "Grove",
 };

@@ -209,7 +209,7 @@ export function showCreation(onDone: (name: string, faction: FactionId, difficul
   };
   renderDiff();
   const nameInput = h('input', { class: 'text grow', value: tr('Ульрих'), maxlength: 20, placeholder: tr('Имя героя') }) as HTMLInputElement;
-  const preview = img(portraitURL('aurelia_c2'), 'px', 'width:72px;height:72px;border:2px solid #0e0f10;background:rgba(255,255,255,.05)');
+  const preview = img(portraitURL('aurelia_c2'), 'px creation-face', 'border:2px solid #0e0f10;background:rgba(255,255,255,.05)');
   const cards = new Map<FactionId, HTMLElement>();
 
   const select = (id: FactionId) => {
@@ -242,9 +242,9 @@ export function showCreation(onDone: (name: string, faction: FactionId, difficul
     { class: 'creation' },
     panel(
       '',
-      h('h2', { class: 'title', style: 'font-size:24px' }, tr('Создание героя')),
+      h('h2', { class: 'title creation-title' }, tr('Создание героя')),
       h('div', { class: 'row' }, preview, h('div', { class: 'col grow' }, h('div', { class: 'muted' }, tr('Имя')), nameInput)),
-      h('div', { class: 'muted' }, tr('Выберите державу. Вы начнёте игру её вассалом, со скромным отрядом у столицы.')),
+      h('div', { class: 'muted creation-hint' }, tr('Выберите державу. Вы начнёте игру её вассалом, со скромным отрядом у столицы.')),
       grid,
       diffBox,
       h('div', { class: 'row', style: 'justify-content:flex-end' }, btn(tr('Назад'), onBack, 'ghost'), btn(tr('Присягнуть'), start, 'primary')),

@@ -14,6 +14,7 @@ import {
   prologueVillage,
   skipPrologue,
 } from '../game/prologue';
+import { canEnter } from '../game/logic';
 import { hostOf } from '../game/quests';
 import { world, type Settlement } from '../game/world';
 import { toast } from './dom';
@@ -58,7 +59,7 @@ export function openPrologueIntro(ctx: GameCtx) {
 /** Прибытие в поселение: сюжетная сцена, если она здесь ждёт. true — сцена показана, then() откроет поселение после неё. */
 export function prologueOnArrive(ctx: GameCtx, s: Settlement, then: () => void): boolean {
   const step = prologueStep(ctx.state);
-  if (!step) return false;
+  if (!step || !canEnter(ctx.state, s)) return false;
   const { p, village, town, guide, f } = names(ctx);
   const elderName = hostOf(ctx.state, village).name;
   const elderFace = portraitURL(`${village.culture}_i1`);

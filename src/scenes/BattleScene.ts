@@ -114,6 +114,7 @@ export class BattleScene extends Phaser.Scene {
   private deploying = false;
   private deployG: Phaser.GameObjects.Graphics | null = null;
   private groupTexts = new Map<Group, Phaser.GameObjects.Text>();
+  private fieldLabels: Phaser.GameObjects.Text[] = [];
   private tapStart: { x: number; y: number; t: number } | null = null;
   private bannerG: [Phaser.GameObjects.Graphics | null, Phaser.GameObjects.Graphics | null] = [null, null];
   private lookVers = new Map<number, number>();
@@ -145,6 +146,7 @@ export class BattleScene extends Phaser.Scene {
     this.deploying = false;
     this.deployG = null;
     this.groupTexts = new Map();
+    this.fieldLabels = [];
     this.tapStart = null;
     this.bannerG = [null, null];
     this.lookVers = new Map();
@@ -291,6 +293,8 @@ export class BattleScene extends Phaser.Scene {
     this.deployG = null;
     for (const t of this.groupTexts.values()) t.destroy();
     this.groupTexts.clear();
+    for (const t of this.fieldLabels) t.destroy();
+    this.fieldLabels = [];
     this.hud.setDeploy(false);
     if (!silent) {
       sfx.play('drum');
@@ -916,6 +920,12 @@ export class BattleScene extends Phaser.Scene {
     const g = this.deployG;
     if (!g) return;
     const b = this.battle;
+    // Подписи холмов и рощ: где выгодно встать
+    if (!this.fieldLabels.length) {
+      const style = { fontFamily: 'Kurale, Georgia, serif', fontSize: '16px', color: '#fff2c8', stroke: '#140f0c', strokeThickness: 4 };
+      for (const h of b.field.hills) this.fieldLabels.push(this.add.text((h.x0 + h.x1) / 2, FIELD_Y0 - HILL_LIFT - 78, tr('▲ Холм'), style).setOrigin(0.5, 1).setDepth(6400));
+      for (const gr of b.field.groves) this.fieldLabels.push(this.add.text(gr.x, gr.y - gr.ry - 70, tr('Роща'), style).setOrigin(0.5, 1).setDepth(6400));
+    }
     const ps = b.playerSide;
     const [z0, z1] = b.deployZone(ps);
     g.clear();
