@@ -10,6 +10,7 @@ import type { Settlement } from '../game/world';
 import { hash2 } from '../util/rng';
 import { Pix, hex, shade } from './pixel';
 import { drawGearIcon, drawUnitSheet, FRAME_H, FRAME_W, type UnitLook } from './units';
+import { markSmooth } from './smooth';
 import type { Item } from '../data/items';
 import { FACTIONS } from '../data/factions';
 import { drawCastle, drawEmblem, drawTown, drawVillage } from './sprites';
@@ -25,70 +26,78 @@ function memo(key: string, make: () => HTMLCanvasElement): string {
   return v;
 }
 
-/** Погрудный портрет из кадра стойки новой фигуры: голова и плечи, 40×40. */
+/** Во сколько раз крупнее рисуются портреты и фигуры (показываются со сглаживанием). */
+const PSS = 2;
+
+/** Погрудный портрет из кадра стойки новой фигуры: голова и плечи, 40×40 (в двойном разрешении). */
 function bust(look: UnitLook): HTMLCanvasElement {
-  const sheet = drawUnitSheet(look);
-  const S = 40;
+  const sheet = drawUnitSheet(look, PSS);
+  const W = FRAME_W * PSS;
+  const H = FRAME_H * PSS;
+  const S = 40 * PSS;
   const c = document.createElement('canvas');
   c.width = S;
   c.height = S;
   const ctx = c.getContext('2d')!;
-  ctx.imageSmoothingEnabled = false;
   // Верхняя точка фигуры над плечами (без древка копья и знамени): ищем голову по ширине силуэта
-  const data = sheet.getContext('2d')!.getImageData(0, 0, FRAME_W, FRAME_H).data;
-  const cx = look.mounted ? 50 : 52;
+  const data = sheet.getContext('2d')!.getImageData(0, 0, W, H).data;
+  const cx = (look.mounted ? 50 : 52) * PSS;
   let top = 0;
-  for (let y = 0; y < FRAME_H; y++) {
+  for (let y = 0; y < H; y++) {
     let run = 0;
-    for (let x = cx - 8; x < cx + 8; x++) if (data[(y * FRAME_W + x) * 4 + 3]) run++;
-    if (run >= 5) {
+    for (let x = cx - 8 * PSS; x < cx + 8 * PSS; x++) if (data[(y * W + x) * 4 + 3] > 128) run++;
+    if (run >= 5 * PSS) {
       top = y;
       break;
     }
   }
-  ctx.drawImage(sheet, cx - S / 2, Math.max(0, top - 3), S, S, 0, 0, S, S);
+  ctx.drawImage(sheet, cx - S / 2, Math.max(0, top - 3 * PSS), S, S, 0, 0, S, S);
   return c;
 }
 
 export function portraitURL(troopId: string): string {
-  return memo(`p_${troopId}`, () => bust(troopLook(TROOPS[troopId])));
+  return markSmooth(memo(`p_${troopId}`, () => bust(troopLook(TROOPS[troopId]))));
 }
 
 /** Воин во весь рост (кадр стойки), обрезанный по силуэту. */
 export function figureURL(troopId: string): string {
-  return memo(`f_${troopId}`, () => {
-    const sheet = drawUnitSheet(troopLook(TROOPS[troopId]));
-    const data = sheet.getContext('2d')!.getImageData(0, 0, FRAME_W, FRAME_H).data;
-    let x0 = FRAME_W;
-    let y0 = FRAME_H;
-    let x1 = 0;
-    let y1 = 0;
-    for (let y = 0; y < FRAME_H; y++) {
-      for (let x = 0; x < FRAME_W; x++) {
-        if (!data[(y * FRAME_W + x) * 4 + 3]) continue;
-        x0 = Math.min(x0, x);
-        x1 = Math.max(x1, x);
-        y0 = Math.min(y0, y);
-        y1 = Math.max(y1, y);
+  return markSmooth(
+    memo(`f_${troopId}`, () => {
+      const sheet = drawUnitSheet(troopLook(TROOPS[troopId]), PSS);
+      const W = FRAME_W * PSS;
+      const H = FRAME_H * PSS;
+      const data = sheet.getContext('2d')!.getImageData(0, 0, W, H).data;
+      let x0 = W;
+      let y0 = H;
+      let x1 = 0;
+      let y1 = 0;
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (data[(y * W + x) * 4 + 3] < 40) continue;
+          x0 = Math.min(x0, x);
+          x1 = Math.max(x1, x);
+          y0 = Math.min(y0, y);
+          y1 = Math.max(y1, y);
+        }
       }
-    }
-    const c = document.createElement('canvas');
-    c.width = x1 - x0 + 1;
-    c.height = y1 - y0 + 1;
-    c.getContext('2d')!.drawImage(sheet, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
-    return c;
-  });
+      const c = document.createElement('canvas');
+      c.width = x1 - x0 + 1;
+      c.height = y1 - y0 + 1;
+      c.getContext('2d')!.drawImage(sheet, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+      return c;
+    }),
+  );
 }
 
 /** Портрет спутника. */
 export function companionPortraitURL(id: string): string {
-  return memo(`cp_${id}`, () => bust(troopLook(companionTroop(COMPANION_BY_ID[id]))));
+  return markSmooth(memo(`cp_${id}`, () => bust(troopLook(companionTroop(COMPANION_BY_ID[id])))));
 }
 
 /** Портрет героя в текущем снаряжении. */
 export function heroPortraitURL(state: GameState): string {
   const look = heroLook(state);
-  return memo(`hp_${lookKey(look)}`, () => bust(look));
+  return markSmooth(memo(`hp_${lookKey(look)}`, () => bust(look)));
 }
 
 /** Знак героя: личный герб или знамя державы. */
@@ -290,10 +299,10 @@ export function itemIconURL(it: Item, faction: FactionId): string {
 
 /** Крупный спрайт героя (кадр стойки) для окна героя. */
 export function heroFigureURL(look: UnitLook): string {
-  const sheet = drawUnitSheet(look);
+  const sheet = drawUnitSheet(look, PSS);
   const c = document.createElement('canvas');
-  c.width = FRAME_W;
-  c.height = FRAME_H;
-  c.getContext('2d')!.drawImage(sheet, 0, 0, FRAME_W, FRAME_H, 0, 0, FRAME_W, FRAME_H);
-  return c.toDataURL();
+  c.width = FRAME_W * PSS;
+  c.height = FRAME_H * PSS;
+  c.getContext('2d')!.drawImage(sheet, 0, 0, c.width, c.height, 0, 0, c.width, c.height);
+  return markSmooth(c.toDataURL());
 }

@@ -33,5 +33,11 @@ export const START_YEAR = 1347;
 export const SAVE_KEY = 'w1347_save_v1';
 export const SETTINGS_KEY = 'w1347_settings_v1';
 
+/**
+ * Плотность экрана: холст рисуется в настоящих пикселях устройства (не больше ×2 — ради скорости),
+ * иначе на телефоне картинка растягивается «квадратиками». Зум камер умножается на DPR.
+ */
+export const DPR = typeof window === 'undefined' ? 1 : Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+
 /** Шрифт подписей на карте и в бою: ровные цифры, легко читать на телефоне. */
 export const LABEL_FONT = '"Fira Sans Condensed", "Arial Narrow", sans-serif';

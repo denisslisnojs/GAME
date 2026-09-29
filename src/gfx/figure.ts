@@ -106,7 +106,7 @@ function shadePx(c: string, mat: Mat, pat: Pat | undefined, l: number, x: number
  * Нарисовать фигуру в буфер w×h. k — пикселей на дизайн-единицу,
  * (ox, oy) — где в буфере окажется точка (0, 0) дизайна.
  */
-export function rasterize(shapes: Shape[], w: number, h: number, k: number, ox: number, oy: number): Uint32Array {
+export function rasterize(shapes: Shape[], w: number, h: number, k: number, ox: number, oy: number, ss = 1): Uint32Array {
   const part = new Int16Array(w * h).fill(-1);
   const light = new Float32Array(w * h);
   shapes.forEach((s, i) => {
@@ -187,7 +187,8 @@ export function rasterize(shapes: Shape[], w: number, h: number, k: number, ox: 
       const p = part[y * w + x];
       if (p < 0) continue;
       const s = shapes[p];
-      let c = shadePx(s.color, s.mat, s.pat, light[y * w + x], x, y);
+      // Фактура — в «крупных» пикселях: при сверхвыборке кольчуга не мельчит
+      let c = shadePx(s.color, s.mat, s.pat, light[y * w + x], Math.floor(x / ss), Math.floor(y / ss));
       // Линия там, где эта часть лежит поверх другой (не для тонких древков и тетивы)
       if (s.mat !== 'string' && s.mat !== 'wood') {
         const r = at(x + 1, y);
@@ -199,16 +200,24 @@ export function rasterize(shapes: Shape[], w: number, h: number, k: number, ox: 
       out[y * w + x] = col(c);
     }
   }
-  // Внешняя обводка в 1 пиксель
-  const edge: number[] = [];
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (part[y * w + x] >= 0) continue;
-      if (at(x - 1, y) >= 0 || at(x + 1, y) >= 0 || at(x, y - 1) >= 0 || at(x, y + 1) >= 0) edge.push(y * w + x);
+  // Внешняя обводка: 1 пиксель кадра (при сверхвыборке — ss пикселей)
+  const oc = col(OUT);
+  const filled = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) if (part[i] >= 0) filled[i] = 1;
+  for (let pass = 0; pass < ss; pass++) {
+    const edge: number[] = [];
+    const f = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && filled[y * w + x] === 1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (filled[y * w + x]) continue;
+        if (f(x - 1, y) || f(x + 1, y) || f(x, y - 1) || f(x, y + 1) || (pass > 0 && (f(x - 1, y - 1) || f(x + 1, y + 1) || f(x + 1, y - 1) || f(x - 1, y + 1)))) edge.push(y * w + x);
+      }
+    }
+    for (const i of edge) {
+      out[i] = oc;
+      filled[i] = 1;
     }
   }
-  const oc = col(OUT);
-  for (const i of edge) out[i] = oc;
   return out;
 }
 

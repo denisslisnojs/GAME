@@ -6,16 +6,18 @@ import { TROOPS } from '/src/data/troops.ts';
 const q = new URLSearchParams(location.search);
 const ids = q.get('ids')?.split(',') ?? Object.keys(TROOPS);
 const s = +(q.get('s') ?? 1);
+const SS = +(q.get('ss') ?? 1);
+const AA = +(q.get('aa') ?? 1);
 const frames = q.get('f') ? q.get('f').split(',').map(Number) : null;
 const t0 = performance.now();
 for (const id of ids) {
   if (!TROOPS[id]) continue;
-  const c = drawUnitSheet(troopLook(TROOPS[id]));
+  const c = drawUnitSheet(troopLook(TROOPS[id]), SS, AA);
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;align-items:center;gap:6px';
   const lab = document.createElement('span'); lab.textContent = id; lab.style.width = '90px'; row.append(lab);
   if (frames) {
-    for (const f of frames) { const cc = document.createElement('canvas'); cc.width = 112; cc.height = c.height; cc.getContext('2d').drawImage(c, f * 112, 0, 112, c.height, 0, 0, 112, c.height); cc.style.cssText = `width:${112*s}px;image-rendering:pixelated`; row.append(cc); }
+    for (const f of frames) { const cc = document.createElement('canvas'); const fw = c.width / 9; cc.width = fw; cc.height = c.height; cc.getContext('2d').drawImage(c, f * fw, 0, fw, c.height, 0, 0, fw, c.height); cc.style.cssText = `width:${112*s}px;image-rendering:${SS > 1 ? 'auto' : 'pixelated'}`; row.append(cc); }
   } else { c.style.cssText = `width:${c.width*s}px;image-rendering:pixelated`; row.append(c); }
   document.body.append(row);
 }

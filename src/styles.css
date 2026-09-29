@@ -84,6 +84,11 @@ img.px {
   image-rendering: pixelated;
 }
 
+/* Портреты и фигуры в двойном разрешении — со сглаживанием */
+img.sm {
+  image-rendering: auto;
+}
+
 /* ───────────── панели ───────────── */
 
 .panel {
@@ -1489,7 +1494,7 @@ body:has(#ui .modal-back) .toasts {
 @media (max-height: 480px) {
   .hero-figure img {
     width: 168px !important;
-    height: 156px !important;
+    height: 192px !important;
   }
 }
 
@@ -1610,7 +1615,6 @@ body:has(#ui .modal-back) .toasts {
 .tree-fig img {
   max-width: 44px;
   max-height: 58px;
-  image-rendering: pixelated;
 }
 
 .tree-arrow {

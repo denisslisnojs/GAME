@@ -5,6 +5,7 @@ import './styles.css';
 import { music } from './audio/music';
 import { sfx } from './audio/sfx';
 import { world } from './game/world';
+import { DPR } from './config';
 import { BattleScene } from './scenes/BattleScene';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
@@ -42,15 +43,21 @@ const game = new Phaser.Game({
   backgroundColor: '#14110f',
   pixelArt: true,
   antialias: false,
+  // Холст в пикселях устройства, а на странице — в CSS-размер окна: чёткая картинка без «квадратиков»
   scale: {
-    mode: Phaser.Scale.RESIZE,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    mode: Phaser.Scale.NONE,
+    width: Math.round(window.innerWidth * DPR),
+    height: Math.round(window.innerHeight * DPR),
+    zoom: 1 / DPR,
   },
   input: { activePointers: 3 },
   fps: { target: 60 },
   scene: [BootScene, WorldScene, BattleScene],
 });
+
+const fitCanvas = () => game.scale.resize(Math.round(window.innerWidth * DPR), Math.round(window.innerHeight * DPR));
+window.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 200));
 
 const worldScene = () => game.scene.getScene('world') as WorldScene | null;
 

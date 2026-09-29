@@ -1,5 +1,6 @@
 // Мини-помощники для DOM-интерфейса поверх холста Phaser.
 import { LANG, tr } from '../i18n';
+import { pxClass } from '../gfx/smooth';
 
 type Attrs = Record<string, string | number | boolean | EventListener | undefined> & { class?: string; style?: string };
 type Child = Node | string | number | null | undefined | false;
@@ -53,7 +54,7 @@ export function btn(label: Child, onClick: () => void, cls = '', disabled = fals
 }
 
 export function img(src: string, cls = 'px', style = ''): HTMLImageElement {
-  return h('img', { src, class: cls, style, draggable: 'false', alt: '' });
+  return h('img', { src, class: pxClass(src, cls), style, draggable: 'false', alt: '' });
 }
 
 /** Модальное окно. Возвращает функцию закрытия. */

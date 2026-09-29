@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { LABEL_FONT } from '../config';
+import { DPR, LABEL_FONT } from '../config';
 import { sfx } from '../audio/sfx';
 import { music } from '../audio/music';
 import { drawArena, drawBush, drawCart, drawFar, drawFieldTree, drawGround, drawHill, drawMid, drawSky, drawStake, drawWall, type BattleTerrain } from '../battle/background';
@@ -34,6 +34,8 @@ export interface BattleSceneData {
 const WORLD_H = 640;
 const GROUND_Y = 400;
 const SCALE = 2;
+/** Воины рисуются вдвое крупнее и уменьшаются со сглаживанием: гладкие контуры, как в рисованной игре. */
+const UNIT_SS = 2;
 /** Высота боевого хода стены (мировая y ног стрелков на стене). */
 const WALL_TOP = 348;
 
@@ -60,13 +62,36 @@ function cssNum(c: string): number {
 const LAYER_PAD = 900;
 const LAYER_W = (FIELD_W + LAYER_PAD * 2) / 2;
 
+/**
+ * Мягкий фон: лёгкое размытие сливает пиксельный дизеринг в плавные переходы — фон выглядит рисованным,
+ * а не пиксельным. Дальние слои размыты сильнее (воздушная перспектива).
+ */
+function soften(src: HTMLCanvasElement, blur: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = src.width;
+  c.height = src.height;
+  const ctx = c.getContext('2d')!;
+  ctx.filter = `blur(${blur}px)`;
+  ctx.drawImage(src, 0, 0);
+  ctx.filter = 'none';
+  // Под размытым слоем — исходник, чтобы у кромки не появилась прозрачная кайма
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.drawImage(src, 0, 0);
+  return c;
+}
+
+/** Текстура из холста со сглаживанием при масштабе (без «ступенек»). */
+function addSmooth(textures: Phaser.Textures.TextureManager, key: string, canvas: HTMLCanvasElement) {
+  textures.addCanvas(key, canvas)?.setFilter(Phaser.Textures.FilterMode.LINEAR);
+}
+
 /** Слои фона местности: ключ текстуры и как её нарисовать. */
 function terrainLayers(t: BattleTerrain): { key: string; make: () => HTMLCanvasElement }[] {
   return [
-    { key: `bg_sky_${t}`, make: () => drawSky(t, LAYER_W, 260) },
-    { key: `bg_far_${t}`, make: () => drawFar(t, LAYER_W, 90) },
-    { key: `bg_mid_${t}`, make: () => drawMid(t, LAYER_W, 60) },
-    { key: `bg_ground_${t}`, make: () => drawGround(t, LAYER_W, (WORLD_H - GROUND_Y + 200) / 2) },
+    { key: `bg_sky_${t}`, make: () => soften(drawSky(t, LAYER_W, 260), 1.6) },
+    { key: `bg_far_${t}`, make: () => soften(drawFar(t, LAYER_W, 90), 1.1) },
+    { key: `bg_mid_${t}`, make: () => soften(drawMid(t, LAYER_W, 60), 0.8) },
+    { key: `bg_ground_${t}`, make: () => soften(drawGround(t, LAYER_W, (WORLD_H - GROUND_Y + 200) / 2), 0.7) },
   ];
 }
 
@@ -77,7 +102,31 @@ export function prewarmBattleTerrain(textures: Phaser.Textures.TextureManager, t
   const next = () => {
     const j = jobs.shift();
     if (!j) return;
-    if (!textures.exists(j.key)) textures.addCanvas(j.key, j.make());
+    if (!textures.exists(j.key)) addSmooth(textures, j.key, j.make());
+    idle(next);
+  };
+  idle(next);
+}
+
+/** Лист кадров воина — текстура в двойном разрешении со сглаживанием. */
+function makeUnitTexture(textures: Phaser.Textures.TextureManager, look: UnitLook): string {
+  const key = lookKey(look);
+  if (!textures.exists(key)) {
+    const tex = textures.addCanvas(key, drawUnitSheet(look, UNIT_SS))!;
+    tex.setFilter(Phaser.Textures.FilterMode.LINEAR);
+    for (let i = 0; i < 9; i++) tex.add(i, 0, i * FRAME_W * UNIT_SS, 0, FRAME_W * UNIT_SS, FRAME_H * UNIT_SS);
+  }
+  return key;
+}
+
+/** Нарисовать воинов будущего боя заранее, по одному в свободное время (пока открыто окно встречи). */
+export function prewarmUnitLooks(textures: Phaser.Textures.TextureManager, looks: UnitLook[]) {
+  const jobs = looks.filter((l, i) => looks.findIndex((m) => lookKey(m) === lookKey(l)) === i && !textures.exists(lookKey(l)));
+  const idle = (fn: () => void) => ((window as unknown as { requestIdleCallback?: (f: () => void) => void }).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 30)))(fn);
+  const next = () => {
+    const l = jobs.shift();
+    if (!l) return;
+    makeUnitTexture(textures, l);
     idle(next);
   };
   idle(next);
@@ -194,14 +243,14 @@ export class BattleScene extends Phaser.Scene {
     this.addLayer(L[0].key, L[0].make, -PAD, -120, 0.1);
     this.addLayer(L[1].key, L[1].make, -PAD, GROUND_Y - 180 + 10, 0.3);
     const arena = this.cfg.arena;
-    if (arena) this.addLayer(`bg_arena_${arena.colors.join('')}`, () => drawArena(W, 60, arena.colors), -PAD, GROUND_Y - 120 + 8, 0.6);
+    if (arena) this.addLayer(`bg_arena_${arena.colors.join('')}`, () => soften(drawArena(W, 60, arena.colors), 0.7), -PAD, GROUND_Y - 120 + 8, 0.6);
     else this.addLayer(L[2].key, L[2].make, -PAD, GROUND_Y - 120 + 8, 0.6);
     this.addLayer(L[3].key, L[3].make, -PAD, GROUND_Y, 1);
-    if (!this.textures.exists('stake')) this.textures.addCanvas('stake', drawStake());
+    if (!this.textures.exists('stake')) addSmooth(this.textures, 'stake', soften(drawStake(), 0.4));
 
     if (this.battle.siege && this.cfg.wall) {
       const key = `wall_${this.cfg.wall.culture}_${this.cfg.wall.color}`;
-      if (!this.textures.exists(key)) this.textures.addCanvas(key, drawWall(this.cfg.wall.culture, this.cfg.wall.color, this.cfg.wall.color2));
+      if (!this.textures.exists(key)) addSmooth(this.textures, key, soften(drawWall(this.cfg.wall.culture, this.cfg.wall.color, this.cfg.wall.color2), 0.5));
       this.add.image(WALL_X - 20, WALL_TOP - 48, key).setOrigin(0, 0).setScale(SCALE).setDepth(380);
       this.ladders = this.add.graphics().setDepth(390);
     }
@@ -333,12 +382,12 @@ export class BattleScene extends Phaser.Scene {
     for (const h of f.hills) {
       const w = Math.ceil((h.x1 - h.x0) / SCALE);
       const key = `hill_${t}_${w}`;
-      if (!this.textures.exists(key)) this.textures.addCanvas(key, drawHill(t, w, 110, Math.round(HILL_LIFT / SCALE) + 4));
+      if (!this.textures.exists(key)) addSmooth(this.textures, key, soften(drawHill(t, w, 110, Math.round(HILL_LIFT / SCALE) + 4), 1.4));
       this.add.image(h.x0, FIELD_Y0 - 60, key).setOrigin(0, 0).setScale(SCALE).setDepth(0.4);
     }
     for (let v = 0; v < 4; v++) {
-      if (!this.textures.exists(`ftree_${t}_${v}`)) this.textures.addCanvas(`ftree_${t}_${v}`, drawFieldTree(t, v));
-      if (!this.textures.exists(`bush_${t}_${v}`)) this.textures.addCanvas(`bush_${t}_${v}`, drawBush(t, v));
+      if (!this.textures.exists(`ftree_${t}_${v}`)) addSmooth(this.textures, `ftree_${t}_${v}`, soften(drawFieldTree(t, v), 0.6));
+      if (!this.textures.exists(`bush_${t}_${v}`)) addSmooth(this.textures, `bush_${t}_${v}`, soften(drawBush(t, v), 0.6));
     }
     for (const g of f.groves) {
       const r = mulberry32(g.seed);
@@ -358,7 +407,7 @@ export class BattleScene extends Phaser.Scene {
     for (const c of f.carts) {
       const color = c.side === this.battle.playerSide ? FACTIONS[this.cfg.heroFaction].css : this.cfg.enemyColor;
       const key = `cart_${color}`;
-      if (!this.textures.exists(key)) this.textures.addCanvas(key, drawCart(color));
+      if (!this.textures.exists(key)) addSmooth(this.textures, key, soften(drawCart(color), 0.4));
       this.add.image(c.x, c.y + 8, key).setOrigin(0.5, 1).setScale(SCALE).setFlipX(c.side === 1).setDepth(c.y + 0.4);
     }
   }
@@ -406,24 +455,25 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private addLayer(key: string, make: () => HTMLCanvasElement, x: number, y: number, sf: number) {
-    if (!this.textures.exists(key)) this.textures.addCanvas(key, make());
+    if (!this.textures.exists(key)) addSmooth(this.textures, key, make());
     this.add.image(x, y, key).setOrigin(0, 0).setScale(SCALE).setScrollFactor(sf, 1).setDepth(-100 + sf);
   }
 
   /** Видимая полоса мира (от гор до переднего ряда) вписывается между верхней и нижней панелями. */
   private fitCamera() {
     const cam = this.cameras.main;
-    const h = this.scale.height;
+    // Панели интерфейса — в CSS-пикселях, холст — в пикселях устройства (×DPR)
+    const h = this.scale.height / DPR;
     const top = h < 500 ? 46 : 58;
     const bottom = h < 500 ? 104 : 116;
     const WY0 = 250;
     const WY1 = 578;
     const z = Math.max(0.2, ((h - top - bottom) / (WY1 - WY0)) * this.zoomMul);
-    cam.setZoom(z);
+    cam.setZoom(z * DPR);
     const screenC = (top + h - bottom) / 2;
     // При приближении смещаем центр к рядам воинов, чтобы не смотреть в небо
     const worldC = (WY0 + WY1) / 2 + Math.max(0, this.zoomMul - 1) * 110;
-    cam.scrollY = worldC - h / 2 - (screenC - h / 2) / z;
+    cam.scrollY = worldC - this.scale.height / 2 - (screenC - h / 2) / z;
   }
 
   private clampScrollX() {
@@ -443,20 +493,14 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private ensureTexture(u: BUnit): string {
-    const look = this.lookFor(u);
-    const key = lookKey(look);
-    if (!this.textures.exists(key)) {
-      const tex = this.textures.addCanvas(key, drawUnitSheet(look))!;
-      for (let i = 0; i < 9; i++) tex.add(i, 0, i * FRAME_W, 0, FRAME_W, FRAME_H);
-    }
-    return key;
+    return makeUnitTexture(this.textures, this.lookFor(u));
   }
 
   private ensureSprite(u: BUnit): Phaser.GameObjects.Sprite {
     let s = this.sprites.get(u.uid);
     if (!s) {
       const key = this.ensureTexture(u);
-      s = this.add.sprite(u.x, u.y, key, 0).setOrigin(0.5, FEET_Y / FRAME_H); // кадры детальные, рисуются 1:1
+      s = this.add.sprite(u.x, u.y, key, 0).setOrigin(0.5, FEET_Y / FRAME_H).setScale(1 / UNIT_SS);
       this.sprites.set(u.uid, s);
       if (u.isHero && u.side === this.battle.playerSide) {
         this.heroLabel = this.add
@@ -529,7 +573,7 @@ export class BattleScene extends Phaser.Scene {
       this.dragging = null;
       const st = this.tapStart;
       this.tapStart = null;
-      if (this.deploying && st && !this.pinch && Math.hypot(p.x - st.x, p.y - st.y) < 12 && this.time.now - st.t < 600) this.deployTap(p.x, p.y);
+      if (this.deploying && st && !this.pinch && Math.hypot(p.x - st.x, p.y - st.y) < 12 * DPR && this.time.now - st.t < 600) this.deployTap(p.x, p.y);
       if (!two()) this.pinch = null;
     });
     // Колесо — масштаб, горизонтальная прокрутка или Shift+колесо — сдвиг поля
@@ -673,7 +717,7 @@ export class BattleScene extends Phaser.Scene {
     if (rain) {
       g.fillStyle(0x1a2438, 0.16);
       g.fillRect(sx(0), sy(0), W / z, H / z);
-      g.lineStyle(1.5 / z, 0xb8cce8, 0.55);
+      g.lineStyle((1.5 * DPR) / z, 0xb8cce8, 0.55);
     } else g.fillStyle(0xffffff, 0.9);
     for (const d of this.drops) {
       d.y += dt * (rain ? 1.6 : 0.12) * d.v;

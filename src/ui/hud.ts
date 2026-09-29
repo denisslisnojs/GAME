@@ -1,6 +1,7 @@
 import { FACTIONS } from '../data/factions';
 import { heroXpToLevel } from '../game/battleResult';
 import { heroPortraitURL } from '../gfx/icons';
+import { pxClass } from '../gfx/smooth';
 import { partySize, totalReady } from '../game/logic';
 import { dateString, timeOfDay, type GameState } from '../game/state';
 import { btn, h, uiRoot } from './dom';
@@ -130,7 +131,10 @@ export class Hud {
     this.heroLine.textContent = tr`${FACTIONS[state.hero.faction].short} · ур. ${state.hero.level}`;
     this.heroLine.style.color = FACTIONS[state.hero.faction].css;
     const portrait = heroPortraitURL(state);
-    if (this.heroImg.src !== portrait) this.heroImg.src = portrait;
+    if (this.heroImg.src !== portrait) {
+      this.heroImg.src = portrait;
+      this.heroImg.className = pxClass(portrait, 'px hud-portrait');
+    }
     const ready = totalReady(state);
     this.partyBadge.textContent = ready ? `↑${ready}` : '';
     this.partyBadge.style.display = ready ? '' : 'none';

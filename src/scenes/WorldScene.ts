@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { drawSnowCover, hash01 } from '../map/season';
 import { music } from '../audio/music';
-import { ART_SCALE, GRID_H, GRID_W, LABEL_FONT, PARTY_SPEED, SECONDS_PER_DAY, TILE, WORLD_H, WORLD_W } from '../config';
+import { ART_SCALE, DPR, GRID_H, GRID_W, LABEL_FONT, PARTY_SPEED, SECONDS_PER_DAY, TILE, WORLD_H, WORLD_W } from '../config';
 import { FACTIONS, type FactionId } from '../data/factions';
 import { drawRider, settlementTextureKey } from '../gfx/sprites';
 import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo, totalReady } from '../game/logic';
@@ -11,9 +11,10 @@ import { Battle, type BattleOpts, type Formation, type Weather } from '../battle
 import { nearRiver } from '../map/rivers';
 import type { DuelMods } from '../ui/encounter';
 import { TROOPS } from '../data/troops';
+import { troopLook } from '../battle/looks';
 import { FIELD_W } from '../battle/sim';
 import type { BattleTerrain } from '../battle/background';
-import { prewarmBattleTerrain } from './BattleScene';
+import { prewarmBattleTerrain, prewarmUnitLooks } from './BattleScene';
 import { applyBattle, applyDefense, gainHeroXp, applyRaid, applySiege, enemyDisplayColor, retreat, type AppliedResult } from '../game/battleResult';
 import { questsDaily } from '../game/quests';
 import { companionDeed, companionsDaily, partySkill, trainingDaily } from '../game/companions';
@@ -49,8 +50,8 @@ import { tr } from '../i18n';
 
 type Pt = { x: number; y: number };
 
-const MIN_ZOOM_ABS = 0.12;
-const MAX_ZOOM = 2.5;
+const MIN_ZOOM_ABS = 0.12 * DPR;
+const MAX_ZOOM = 2.5 * DPR;
 const TYPE_NAME = { town: tr('Город'), castle: tr('Замок'), village: tr('Деревня') } as const;
 /** Масштаб фигурок отрядов на карте относительно пиксель-арта поселений: мельче, чтобы не загромождать карту. */
 const PARTY_K = 0.6;
@@ -181,7 +182,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.path = [];
     this.recolorSettlements((s) => s.culture);
     const cam = this.cameras.main;
-    cam.setZoom(Math.max(this.minZoom(), 0.55));
+    cam.setZoom(Math.max(this.minZoom(), 0.55 * DPR));
     const route = [geoToWorld(2, 49), geoToWorld(14, 46), geoToWorld(30, 40), geoToWorld(40, 45), geoToWorld(20, 55), geoToWorld(2, 49)];
     const c = { i: 0 };
     cam.centerOn(route[0].x, route[0].y);
@@ -280,7 +281,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.party.setVisible(true).setPosition(state.party.x, state.party.y);
     this.updatePartyTexture(0);
     const cam = this.cameras.main;
-    cam.setZoom(Math.max(this.minZoom(), 0.75));
+    cam.setZoom(Math.max(this.minZoom(), 0.75 * DPR));
     cam.centerOn(state.party.x, state.party.y);
     this.hud = new Hud(state, {
       toggleWait: () => this.toggleWait(),
@@ -453,7 +454,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         return;
       }
       if (p.isDown && this.downAt) {
-        if (!this.dragging && Math.hypot(p.x - this.downAt.x, p.y - this.downAt.y) > 10) this.dragging = true;
+        if (!this.dragging && Math.hypot(p.x - this.downAt.x, p.y - this.downAt.y) > 10 * DPR) this.dragging = true;
         if (this.dragging) {
           cam.scrollX -= (p.x - p.prevPosition.x) / cam.zoom;
           cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
@@ -522,11 +523,11 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   /** Поселение под точкой: попадание в спрайт с запасом под палец. */
   private settlementAt(x: number, y: number): Settlement | null {
     const cam = this.cameras.main;
-    const pad = 12 / cam.zoom;
+    const pad = (12 * DPR) / cam.zoom;
     let best: Settlement | null = null;
     let bestD = Infinity;
     for (const s of world.settlements) {
-      if (s.type === 'village' && cam.zoom < 0.3) continue;
+      if (s.type === 'village' && cam.zoom < 0.3 * DPR) continue;
       const img = this.settleSprites.get(s.id);
       if (!img) continue;
       const b = img.getBounds();
@@ -555,8 +556,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         ` · ${partyCount(mp)} ⚔ · ${this.isHostile(mp) ? verdict : mp.faction === this.state.hero.faction ? tr('союзник') : tr('мир')}`,
         mp.kind === 'lord' ? h('div', { class: 'muted', style: 'font-size:12px' }, this.lordTask(mp)) : '',
       );
-      this.tooltip.style.left = `${p.x + 14}px`;
-      this.tooltip.style.top = `${p.y + 14}px`;
+      this.tooltip.style.left = `${p.x / DPR + 14}px`;
+      this.tooltip.style.top = `${p.y / DPR + 14}px`;
       return;
     }
     const s = this.modals === 0 ? this.settlementAt(wp.x, wp.y) : null;
@@ -578,8 +579,8 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       rel === 'war' ? h('span', { style: 'color:#e07a6a' }, tr(' · война')) : '',
       isPlagued(this.state, s) ? h('span', { style: 'color:#9ab87a' }, tr(' · мор!')) : '',
     );
-    this.tooltip.style.left = `${p.x + 14}px`;
-    this.tooltip.style.top = `${p.y + 14}px`;
+    this.tooltip.style.left = `${p.x / DPR + 14}px`;
+    this.tooltip.style.top = `${p.y / DPR + 14}px`;
   }
 
   private onTap(x: number, y: number) {
@@ -818,7 +819,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const t = prologueTarget(this.state);
     if (!t) return;
     const cam = this.cameras.main;
-    const k = Phaser.Math.Clamp(1 / cam.zoom, 0.7, 4);
+    const k = Phaser.Math.Clamp(DPR / cam.zoom, 0.7, 4);
     const v = cam.worldView;
     const m = 34 * k;
     const inside = t.x > v.x + m && t.x < v.right - m && t.y - 90 * k > v.y && t.y < v.bottom - m;
@@ -926,7 +927,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         this.partySprites.delete(id);
       }
     }
-    const z = this.cameras.main.zoom;
+    const z = this.cameras.main.zoom / DPR;
     const k = Phaser.Math.Clamp(1 / z, 0.6, 6);
     for (const p of list) {
       let v = this.partySprites.get(p.id);
@@ -1012,7 +1013,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
   private partyAt(x: number, y: number): MapParty | null {
     const cam = this.cameras.main;
-    const r = Math.max(40, 22 / cam.zoom);
+    const r = Math.max(40, (22 * DPR) / cam.zoom);
     let best: MapParty | null = null;
     let bestD = Infinity;
     for (const p of [...(this.state?.parties ?? []), ...(this.state ? activeLords(this.state) : [])]) {
@@ -1056,6 +1057,14 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     return 'grass';
   }
 
+  /** Воины будущего боя рисуются заранее: свой отряд, герой и враги (с подошедшими соседями). */
+  private prewarmUnits(enemies: { troops: { id: string }[] }[]) {
+    const hero = heroLook(this.state);
+    const ids = new Set<string>([...this.state.party.troops.map((t) => t.id), ...enemies.flatMap((e) => e.troops.map((t) => t.id))]);
+    const looks = [hero, { ...hero, mounted: false, heavy: false }, ...[...ids].filter((id) => TROOPS[id]).map((id) => troopLook(TROOPS[id]))];
+    prewarmUnitLooks(this.textures, looks);
+  }
+
   private encounter(p: MapParty) {
     this.waiting = false;
     this.path = [];
@@ -1066,6 +1075,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     this.targetParty = null;
     hint(this.state, 'battle');
     prewarmBattleTerrain(this.textures, [this.battleTerrain()]); // пока игрок читает окно встречи
+    this.prewarmUnits([p]);
     if (this.state.party.troops.reduce((s, t) => s + t.count, 0) === 0 && attacked) {
       // Героя без отряда разбойники просто грабят
       const lost = Math.floor(this.state.gold * 0.3);
@@ -1207,6 +1217,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   startSiege(s: Settlement) {
     prewarmBattleTerrain(this.textures, [this.battleTerrain()]);
     const { garrison, lords } = siegeDefenders(this.state, s);
+    this.prewarmUnits([{ troops: garrison }, ...lords]);
     if (troopCount(garrison) + lords.reduce((n, l) => n + troopCount(l.troops), 0) === 0) {
       capture(this.state, s, this.state.hero.faction, true);
       (this.state.capturedByHero ??= []).push(s.id);
@@ -1249,6 +1260,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   defendSiege(s: Settlement) {
     prewarmBattleTerrain(this.textures, [this.battleTerrain()]);
     const attackers = siegeAttackers(this.state, s);
+    this.prewarmUnits(attackers);
     const sg = this.state.war?.sieges[s.id];
     if (!sg || !attackers.length) {
       toast(tr('Осаждающие уже ушли'), 2500);
@@ -1438,7 +1450,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     const hr = (this.state.time % 1) * 24;
     const night = hr >= 20 || hr < 6;
     const winter = this.winter();
-    const z = cam.zoom;
+    const z = cam.zoom / DPR;
     for (const s of world.settlements) {
       if (s.type === 'village' && z < 0.45) continue;
       if (s.x < v.x - 200 || s.x > v.right + 200 || s.y < v.y - 100 || s.y > v.bottom + 300) continue;
@@ -1516,7 +1528,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
 
   /** Подписи держат постоянный экранный размер; перекрывающиеся менее важные прячутся. */
   private updateLabels() {
-    const z = this.cameras.main.zoom;
+    const z = this.cameras.main.zoom / DPR;
     const k = Phaser.Math.Clamp(1 / z, 0.6, 6);
     const rank = { town: 0, castle: 1, village: 2 } as const;
     const order = [...this.labels].sort((a, b) => rank[a.s.type] - rank[b.s.type]);

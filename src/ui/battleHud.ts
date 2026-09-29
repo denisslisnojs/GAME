@@ -2,7 +2,7 @@ import type { Ability, Battle, Form, Group, Order } from '../battle/sim';
 import { FACTIONS, type FactionId } from '../data/factions';
 import { emblemURL, portraitURL } from '../gfx/icons';
 import { Pix } from '../gfx/pixel';
-import { h, sfxClick, uiRoot } from './dom';
+import { h, img, sfxClick, uiRoot } from './dom';
 import { tr } from '../i18n';
 
 export interface BattleHudOpts {
@@ -187,7 +187,7 @@ export class BattleHud {
       const el = h(
         'div',
         { class: 'b-card', onclick: () => this.select(g.id) },
-        h('img', { class: 'px face', src: rep ? portraitURL(rep) : g.id === 'hero' ? o.heroPortrait ?? portraitURL(`${o.heroFaction}_c3m`) : o.heroEmblem ?? emblemURL(o.heroFaction) }),
+        img(rep ? portraitURL(rep) : g.id === 'hero' ? o.heroPortrait ?? portraitURL(`${o.heroFaction}_c3m`) : o.heroEmblem ?? emblemURL(o.heroFaction), 'px face'),
         badge,
         h('div', { class: 'lbl' }, g.id === 'hero' && this.totals.hero > 1 ? tr('Свита') : g.name),
         count,

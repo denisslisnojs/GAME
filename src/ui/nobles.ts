@@ -299,9 +299,9 @@ export function openFief(ctx: GameCtx, s: Settlement) {
       render();
     };
     for (const t of [...state.party.troops].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier))
-      mine.append(h('div', { class: 'row' }, img(portraitURL(t.id)), h('span', { class: 'grow' }, `${TROOPS[t.id].name} ×${t.count}`), btn('→1', () => move(state.party.troops, gar, t.id, 1), 'small'), btn(tr('→все'), () => move(state.party.troops, gar, t.id, t.count), 'small')));
+      mine.append(h('div', { class: 'row' }, img(portraitURL(t.id), 'px', 'width:32px;height:32px'), h('span', { class: 'grow' }, `${TROOPS[t.id].name} ×${t.count}`), btn('→1', () => move(state.party.troops, gar, t.id, 1), 'small'), btn(tr('→все'), () => move(state.party.troops, gar, t.id, t.count), 'small')));
     for (const t of [...gar].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier))
-      theirs.append(h('div', { class: 'row' }, btn('1←', () => move(gar, state.party.troops, t.id, 1), 'small'), btn(tr('все←'), () => move(gar, state.party.troops, t.id, t.count), 'small'), img(portraitURL(t.id)), h('span', { class: 'grow' }, `${TROOPS[t.id].name} ×${t.count}`)));
+      theirs.append(h('div', { class: 'row' }, btn('1←', () => move(gar, state.party.troops, t.id, 1), 'small'), btn(tr('все←'), () => move(gar, state.party.troops, t.id, t.count), 'small'), img(portraitURL(t.id), 'px', 'width:32px;height:32px'), h('span', { class: 'grow' }, `${TROOPS[t.id].name} ×${t.count}`)));
     if (!state.party.troops.length) mine.append(h('div', { class: 'muted' }, tr('Отряд пуст')));
     if (!gar.length) theirs.append(h('div', { class: 'muted' }, tr('Гарнизона нет — крепость беззащитна!')));
     const count = (l: { count: number }[]) => l.reduce((n, t) => n + t.count, 0);
