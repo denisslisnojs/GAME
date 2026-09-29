@@ -51,6 +51,47 @@ function compare(it: Item, cur: Item | null): { text: string; better: boolean } 
   return { text: txt, better: d > 0 };
 }
 
+/** Отличия по характеристикам от надетого: «+6% рубящ.», «−0.2 с удар»… Зелёное — лучше, красное — хуже. */
+export function statDiffs(it: Item, cur: Item | null): { text: string; better: boolean }[] {
+  if (cur?.id === it.id) return [];
+  const out: { text: string; better: boolean }[] = [];
+  const add = (label: string, d: number, fmt: (v: number) => string, higherBetter = true) => {
+    if (Math.abs(d) < 1e-6) return;
+    out.push({ text: `${d > 0 ? '+' : '−'}${fmt(Math.abs(d))} ${label}`, better: higherBetter ? d > 0 : d < 0 });
+  };
+  const p = (v: number) => `${Math.round(v * 100)}%`;
+  switch (it.slot) {
+    case 'weapon':
+      add(tr('урона'), (it.damage ?? 0) - (cur?.damage ?? 0), (v) => String(Math.round(v)));
+      add(tr('с на удар'), (it.attackTime ?? 1.2) - (cur?.attackTime ?? 1.2), (v) => v.toFixed(2), false);
+      add(tr('крита'), (it.crit ?? 0) - (cur?.crit ?? 0), p);
+      break;
+    case 'shield':
+      add(tr('блока'), (it.block ?? 0) - (cur?.block ?? 0), p);
+      add(tr('веса'), (it.weight ?? 0) - (cur?.weight ?? 0), (v) => v.toFixed(1), false);
+      break;
+    case 'horse':
+      add(tr('скорости'), (it.speed ?? 0) - (cur?.speed ?? 0), (v) => v.toFixed(2));
+      add(tr('здоровья'), (it.hpBonus ?? 0) - (cur?.hpBonus ?? 0), (v) => String(Math.round(v)));
+      break;
+    default: {
+      const a = it.armor ?? { cut: 0, pierce: 0, blunt: 0 };
+      const b = cur?.armor ?? { cut: 0, pierce: 0, blunt: 0 };
+      add(tr('рубящ.'), a.cut - b.cut, p);
+      add(tr('колющ.'), a.pierce - b.pierce, p);
+      add(tr('дробящ.'), a.blunt - b.blunt, p);
+      add(tr('веса'), (it.weight ?? 0) - (cur?.weight ?? 0), (v) => v.toFixed(1), false);
+    }
+  }
+  return out;
+}
+
+function diffChips(it: Item, cur: Item | null): HTMLElement | null {
+  const d = statDiffs(it, cur);
+  if (!d.length) return null;
+  return h('div', { class: 'diffs' }, ...d.map((x) => h('span', { class: x.better ? 'up' : 'down' }, x.text)));
+}
+
 function itemRow(ctx: GameCtx, it: Item, right: HTMLElement, note?: HTMLElement | null) {
   return h(
     'div',
@@ -100,7 +141,7 @@ export function openShop(ctx: GameCtx, s: Settlement, kind: ShopKind) {
               btn(tr('Надеть'), () => { if (buyItem(state, it, true)) { sfxCoins(); toast(tr`Надето: ${it.name}`); ctx.commit(); } render(); }, 'small primary', !can),
             ),
           ),
-          note,
+          h('span', {}, note, diffChips(it, cur)),
         ),
       );
     }
@@ -146,6 +187,54 @@ export function openHero(ctx: GameCtx) {
   let close = () => {};
   const leftCol = h('div', { class: 'col' });
   const slotsCol = h('div', { class: 'col' });
+  let content: HTMLElement = slotsCol;
+
+  /** Начать перетаскивание вещи. from: 'bag' (индекс в сумке) или 'equip' (слот). */
+  const dragSource = (el: HTMLElement, it: Item, kind: 'bag' | 'equip', where: () => { index?: number; from?: string }) => {
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const x0 = e.clientX;
+      const y0 = e.clientY;
+      let ghost: HTMLElement | null = null;
+      let over: HTMLElement | null = null;
+      const targets = () => [...content.querySelectorAll<HTMLElement>('[data-drop]')];
+      const accepts = (t: HTMLElement) => (kind === 'bag' ? t.dataset.drop === it.slot || t.dataset.drop === 'hero' : t.dataset.drop === 'bag');
+      const move = (ev: PointerEvent) => {
+        if (!ghost) {
+          if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+          ghost = h('img', { class: 'px drag-ghost', src: (el as HTMLImageElement).src }) as HTMLElement;
+          document.body.append(ghost);
+          for (const t of targets()) t.classList.toggle('drop-ok', accepts(t));
+        }
+        ghost.style.left = `${ev.clientX - 22}px`;
+        ghost.style.top = `${ev.clientY - 22}px`;
+        const hit = (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest<HTMLElement>('[data-drop]') ?? null;
+        if (hit !== over) {
+          over?.classList.remove('drop-over');
+          over = hit && accepts(hit) ? hit : null;
+          over?.classList.add('drop-over');
+        }
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        ghost?.remove();
+        for (const t of targets()) t.classList.remove('drop-ok', 'drop-over');
+        if (!ghost || !over) return;
+        const w = where();
+        if (kind === 'bag' && w.index !== undefined) {
+          equipFromBag(hero, w.index);
+          toast(tr`Надето: ${it.name}`, 1500);
+        } else if (kind === 'equip' && w.from) unequip(hero, w.from as Item['slot']);
+        ctx.commit();
+        render();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    });
+  };
 
   const render = () => {
     const st = heroStats(hero);
@@ -153,11 +242,14 @@ export function openHero(ctx: GameCtx) {
     leftCol.replaceChildren(
       h(
         'div',
-        { class: 'hero-figure' },
+        { class: 'hero-figure', 'data-drop': 'hero' },
         img(heroFigureURL(heroLook(state)), 'px', 'width:224px;height:256px'),
       ),
       h('div', { class: 'row', style: 'justify-content:space-between' }, h('b', { class: 'gold' }, tr`Уровень ${hero.level}`), h('span', { class: 'muted' }, tr`${hero.xp} / ${need} опыта`)),
       h('div', { class: 'power' }, h('div', { style: `width:${Math.min(100, (hero.xp / need) * 100)}%;background:var(--gold)` })),
+    );
+    // Характеристики, умения и сводка — справа, под сумкой
+    const extra: (HTMLElement | null)[] = [
       h('div', { class: 'col-title', style: 'margin-top:6px' }, hero.points ? tr`Характеристики · свободных очков: ${hero.points}` : tr('Характеристики')),
       ...ATTR_INFO.map((a) =>
         h(
@@ -195,40 +287,61 @@ export function openHero(ctx: GameCtx) {
         h('span', {}, tr`Боевой дух армии +${st.morale}`),
         h('span', {}, tr`Скидка на найм ${pct(st.hireDiscount)}`),
       ),
-    );
-    slotsCol.replaceChildren(h('div', { class: 'col-title' }, tr('Снаряжение')));
+    ];
+    leftCol.append(h('div', { class: 'col-title', style: 'margin-top:6px' }, tr('Снаряжение'), h('span', { class: 'muted hint-inline' }, tr(' · тяните вещь из сумки на слот или на героя'))));
     for (const slot of SLOTS) {
       const it = equipped(hero, slot);
       const disabled = slot === 'shield' && equipped(hero, 'weapon')?.twoHanded;
-      slotsCol.append(
-        h(
-          'div',
-          { class: 'item slot-row' },
-          it ? img(itemIconURL(it, hero.faction), 'px portrait', 'width:40px;height:40px') : h('div', { class: 'slot-empty' }),
-          h('div', { class: 'grow col', style: 'gap:0' }, h('span', { class: 'muted', style: 'font-size:11px' }, SLOT_NAME[slot] + (disabled ? tr(' · не используется с двуручным') : '')), h('span', { class: 'name' }, it?.name ?? '—'), it ? h('span', { class: 'stats' }, itemStats(it)) : null),
-          it ? btn(tr('Снять'), () => { unequip(hero, slot); ctx.commit(); render(); }, 'small ghost') : null,
-        ),
+      const icon = it ? img(itemIconURL(it, hero.faction), 'px portrait drag-handle', 'width:40px;height:40px') : h('div', { class: 'slot-empty' });
+      const row = h(
+        'div',
+        { class: 'item slot-row', 'data-drop': slot },
+        icon,
+        h('div', { class: 'grow col', style: 'gap:0' }, h('span', { class: 'muted', style: 'font-size:11px' }, SLOT_NAME[slot] + (disabled ? tr(' · не используется с двуручным') : '')), h('span', { class: 'name' }, it?.name ?? '—'), it ? h('span', { class: 'stats' }, itemStats(it)) : null),
+        it ? btn(tr('Снять'), () => { unequip(hero, slot); ctx.commit(); render(); }, 'small ghost') : null,
       );
+      // Надетое можно утащить обратно в сумку
+      if (it) dragSource(icon, it, 'equip', () => ({ from: slot }));
+      leftCol.append(row);
     }
     const bag = hero.bag ?? [];
-    slotsCol.append(h('div', { class: 'col-title', style: 'margin-top:8px' }, tr`Сумка · ${bag.length}`));
-    if (!bag.length) slotsCol.append(h('div', { class: 'muted', style: 'font-size:13px' }, tr('Пусто. Покупайте снаряжение у оружейников, бронников и на конюшнях, добывайте в бою.')));
-    bag.forEach((id, i) => {
-      const it = ITEMS[id];
-      if (!it) return;
-      slotsCol.append(
+    const bagBox = h('div', { class: 'col bag-box', 'data-drop': 'bag' });
+    slotsCol.replaceChildren(h('div', { class: 'col-title' }, tr`Сумка · ${bag.length}`), bagBox);
+    if (!bag.length) bagBox.append(h('div', { class: 'muted', style: 'font-size:13px;padding:6px' }, tr('Пусто. Покупайте снаряжение у оружейников, бронников и на конюшнях, добывайте в бою.')));
+    // Вещи по слотам, в слоте — сначала лучшие
+    const score = (it: Item) => statDiffs(it, equipped(hero, it.slot)).reduce((n, d) => n + (d.better ? 1 : -1), 0);
+    const order = bag
+      .map((id, i) => ({ it: ITEMS[id], i }))
+      .filter((x) => x.it)
+      .sort((a, b) => SLOTS.indexOf(a.it.slot) - SLOTS.indexOf(b.it.slot) || score(b.it) - score(a.it) || b.it.tier - a.it.tier);
+    for (const { it, i } of order) {
+      const cur = equipped(hero, it.slot);
+      const icon = img(itemIconURL(it, hero.faction), 'px portrait drag-handle', 'width:40px;height:40px');
+      dragSource(icon, it, 'bag', () => ({ index: i }));
+      bagBox.append(
         h(
           'div',
           { class: 'item slot-row' },
-          img(itemIconURL(it, hero.faction), 'px portrait', 'width:40px;height:40px'),
-          h('div', { class: 'grow col', style: 'gap:0' }, h('span', { class: 'muted', style: 'font-size:11px' }, SLOT_NAME[it.slot]), h('span', { class: 'name' }, it.name), h('span', { class: 'stats' }, itemStats(it))),
+          icon,
+          h(
+            'div',
+            { class: 'grow col', style: 'gap:0' },
+            h('span', { class: 'muted', style: 'font-size:11px' }, SLOT_NAME[it.slot] + (cur ? tr` · сейчас: ${cur.name}` : tr(' · слот пуст'))),
+            h('span', { class: 'name' }, it.name),
+            h('span', { class: 'stats' }, itemStats(it)),
+            diffChips(it, cur),
+          ),
           btn(tr('Надеть'), () => { equipFromBag(hero, i); ctx.commit(); render(); }, 'small primary'),
         ),
       );
-    });
+    }
+    // Есть свободные очки — характеристики наверху, иначе под сумкой
+    const ex = extra.filter((x): x is HTMLElement => !!x);
+    if (hero.points || hero.skillPoints) slotsCol.prepend(...ex);
+    else slotsCol.append(...ex);
   };
 
-  const content = panel(
+  content = panel(
     'modal wide',
     h('div', { class: 'head' }, h('div', {}, h('h2', { class: 'title' }, hero.name), h('div', { class: 'muted', style: 'font-size:13px' }, tr('Герой, снаряжение и характеристики'))), btn(h('span', { class: 'row', style: 'gap:6px' }, img(heroEmblemURL(state), 'px', 'width:16px;height:18px'), tr('Герб')), () => openArmsEditor(ctx, () => { close(); openHero(ctx); }), 'small', false, tr('Личный герб')), btn('✕', () => close(), 'small close')),
     h('div', { class: 'body hero-layout' }, leftCol, slotsCol),

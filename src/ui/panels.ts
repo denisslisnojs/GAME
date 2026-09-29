@@ -17,6 +17,8 @@ import {
   sell,
   sellPrice,
   upgrade,
+  moveStack,
+  sortParty,
 } from '../game/logic';
 import type { GameState } from '../game/state';
 import type { Battle } from '../battle/sim';
@@ -368,8 +370,18 @@ export function openParty(ctx: GameCtx) {
         ),
       );
     }
-    const troops = [...state.party.troops].sort((a, b) => TROOPS[b.id].tier - TROOPS[a.id].tier || (TROOPS[a.id].line === 'cavalry' ? -1 : 1));
-    for (const stack of troops) {
+    const troops = state.party.troops;
+    if (troops.length > 1)
+      body.append(
+        h(
+          'div',
+          { class: 'row sort-row' },
+          h('span', { class: 'muted grow' }, tr('Порядок — очерёдность выхода в бой: верхние сражаются первыми, нижние ждут в подкреплении.')),
+          btn(tr('По уровню'), () => { sortParty(state, 'tier'); ctx.commit(); render(); }, 'small'),
+          btn(tr('По роду войск'), () => { sortParty(state, 'line'); ctx.commit(); render(); }, 'small'),
+        ),
+      );
+    troops.forEach((stack, idx) => {
       const t = TROOPS[stack.id];
       const ready = readyToUpgrade(stack);
       const xpPct = t.xpToUpgrade ? (ready >= stack.count ? 100 : Math.round(((stack.xp % t.xpToUpgrade) / t.xpToUpgrade) * 100)) : 100;
@@ -413,12 +425,18 @@ export function openParty(ctx: GameCtx) {
             upgradeRow,
           ),
           h('div', { class: 'col', style: 'align-items:flex-end;gap:4px' },
-            h('span', { class: 'count' }, `×${stack.count}`),
+            h('div', { class: 'row', style: 'gap:6px' },
+              h('span', { class: 'count' }, `×${stack.count}`),
+              h('div', { class: 'col move-btns' },
+                btn('▲', () => { moveStack(state, stack.id, -1); ctx.commit(); render(); }, 'small', idx === 0, tr('Выше: в бой раньше')),
+                btn('▼', () => { moveStack(state, stack.id, 1); ctx.commit(); render(); }, 'small', idx === troops.length - 1, tr('Ниже: в бой позже')),
+              ),
+            ),
             btn(tr('Распустить 1'), () => { dismiss(state, stack.id, 1); ctx.commit(); render(); }, 'small ghost'),
           ),
         ),
       );
-    }
+    });
     if (!troops.length) body.append(h('div', { class: 'muted', style: 'padding:8px' }, tr('Отряд пуст. Наймите воинов в деревнях и городах.')));
 
     // Пленные

@@ -132,8 +132,33 @@ export function upgrade(state: GameState, fromId: string, toId: string, n: numbe
   stack.xp -= k * t.xpToUpgrade;
   state.gold -= k * t.upgradeCost;
   (state.flags ??= {}).upgraded = true;
+  // Повышенные встают в строй прямо над своим прежним отрядом (порядок = очерёдность выхода в бой)
+  const at = state.party.troops.indexOf(stack);
+  if (!state.party.troops.some((x) => x.id === toId)) state.party.troops.splice(at, 0, { id: toId, count: 0, xp: 0 });
   if (stack.count <= 0) state.party.troops = state.party.troops.filter((x) => x !== stack);
   else stack.xp = Math.min(stack.xp, stack.count * t.xpToUpgrade * 2);
   addTroops(state, toId, k);
   return k;
+}
+
+/** Порядок отряда: сдвинуть стек выше (−1) или ниже (+1). Верхние выходят в бой первыми. */
+export function moveStack(state: GameState, id: string, dir: -1 | 1) {
+  const list = state.party.troops;
+  const i = list.findIndex((t) => t.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+}
+
+/** Упорядочить отряд: по уровню (сильнейшие первыми) или по роду войск (пехота, стрелки, конница). */
+export function sortParty(state: GameState, by: 'tier' | 'line') {
+  const line = (id: string) => {
+    const t = TROOPS[id];
+    return t.line === 'cavalry' ? 2 : t.role === 'ranged' ? 1 : 0;
+  };
+  state.party.troops.sort((a, b) =>
+    by === 'tier'
+      ? TROOPS[b.id].tier - TROOPS[a.id].tier || line(a.id) - line(b.id)
+      : line(a.id) - line(b.id) || TROOPS[b.id].tier - TROOPS[a.id].tier,
+  );
 }
