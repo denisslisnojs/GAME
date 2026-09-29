@@ -120,6 +120,7 @@ export function heroLook(state: GameState): UnitLook {
     helmetMetal: head?.metal,
     weapon: weapon?.weapon ?? 'mace',
     shield: !!shield,
+    shieldShape: shield?.shieldShape,
     mounted: !!horse,
     heavy: !!horse?.barding,
     hero: true,

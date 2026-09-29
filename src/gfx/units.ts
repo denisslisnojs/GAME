@@ -4,7 +4,7 @@
 // Кадры: 0 — стойка, 1..4 — шаг, 5..7 — атака, 8 — павший.
 
 import type { BodyKind } from '../data/items';
-import type { Helmet, Weapon } from '../data/troops';
+import type { Helmet, ShieldShape, Weapon } from '../data/troops';
 import { lumOf, mix } from './color';
 import { cap, ell, poly, rasterize, rotateShapes, scaleShapes, type Mat, type Pat, type Pt, type Shape } from './figure';
 
@@ -59,6 +59,8 @@ export interface UnitLook {
   horseColor?: string;
   /** Верблюд вместо коня. */
   camel?: boolean;
+  /** Форма щита (для героя — по щиту в руке); без неё — обычная для культуры. */
+  shieldShape?: ShieldShape;
 }
 
 const SKIN: Record<Culture, string> = { aurelia: '#e6bc96', nordmark: '#f0c8a8', horde: '#d8a878', sultanate: '#c89068', outlaw: '#dcb08a' };
@@ -285,6 +287,44 @@ function head(k: Kit, hx: number, hy: number): Shape[] {
       out.push(cap(DARK, 'dark', [hx + 1.4, hy - 1.2], [hx + 4.8, hy - 1], 0.7));
       out.push(poly(m, 'metal', [[hx - 1, hy + 1.6], [hx + 4.6, hy + 1.2], [hx + 4.4, hy + 5.4], [hx + 0.8, hy + 7], [hx - 2.4, hy + 6]]));
       break;
+    case 'coif':
+      // Кольчужный капюшон: облегает голову и шею, лицо открыто
+      out.push(poly(m, 'metal', [[hx - 5.4, hy + 7.4], [hx - 5.8, hy - 1], [hx - 3.6, hy - 5.8], [hx + 0.6, hy - 6.8], [hx + 4.4, hy - 4.2], [hx + 5, hy - 0.4], [hx + 2.6, hy + 1], [hx + 2.2, hy + 7.4]], 'mail'));
+      out.push(...face());
+      out.push(poly(m, 'metal', [[hx - 5.4, hy - 1.4], [hx - 3.4, hy - 5.8], [hx + 0.6, hy - 6.8], [hx + 4.4, hy - 4.2], [hx + 3.6, hy - 2.4], [hx + 0.4, hy - 3.4], [hx - 1.6, hy - 2], [hx - 2.8, hy + 3.4], [hx - 5.2, hy + 3.4]], 'mail'));
+      break;
+    case 'kolpak':
+      // Стальной колпак с меховой опушкой и маленьким шпилем
+      out.push(...face());
+      out.push(ell(m, 'metal', hx - 0.2, hy - 2.8, 4.8, 4));
+      out.push(cap(m, 'metal', [hx - 0.2, hy - 6.4], [hx - 0.2, hy - 8.6], 1.1, 0.4));
+      out.push(cap('#6a4a30', 'fur', [hx - 5.2, hy - 1.4], [hx + 4.8, hy - 1.4], 2.2));
+      break;
+    case 'barbute':
+      // Барбют: цельный купол до шеи с Т-образным вырезом для лица
+      out.push(...face());
+      out.push(poly(m, 'metal', [[hx - 5.6, hy + 6.6], [hx - 5.8, hy - 1.6], [hx - 4, hy - 6], [hx, hy - 7.6], [hx + 3.8, hy - 6], [hx + 5, hy - 2.4], [hx + 2.4, hy - 2.2], [hx + 2, hy + 0.2], [hx + 1, hy + 0.4], [hx + 1.2, hy + 6.6]]));
+      out.push(poly(m, 'metal', [[hx + 3.2, hy + 0.6], [hx + 5.2, hy + 1.2], [hx + 4.8, hy + 6.2], [hx + 2.4, hy + 6.8]]));
+      out.push(cap(mix(m, '#ffffff', 0.4), 'metal', [hx - 2.6, hy - 5.6], [hx + 1.6, hy - 6.6], 0.8));
+      break;
+    case 'hounskull':
+      // Бацинет с острым забралом «собачья морда»: дыхательные отверстия и смотровая щель
+      out.push(poly(mix(m, '#000000', 0.08), 'metal', [[hx - 5, hy - 1], [hx - 6, hy + 8], [hx + 2, hy + 8.5], [hx + 4, hy + 4.8], [hx - 2.6, hy + 2]], 'mail'));
+      out.push(poly(m, 'metal', [[hx - 4.8, hy + 1.4], [hx - 4.8, hy - 3], [hx - 2.4, hy - 7.6], [hx - 0.6, hy - 9.4], [hx + 3, hy - 5.4], [hx + 4.4, hy - 1.6], [hx + 2, hy + 1.4]]));
+      out.push(poly(mix(m, '#ffffff', 0.1), 'metal', [[hx + 0.4, hy - 3.2], [hx + 4.4, hy - 2.6], [hx + 9.4, hy + 0.6], [hx + 4.6, hy + 4.2], [hx + 0.8, hy + 4.4]]));
+      out.push(cap(DARK, 'dark', [hx + 1.6, hy - 1.4], [hx + 5.4, hy - 0.8], 0.6));
+      for (const d of [0, 1.2, 2.4]) out.push(ell(DARK, 'dark', hx + 4.2 + d * 0.6, hy + 1.8 + d * 0.3, 0.3, 0.3));
+      out.push(ell(m, 'metal', hx - 3.8, hy - 1.4, 1.2, 1.2));
+      break;
+    case 'crested':
+      // Турнирный топфхельм: золочёный обруч и пышный плюмаж цветов герба
+      out.push(poly(m, 'metal', [[hx - 4.8, hy - 6.2], [hx + 5, hy - 6.2], [hx + 5.4, hy + 6], [hx - 4.8, hy + 5.4]]));
+      out.push(cap(DARK, 'dark', [hx + 1, hy - 1.2], [hx + 5.3, hy - 1.2], 0.9));
+      out.push(cap('#e2b43c', 'gold', [hx - 4.8, hy - 5.6], [hx + 5, hy - 5.6], 1.2));
+      out.push(cap('#e2b43c', 'gold', [hx + 3.4, hy - 6], [hx + 3.4, hy + 5.8], 0.8));
+      out.push(ell(DARK, 'dark', hx + 4.2, hy + 2.8, 0.35, 0.35), ell(DARK, 'dark', hx + 4.2, hy + 4, 0.35, 0.35));
+      out.push(cap(L.cloth, 'cloth', [hx + 0.4, hy - 6.4], [hx - 5.6, hy - 11.6], 3.6, 1.4), cap(L.cloth2, 'cloth', [hx + 1.4, hy - 6.6], [hx - 3, hy - 12.6], 2.6, 1));
+      break;
     case 'armet':
       out.push(ell(m, 'metal', hx - 0.2, hy - 0.4, 5, 5.8));
       out.push(poly(mix(m, '#ffffff', 0.12), 'metal', [[hx + 0.6, hy - 3], [hx + 4.6, hy - 1.8], [hx + 6.6, hy + 1], [hx + 4.4, hy + 4.4], [hx + 0.8, hy + 5]]));
@@ -395,6 +435,65 @@ function weapon(k: Kit, H: Pt, a: number, extra: { pull?: number; arrow?: boolea
       out.push(cap('#e8c04a', 'gold', at(7.6), at(9.6, -1), 1.3, 0.4), cap('#ff6a1a', 'gold', at(7.4, 0.4), at(10.6, 0.6), 0.9, 0.3));
       break;
     }
+    case 'falchion':
+      // Фальшион: широкий однолезвийный клинок, расширяется к срезанному острию
+      out.push(cap(LEATHER, 'leather', at(-2.6), at(1), 1.5));
+      out.push(ell('#c8a040', 'gold', ...at(-3.2), 1.2, 1.2));
+      out.push(cap('#c8a040', 'gold', at(1.3, -2.8), at(1.3, 2.8), 1.1));
+      out.push(poly(STEEL, 'metal', [at(2, -0.9), at(14, -1.4), at(16.4, 0.2), at(14.6, 2.6), at(2, 1.1)]));
+      break;
+    case 'hammer':
+      // Боевой молот/чекан: боёк с одной стороны, клюв с другой, шип сверху
+      out.push(cap(WOOD, 'wood', at(-4), at(14), 1.5));
+      out.push(poly('#9aa2aa', 'metal', [at(11, -1.6), at(11, -4.2), at(14.2, -4.2), at(14.2, -1.6)]));
+      out.push(poly(STEEL, 'metal', [at(11.2, 1.4), at(14, 1.4), at(12.6, 6.4)]));
+      out.push(cap(STEEL, 'metal', at(13.6), at(16.6), 1.2, 0.3));
+      break;
+    case 'flanged':
+      // Шестопёр: головка из стальных перьев
+      out.push(cap(WOOD, 'wood', at(-3), at(11), 1.5));
+      out.push(ell('#8a9098', 'metal', ...at(12.8), 2.2, 2.2));
+      for (const sd of [-1, 1]) out.push(poly('#b8c0c8', 'metal', [at(10.6, sd * 1.6), at(12.2, sd * 3.8), at(15, sd * 3.2), at(15.2, sd * 1.4)]));
+      out.push(cap('#b8c0c8', 'metal', at(10.8), at(15.6), 1.4, 0.9));
+      break;
+    case 'morningstar':
+      // Моргенштерн: шар с шипами на рукояти
+      out.push(cap(WOOD, 'wood', at(-3), at(12), 1.6));
+      out.push(ell('#8a9098', 'metal', ...at(14), 3, 3));
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const c = at(14 + Math.cos(a) * 3, Math.sin(a) * 3);
+        const e = at(14 + Math.cos(a) * 5, Math.sin(a) * 5);
+        out.push(cap(STEEL, 'metal', c, e, 1, 0.2));
+      }
+      break;
+    case 'flail': {
+      // Цеп: рукоять, цепь и шипастый шар
+      out.push(cap(WOOD, 'wood', at(-3), at(9), 1.6));
+      const end = at(9);
+      const ball: Pt = [end[0] + 2.5, end[1] + 6];
+      for (let i = 1; i <= 3; i++) out.push(ell('#6a7078', 'metal', end[0] + (ball[0] - end[0]) * (i / 4), end[1] + (ball[1] - end[1]) * (i / 4), 0.8, 0.8));
+      out.push(ell('#8a9098', 'metal', ball[0], ball[1], 2.6, 2.6));
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        out.push(cap(STEEL, 'metal', [ball[0] + Math.cos(a) * 2.4, ball[1] + Math.sin(a) * 2.4], [ball[0] + Math.cos(a) * 4.2, ball[1] + Math.sin(a) * 4.2], 0.9, 0.2));
+      }
+      break;
+    }
+    case 'pollaxe':
+      // Поллэкс: древко, топор с молотом на обухе и шип на вершине
+      out.push(cap(WOOD, 'wood', at(-14), at(24), 1.4));
+      out.push(poly(STEEL, 'metal', [at(18.5, 0.4), at(18, -4.6), at(20.6, -6), at(23.4, -4.4), at(23.4, 0.4)]));
+      out.push(poly('#9aa2aa', 'metal', [at(19.4, 0.8), at(19.4, 3.4), at(22.4, 3.4), at(22.4, 0.8)]));
+      out.push(cap(STEEL, 'metal', at(23.4), at(29), 1.3, 0.3));
+      out.push(cap('#9aa2aa', 'metal', at(15.4), at(17.8), 2.2, 2.2));
+      break;
+    case 'bardiche':
+      // Бердыш: длинный полумесяц лезвия, привязанный к древку
+      out.push(cap(WOOD, 'wood', at(-14), at(24), 1.4));
+      out.push(poly(STEEL, 'metal', [at(11, 0.6), at(12, -3.2), at(17, -5.8), at(25, -5.2), at(29, -3.2), at(25.6, -1.6), at(24, 0.6)]));
+      out.push(cap(mix(STEEL, '#ffffff', 0.35), 'metal', at(14, -4.6), at(27.6, -3.8), 0.6));
+      break;
     case 'crossbow':
       out.push(cap(WOOD, 'wood', at(-6), at(7), 2.2, 1.8));
       out.push(cap('#5a5f66', 'metal', at(6.5, -6), at(7.5, 0), 1.1), cap('#5a5f66', 'metal', at(7.5, 0), at(6.5, 6), 1.1));
@@ -407,29 +506,46 @@ function weapon(k: Kit, H: Pt, a: number, extra: { pull?: number; arrow?: boolea
 
 // ───────────────────────── щиты ─────────────────────────
 
+const CULTURE_SHIELD: Record<Culture, ShieldShape> = { aurelia: 'heater', nordmark: 'round', horde: 'hide', sultanate: 'kalkan', outlaw: 'board' };
+
 function shield(k: Kit, C: Pt): Shape[] {
   const L = k.L;
   const [x, y] = C;
   const c = L.cloth;
   const e = L.cloth2;
-  switch (L.culture) {
-    case 'aurelia':
+  const shape = L.shieldShape ?? CULTURE_SHIELD[L.culture];
+  switch (shape) {
+    case 'kite':
+      // Каплевидный щит норманнского образца
+      return [
+        poly('#5a3e24', 'wood', [[x - 4.8, y - 8.4], [x, y - 9.8], [x + 5, y - 8.2], [x + 4.6, y + 1], [x + 0.2, y + 13], [x - 4.2, y + 1]]),
+        poly(c, 'cloth', [[x - 4, y - 7.8], [x, y - 9], [x + 4.2, y - 7.6], [x + 3.8, y + 0.8], [x + 0.2, y + 11.4], [x - 3.4, y + 0.8]]),
+        poly(e, 'gold', [[x - 0.7, y - 8.8], [x + 1, y - 8.8], [x + 0.9, y + 10], [x - 0.5, y + 10]]),
+        ell('#b0b6be', 'metal', x + 0.2, y - 1.6, 1.4, 1.5),
+      ];
+    case 'buckler':
+      // Баклер: маленький стальной кулачный щит
+      return [ell('#8a9098', 'metal', x, y, 3.6, 3.8), ell('#b8c0c8', 'metal', x + 0.2, y - 0.2, 1.6, 1.7)];
+    case 'adarga':
+      // Адарга: кожаный щит из двух сросшихся овалов
+      return [ell('#9a7a4a', 'leather', x, y - 3, 5, 4.6), ell('#9a7a4a', 'leather', x, y + 3.4, 5, 4.6), ell(e === '#2a2320' ? '#a83a2a' : e, 'cloth', x, y - 3, 2.4, 2.2), ell(e === '#2a2320' ? '#a83a2a' : e, 'cloth', x, y + 3.4, 2.4, 2.2), ell('#c8a050', 'gold', x + 0.2, y, 1.2, 1.2)];
+    case 'heater':
       return [
         poly('#5a3e24', 'wood', [[x - 4.6, y - 7.2], [x + 4.8, y - 6.6], [x + 5, y + 1.8], [x + 0.2, y + 9.4], [x - 4.4, y + 2]]),
         poly(c, 'cloth', [[x - 4, y - 6.5], [x + 4.2, y - 6], [x + 4.4, y + 1.6], [x + 0.2, y + 8.2], [x - 3.8, y + 1.8]]),
         poly(e, 'gold', [[x - 0.6, y - 6.3], [x + 1, y - 6.2], [x + 1, y + 7], [x + 0.2, y + 8], [x - 0.6, y + 7]]),
         poly(e, 'gold', [[x - 3.9, y - 2], [x + 4.3, y - 1.6], [x + 4.3, y], [x - 3.9, y - 0.4]]),
       ];
-    case 'nordmark':
+    case 'round':
       return [
         ell('#6a4426', 'wood', x, y, 7.8, 8.6, 'plank'),
         poly(c, 'cloth', [[x, y], [x, y - 8], [x + 5.6, y - 5.6], [x + 7.6, y]]),
         poly(c, 'cloth', [[x, y], [x, y + 8], [x - 5.6, y + 5.6], [x - 7.6, y]]),
         ell('#b0b6be', 'metal', x + 0.4, y - 0.2, 2, 2.2),
       ];
-    case 'horde':
+    case 'hide':
       return [ell('#7a5230', 'leather', x, y, 5.2, 5.8), ell(e === '#2a2320' ? '#a83a2a' : e, 'cloth', x, y, 3.4, 3.8), ell('#b0b6be', 'metal', x + 0.3, y - 0.2, 1.4, 1.5)];
-    case 'sultanate':
+    case 'kalkan':
       return [ell('#c8a050', 'gold', x, y, 6.6, 7.4), ell(c, 'cloth', x, y, 5.6, 6.3), ell(e, 'cloth', x, y, 3.6, 4.1), ell('#c8a050', 'gold', x + 0.3, y - 0.2, 1.6, 1.8)];
     default:
       return [poly('#7a5a3a', 'wood', [[x - 4.4, y - 7], [x + 4.4, y - 7], [x + 4.4, y + 7], [x - 4.4, y + 7]], 'plank'), cap('#4a3220', 'leather', [x - 4.4, y - 3], [x + 4.4, y - 3], 1.2), cap('#4a3220', 'leather', [x - 4.4, y + 3], [x + 4.4, y + 3], 1.2)];
@@ -539,6 +655,8 @@ function clsOf(L: UnitLook): Cls {
     case 'halberd':
     case 'glaive':
     case 'daneaxe':
+    case 'pollaxe':
+    case 'bardiche':
       return 'chop';
     case 'spear':
     case 'pitchfork':
@@ -578,7 +696,8 @@ function armPose(cls: Cls, frame: number, mounted: boolean): ArmPose {
       ] as (ArmPose | null)[])[f]!;
     case 'chop':
       return ([
-        { hw: [-1, -8 + sway] as Pt, hs: null, wa: -76, lean: 2, front: false },
+        // Древко вынесено вперёд: иначе крупная голова целиком закрывает оружие
+        { hw: [6, -9 + sway] as Pt, hs: null, wa: -64, lean: 2, front: false },
         null, null, null, null,
         { hw: [-4, -24] as Pt, hs: null, wa: -118, lean: -4, front: false },
         { hw: [10, -14] as Pt, hs: null, wa: 24, lean: 11, front: true },

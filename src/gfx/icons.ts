@@ -271,6 +271,7 @@ export function itemIconURL(it: Item, faction: FactionId): string {
         break;
       case 'shield':
         L.shield = true;
+        L.shieldShape = it.shieldShape;
         break;
       case 'horse':
         L.mounted = true;

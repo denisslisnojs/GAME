@@ -5,8 +5,10 @@ import { tr } from '../i18n';
 export type DamageType = 'cut' | 'pierce' | 'blunt';
 export type TroopLine = 'infantry' | 'cavalry';
 export type TroopRole = 'melee' | 'ranged';
-export type Weapon = 'pitchfork' | 'spear' | 'sword' | 'axe' | 'mace' | 'halberd' | 'bow' | 'crossbow' | 'lance' | 'sabre' | 'glaive' | 'handgonne' | 'firepot' | 'daneaxe';
-export type Helmet = 'none' | 'hood' | 'cap' | 'kettle' | 'nasal' | 'bascinet' | 'great' | 'turban' | 'spired' | 'fur' | 'sallet' | 'armet';
+export type Weapon = 'pitchfork' | 'spear' | 'sword' | 'axe' | 'mace' | 'halberd' | 'bow' | 'crossbow' | 'lance' | 'sabre' | 'glaive' | 'handgonne' | 'firepot' | 'daneaxe' | 'falchion' | 'flail' | 'hammer' | 'flanged' | 'morningstar' | 'pollaxe' | 'bardiche';
+export type Helmet = 'none' | 'hood' | 'cap' | 'kettle' | 'nasal' | 'bascinet' | 'great' | 'turban' | 'spired' | 'fur' | 'sallet' | 'armet' | 'coif' | 'kolpak' | 'barbute' | 'hounskull' | 'crested';
+/** Форма щита. */
+export type ShieldShape = 'board' | 'round' | 'heater' | 'kite' | 'buckler' | 'kalkan' | 'adarga' | 'hide';
 
 export interface TroopLook {
   helmet: Helmet;

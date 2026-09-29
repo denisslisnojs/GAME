@@ -182,7 +182,7 @@ const CART_HH = 11;
 
 function isPole(t: TroopDef) {
   const w = t.look.weapon;
-  return w === 'spear' || w === 'pitchfork' || w === 'halberd' || w === 'glaive' || w === 'daneaxe';
+  return w === 'spear' || w === 'pitchfork' || w === 'halberd' || w === 'glaive' || w === 'daneaxe' || w === 'pollaxe' || w === 'bardiche';
 }
 
 export function groupOf(t: TroopDef): Group {

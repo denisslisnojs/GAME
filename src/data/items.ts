@@ -1,6 +1,6 @@
 // Снаряжение героя: от стёганки до максимилиановских лат.
 import type { FactionId } from './factions';
-import type { DamageType, Helmet, Weapon } from './troops';
+import type { DamageType, Helmet, ShieldShape, Weapon } from './troops';
 import { tr } from '../i18n';
 
 export type Slot = 'head' | 'body' | 'hands' | 'legs' | 'weapon' | 'shield' | 'horse';
@@ -33,6 +33,7 @@ export interface Item {
   twoHanded?: boolean;
   // Щит
   block?: number;
+  shieldShape?: ShieldShape;
   // Конь
   speed?: number;
   hpBonus?: number;
@@ -96,7 +97,7 @@ const LIST: Item[] = [
   { id: 'arming_sword', name: tr('Меч'), slot: 'weapon', tier: 2, price: 260, cultures: ['aurelia', 'nordmark'], weapon: 'sword', damage: 19, damageType: 'cut', attackTime: 1.1, crit: 0.1, description: tr('Одноручный рыцарский меч.') },
   { id: 'sabre', name: tr('Сабля'), slot: 'weapon', tier: 2, price: 280, cultures: ['horde', 'sultanate'], weapon: 'sabre', damage: 18, damageType: 'cut', attackTime: 0.95, crit: 0.13, description: tr('Изогнутый клинок всадника.') },
   { id: 'dane_axe', name: tr('Датский топор'), slot: 'weapon', tier: 3, price: 420, cultures: ['nordmark'], weapon: 'axe', damage: 27, damageType: 'cut', attackTime: 1.5, crit: 0.12, twoHanded: true, description: tr('Двуручный топор хускарлов.') },
-  { id: 'war_hammer', name: tr('Боевой молот'), slot: 'weapon', tier: 3, price: 480, cultures: ['aurelia', 'nordmark'], weapon: 'mace', damage: 22, damageType: 'blunt', attackTime: 1.3, crit: 0.1, description: tr('Клюв и молот против латника.') },
+  { id: 'war_hammer', name: tr('Боевой молот'), slot: 'weapon', tier: 3, price: 480, cultures: ['aurelia', 'nordmark'], weapon: 'hammer', damage: 22, damageType: 'blunt', attackTime: 1.3, crit: 0.1, description: tr('Клюв и молот против латника.') },
   { id: 'halberd', name: tr('Алебарда'), slot: 'weapon', tier: 3, price: 700, cultures: ['aurelia'], weapon: 'halberd', damage: 30, damageType: 'cut', attackTime: 1.55, crit: 0.1, twoHanded: true, description: tr('Топор, копьё и крюк на одном древке.') },
   { id: 'glaive', name: tr('Глефа'), slot: 'weapon', tier: 3, price: 680, cultures: ['horde', 'sultanate'], weapon: 'glaive', damage: 29, damageType: 'cut', attackTime: 1.5, crit: 0.1, twoHanded: true, description: tr('Широкий клинок на длинном древке.') },
   { id: 'lance', name: tr('Кавалерийская пика'), slot: 'weapon', tier: 3, price: 650, cultures: 'all', weapon: 'lance', damage: 24, damageType: 'pierce', attackTime: 1.35, crit: 0.1, description: tr('Таранный удар с коня страшнее любого другого.') },
@@ -106,11 +107,11 @@ const LIST: Item[] = [
   { id: 'zweihander', name: tr('Цвайхендер'), slot: 'weapon', tier: 6, price: 2600, cultures: ['aurelia'], weapon: 'sword', damage: 38, damageType: 'cut', attackTime: 1.6, crit: 0.15, twoHanded: true, description: tr('Огромный двуручный меч ландскнехтов.') },
 
   // ─────────── Щиты ───────────
-  { id: 'board_shield', name: tr('Дощатый щит'), slot: 'shield', tier: 1, price: 50, cultures: 'all', block: 0.16, weight: 2, description: tr('Несколько досок, обтянутых кожей.') },
-  { id: 'round_shield', name: tr('Круглый щит'), slot: 'shield', tier: 2, price: 120, cultures: ['nordmark', 'horde', 'sultanate'], block: 0.22, weight: 2.5, description: tr('Щит с железным умбоном.') },
-  { id: 'heater', name: tr('Треугольный щит'), slot: 'shield', tier: 2, price: 150, cultures: ['aurelia'], block: 0.24, weight: 2.5, description: tr('Гербовый щит рыцаря.') },
-  { id: 'kalkan', name: tr('Калкан'), slot: 'shield', tier: 3, price: 380, cultures: ['sultanate', 'horde'], block: 0.28, weight: 2, description: tr('Плетёный щит из прутьев и шёлка, лёгкий и прочный.') },
-  { id: 'knight_shield', name: tr('Рыцарский щит'), slot: 'shield', tier: 4, price: 600, cultures: ['aurelia', 'nordmark'], block: 0.32, weight: 3.5, description: tr('Окованный щит с гербом.') },
+  { id: 'board_shield', name: tr('Дощатый щит'), slot: 'shield', tier: 1, price: 50, cultures: 'all', block: 0.16, weight: 2, shieldShape: 'board', description: tr('Несколько досок, обтянутых кожей.') },
+  { id: 'round_shield', name: tr('Круглый щит'), slot: 'shield', tier: 2, price: 120, cultures: ['nordmark', 'horde', 'sultanate'], block: 0.22, weight: 2.5, shieldShape: 'round', description: tr('Щит с железным умбоном.') },
+  { id: 'heater', name: tr('Треугольный щит'), slot: 'shield', tier: 2, price: 150, cultures: ['aurelia'], block: 0.24, weight: 2.5, shieldShape: 'heater', description: tr('Гербовый щит рыцаря.') },
+  { id: 'kalkan', name: tr('Калкан'), slot: 'shield', tier: 3, price: 380, cultures: ['sultanate', 'horde'], block: 0.28, weight: 2, shieldShape: 'kalkan', description: tr('Плетёный щит из прутьев и шёлка, лёгкий и прочный.') },
+  { id: 'knight_shield', name: tr('Рыцарский щит'), slot: 'shield', tier: 4, price: 600, cultures: ['aurelia', 'nordmark'], block: 0.32, weight: 3.5, shieldShape: 'heater', description: tr('Окованный щит с гербом.') },
 
   // ─────────── Кони ───────────
   { id: 'sumpter', name: tr('Вьючная лошадь'), slot: 'horse', tier: 1, price: 150, cultures: 'all', speed: 1.6, hpBonus: 0, horseColor: '#8a6a4a', description: tr('Тащит поклажу и неохотно — всадника.') },
@@ -120,6 +121,51 @@ const LIST: Item[] = [
   { id: 'courser', name: tr('Курсье'), slot: 'horse', tier: 4, price: 1200, cultures: ['aurelia', 'nordmark'], speed: 2.15, hpBonus: 25, horseColor: '#5e3a22', description: tr('Боевой конь для лёгкой конницы.') },
   { id: 'destrier', name: tr('Дестриэ'), slot: 'horse', tier: 5, price: 2200, cultures: ['aurelia'], speed: 1.95, hpBonus: 45, horseColor: '#2e2622', description: tr('Огромный рыцарский конь, обученный бою.') },
   { id: 'barded_destrier', name: tr('Конь в броне и попоне'), slot: 'horse', tier: 6, price: 3600, cultures: ['aurelia', 'sultanate'], speed: 1.85, hpBonus: 80, barding: true, horseColor: '#2e2622', description: tr('Дестриэ в стальном шанфроне и гербовой попоне.') },
+  // ─────────── Новое снаряжение ───────────
+  // Шлемы
+  { id: 'mail_coif', name: tr('Кольчужный капюшон'), slot: 'head', tier: 2, price: 150, cultures: 'all', armor: A(0.3, 0.24, 0.16), weight: 1, helmet: 'coif', metal: IRON, description: tr('Кольчуга на голову и шею, под шлем или вместо него.') },
+  { id: 'spangenhelm', name: tr('Шпангенхельм'), slot: 'head', tier: 2, price: 240, cultures: ['nordmark'], armor: A(0.4, 0.32, 0.22), weight: 1.6, helmet: 'nasal', metal: '#a8987a', description: tr('Сегментный шлем на бронзовых полосах — наследие викингов.') },
+  { id: 'kolpak', name: tr('Колпак'), slot: 'head', tier: 2, price: 210, cultures: ['horde', 'sultanate'], armor: A(0.36, 0.28, 0.2), weight: 1.2, helmet: 'kolpak', metal: STEEL, description: tr('Стальная шапка с меховой опушкой.') },
+  { id: 'war_kettle', name: tr('Шапель с бармицей'), slot: 'head', tier: 3, price: 360, cultures: ['aurelia', 'nordmark'], armor: A(0.46, 0.38, 0.26), weight: 2, helmet: 'kettle', metal: STEEL, description: tr('Широкие поля от стрел и кольчужная завеса на шею.') },
+  { id: 'turban_helm', name: tr('Тюрбанный шлем'), slot: 'head', tier: 3, price: 420, cultures: ['sultanate'], armor: A(0.47, 0.37, 0.26), weight: 1.9, helmet: 'spired', metal: '#c8c0b0', description: tr('Высокий шлем, на который наматывают чалму.') },
+  { id: 'barbute', name: tr('Барбют'), slot: 'head', tier: 4, price: 950, cultures: ['aurelia'], armor: A(0.64, 0.54, 0.34), weight: 2.4, helmet: 'barbute', metal: BRIGHT, description: tr('Итальянский шлем с Т-образным вырезом: видно всё, бьют мимо.') },
+  { id: 'noyon_helm', name: tr('Шлем нойона'), slot: 'head', tier: 5, price: 1600, cultures: ['horde'], armor: A(0.62, 0.52, 0.34), weight: 2.2, helmet: 'spired', metal: '#d8b050', description: tr('Золочёный шлем степного князя с султаном.') },
+  { id: 'hounskull', name: tr('Бацинет с забралом'), slot: 'head', tier: 5, price: 1700, cultures: ['aurelia', 'nordmark'], armor: A(0.72, 0.62, 0.4), weight: 2.8, helmet: 'hounskull', metal: BRIGHT, description: tr('Острое забрало «собачья морда» уводит удар в сторону.') },
+  { id: 'crested_helm', name: tr('Турнирный топфхельм'), slot: 'head', tier: 5, price: 1900, cultures: ['aurelia', 'nordmark'], armor: A(0.66, 0.56, 0.36), weight: 3.2, helmet: 'crested', metal: '#d8d2c0', description: tr('Золочёный обруч и плюмаж в цветах герба — чтобы узнавали издалека.') },
+  // Доспехи
+  { id: 'padded_jack', name: tr('Стёганая куртка'), slot: 'body', tier: 1, price: 50, cultures: 'all', armor: A(0.18, 0.14, 0.18), weight: 2, body: 'cloth', description: tr('Короткий стёганый доспех ополченца.') },
+  { id: 'kazakin', name: tr('Кожаный казакин'), slot: 'body', tier: 2, price: 200, cultures: ['horde', 'sultanate'], armor: A(0.32, 0.26, 0.22), weight: 4, body: 'leather', description: tr('Кафтан из толстой кожи, удобный в седле.') },
+  { id: 'byrnie', name: tr('Бирни'), slot: 'body', tier: 2, price: 380, cultures: ['nordmark'], armor: A(0.42, 0.33, 0.2), weight: 7, body: 'mail', metal: IRON, tabard: false, description: tr('Короткая северная кольчуга без рукавов.') },
+  { id: 'bakhterets', name: tr('Бахтерец'), slot: 'body', tier: 4, price: 1450, cultures: ['horde'], armor: A(0.6, 0.5, 0.34), weight: 12, body: 'lamellar', metal: STEEL, description: tr('Пластинки внахлёст, вплетённые в кольчугу.') },
+  { id: 'cuirass_mail', name: tr('Кираса с кольчугой'), slot: 'body', tier: 4, price: 1700, cultures: ['aurelia', 'nordmark'], armor: A(0.64, 0.54, 0.36), weight: 13, body: 'plate', metal: STEEL, tabard: true, description: tr('Стальная кираса поверх хауберка — переход к латам.') },
+  { id: 'mirror_armour', name: tr('Зерцальный доспех'), slot: 'body', tier: 5, price: 2400, cultures: ['horde', 'sultanate'], armor: A(0.68, 0.58, 0.38), weight: 13, body: 'lamellar', metal: BRIGHT, description: tr('Полированные стальные зерцала на груди и спине.') },
+  { id: 'black_plate', name: tr('Воронёные латы'), slot: 'body', tier: 6, price: 4000, cultures: ['aurelia', 'nordmark'], armor: A(0.8, 0.68, 0.46), weight: 16, body: 'plate', metal: '#5a5f68', tabard: false, description: tr('Чернёная сталь — не ржавеет и не бликует.') },
+  // Руки и ноги
+  { id: 'bracers', name: tr('Кожаные наручи'), slot: 'hands', tier: 1, price: 60, cultures: 'all', armor: A(0.24, 0.18, 0.14), weight: 0.4, description: tr('Варёная кожа на предплечьях и кистях.') },
+  { id: 'scale_gloves', name: tr('Чешуйчатые рукавицы'), slot: 'hands', tier: 3, price: 380, cultures: ['horde', 'sultanate'], armor: A(0.5, 0.4, 0.24), weight: 1, metal: '#b09a68', description: tr('Мелкие пластинки на кожаной основе.') },
+  { id: 'hourglass_gauntlets', name: tr('Песочные рукавицы'), slot: 'hands', tier: 5, price: 1000, cultures: ['aurelia', 'nordmark'], armor: A(0.68, 0.56, 0.34), weight: 1.2, metal: BRIGHT, description: tr('Раструб в форме песочных часов защищает запястье.') },
+  { id: 'padded_hose', name: tr('Стёганые шоссы'), slot: 'legs', tier: 1, price: 60, cultures: 'all', armor: A(0.16, 0.12, 0.12), weight: 1, description: tr('Толстые чулки на вате.') },
+  { id: 'scale_greaves', name: tr('Чешуйчатые поножи'), slot: 'legs', tier: 3, price: 480, cultures: ['horde', 'sultanate'], armor: A(0.48, 0.38, 0.24), weight: 3.5, metal: '#b09a68', description: tr('Чешуя на бёдрах и голенях всадника.') },
+  { id: 'milanese_greaves', name: tr('Миланские поножи'), slot: 'legs', tier: 5, price: 1300, cultures: ['aurelia'], armor: A(0.7, 0.58, 0.36), weight: 4.2, metal: '#e0e4e8', description: tr('Гладкая полированная сталь от бедра до стопы.') },
+  // Оружие
+  { id: 'falchion', name: tr('Фальшион'), slot: 'weapon', tier: 2, price: 240, cultures: 'all', weapon: 'falchion', damage: 20, damageType: 'cut', attackTime: 1.15, crit: 0.11, description: tr('Широкий тесак: рубит как топор, ложится в руку как меч.') },
+  { id: 'boar_spear', name: tr('Рогатина'), slot: 'weapon', tier: 2, price: 180, cultures: 'all', weapon: 'spear', damage: 20, damageType: 'pierce', attackTime: 1.25, crit: 0.09, description: tr('Тяжёлое копьё с широким пером — на медведя и на всадника.') },
+  { id: 'morningstar', name: tr('Моргенштерн'), slot: 'weapon', tier: 2, price: 220, cultures: ['nordmark', 'aurelia'], weapon: 'morningstar', damage: 19, damageType: 'blunt', attackTime: 1.25, crit: 0.1, description: tr('Шипастый шар на рукояти — оружие ополченцев.') },
+  { id: 'war_pick', name: tr('Чекан'), slot: 'weapon', tier: 2, price: 260, cultures: ['horde', 'nordmark'], weapon: 'hammer', damage: 18, damageType: 'pierce', attackTime: 1.1, crit: 0.12, description: tr('Клюв пробивает кольчугу и шлем.') },
+  { id: 'flanged_mace', name: tr('Шестопёр'), slot: 'weapon', tier: 3, price: 450, cultures: ['horde', 'sultanate'], weapon: 'flanged', damage: 21, damageType: 'blunt', attackTime: 1.2, crit: 0.11, description: tr('Булава с шестью стальными перьями, знак воеводы.') },
+  { id: 'longsword', name: tr('Длинный меч'), slot: 'weapon', tier: 3, price: 650, cultures: ['aurelia', 'nordmark'], weapon: 'sword', damage: 23, damageType: 'cut', attackTime: 1.15, crit: 0.12, description: tr('Длинная рукоять — удобно и одной рукой, и двумя.') },
+  { id: 'flail', name: tr('Боевой цеп'), slot: 'weapon', tier: 3, price: 560, cultures: ['aurelia', 'nordmark'], weapon: 'flail', damage: 25, damageType: 'blunt', attackTime: 1.45, crit: 0.14, description: tr('Шар на цепи огибает щит и бьёт в плечо.') },
+  { id: 'bardiche', name: tr('Бердыш'), slot: 'weapon', tier: 3, price: 640, cultures: ['nordmark', 'horde'], weapon: 'bardiche', damage: 30, damageType: 'cut', attackTime: 1.55, crit: 0.1, twoHanded: true, description: tr('Лезвие-полумесяц на древке: рубит и служит упором для пищали.') },
+  { id: 'kilij', name: tr('Кылыч'), slot: 'weapon', tier: 4, price: 1000, cultures: ['sultanate', 'horde'], weapon: 'sabre', damage: 23, damageType: 'cut', attackTime: 0.95, crit: 0.15, description: tr('Турецкая сабля с расширением у острия — страшный рубящий удар.') },
+  { id: 'pollaxe', name: tr('Поллэкс'), slot: 'weapon', tier: 5, price: 1900, cultures: ['aurelia'], weapon: 'pollaxe', damage: 34, damageType: 'blunt', attackTime: 1.45, crit: 0.13, twoHanded: true, description: tr('Топор, молот и шип: любимое оружие пешего рыцаря против лат.') },
+  // Щиты
+  { id: 'buckler', name: tr('Баклер'), slot: 'shield', tier: 1, price: 70, cultures: 'all', block: 0.12, weight: 1, shieldShape: 'buckler', description: tr('Маленький кулачный щит: лёгкий, отбивает клинок.') },
+  { id: 'kite_shield', name: tr('Каплевидный щит'), slot: 'shield', tier: 2, price: 170, cultures: ['nordmark', 'aurelia'], block: 0.26, weight: 3, shieldShape: 'kite', description: tr('Длинный щит прикрывает и ногу всадника.') },
+  { id: 'adarga', name: tr('Адарга'), slot: 'shield', tier: 3, price: 420, cultures: ['sultanate'], block: 0.27, weight: 1.8, shieldShape: 'adarga', description: tr('Лёгкий щит из двух сросшихся кожаных овалов.') },
+  // Кони
+  { id: 'friesian', name: tr('Фриз'), slot: 'horse', tier: 4, price: 1300, cultures: ['nordmark'], speed: 2.05, hpBonus: 35, horseColor: '#1e1a18', description: tr('Вороной северный конь с густой гривой — силён и спокоен.') },
+  { id: 'akhal_teke', name: tr('Ахалтекинец'), slot: 'horse', tier: 5, price: 2000, cultures: ['horde', 'sultanate'], speed: 2.45, hpBonus: 20, horseColor: '#c8a060', description: tr('Золотистый скакун пустынь, быстрейший из коней.') },
+  { id: 'barded_steppe', name: tr('Конь в чешуйчатой попоне'), slot: 'horse', tier: 6, price: 3400, cultures: ['horde', 'sultanate'], speed: 1.95, hpBonus: 70, barding: true, horseColor: '#8a6a45', description: tr('Степной боевой конь под пластинчатой бронёй.') },
 ];
 
 export const ITEMS: Record<string, Item> = Object.fromEntries(LIST.map((i) => [i.id, i]));

@@ -30,7 +30,7 @@ export function troopLook(t: TroopDef): UnitLook {
 }
 
 export function lookKey(l: UnitLook): string {
-  return ['u', l.culture, l.tier, l.helmet, l.cloth, l.cloth2, l.armor, l.weapon, l.shield ? 1 : 0, l.mounted ? 1 : 0, l.heavy ? 1 : 0, l.hero ? 1 : 0, l.seed % 6, l.body ?? '', l.tabard ?? '', l.helmetMetal ?? '', l.gauntlets ?? '', l.greaves ?? '', l.horseColor ?? '', l.camel ? 'camel' : ''].join('_');
+  return ['u', l.culture, l.tier, l.helmet, l.cloth, l.cloth2, l.armor, l.weapon, l.shield ? 1 : 0, l.mounted ? 1 : 0, l.heavy ? 1 : 0, l.hero ? 1 : 0, l.seed % 6, l.body ?? '', l.tabard ?? '', l.helmetMetal ?? '', l.gauntlets ?? '', l.greaves ?? '', l.horseColor ?? '', l.camel ? 'camel' : '', l.shieldShape ?? ''].join('_');
 }
 
 export { troopLook as lookOf };
