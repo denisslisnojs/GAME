@@ -90,6 +90,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   private targetParty: MapParty | null = null;
   private targetRepath = 0;
   private inBattle = false;
+  private autosaveMs = 0;
   private labels: { t: Phaser.GameObjects.Text; s: Settlement }[] = [];
   /** Прямоугольники видимых подписей поселений (для раздвижки подписей отрядов). */
   private labelBoxes: [number, number, number, number][] = [];
@@ -337,6 +338,25 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     };
     requestAnimationFrame(check);
     this.updateHud();
+  }
+
+  /** Игра уходит в фон (свернули, выключили экран): сохранить, пока система её не закрыла. */
+  saveOnHide() {
+    if (this.mode === 'play' && this.state) this.commit();
+  }
+
+  /** Системная кнопка «Назад» вне окон. false — нечего делать, можно выходить из игры. */
+  backPressed(): boolean {
+    if (this.mode === 'play') {
+      if (!this.inBattle) this.openGameMenu();
+      return true;
+    }
+    const back = document.querySelector<HTMLElement>('.creation .btn.ghost');
+    if (back) {
+      back.click();
+      return true;
+    }
+    return false;
   }
 
   private openGameMenu() {
@@ -672,6 +692,14 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     if (this.mode !== 'play') return;
     const running = this.timeFlows();
     const moving = running && this.path.length > 0;
+    // В пути мир живёт: изредка сохраняемся, чтобы не потерять дорогу, если телефон закроет игру
+    if (running) {
+      this.autosaveMs += deltaMs;
+      if (this.autosaveMs > 20000) {
+        this.autosaveMs = 0;
+        this.commit();
+      }
+    }
 
     if (running) {
       const dtDays = (deltaMs / 1000 / SECONDS_PER_DAY) * this.speed;

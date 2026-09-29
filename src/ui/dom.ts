@@ -71,8 +71,23 @@ export function openModal(content: HTMLElement, opts: { onClose?: () => void; cl
       if (e.target === back) close();
     });
   }
+  modalClosers.set(back, opts.closeOnBack !== false ? close : null);
   uiRoot().append(back);
   return close;
+}
+
+/** Окна и то, как их закрыть кнопкой «Назад» (null — окно ждёт выбора и само не закрывается). */
+const modalClosers = new WeakMap<Element, (() => void) | null>();
+
+/** Кнопка «Назад»: закрыть верхнее окно. true — окно было (даже если закрыть его нельзя). */
+export function closeTopModal(): boolean {
+  const all = uiRoot().querySelectorAll('.modal-back');
+  const top = all[all.length - 1];
+  if (!top) return false;
+  const x = top.querySelector<HTMLElement>('.head .close, .close');
+  if (x && x.offsetParent !== null) x.click();
+  else modalClosers.get(top)?.();
+  return true;
 }
 
 let toastBox: HTMLElement | null = null;

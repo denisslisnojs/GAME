@@ -100,6 +100,15 @@ class MusicEngine {
     if (this.mode !== 'off') this.start(this.mode);
   }
 
+  /** Игра ушла в фон: замолчать (бурдон звучит непрерывно и иначе гудел бы за кадром). */
+  suspend() {
+    if (this.ctx?.state === 'running') void this.ctx.suspend();
+  }
+
+  resume() {
+    if (this.ctx?.state === 'suspended') void this.ctx.resume();
+  }
+
   setVolume(v: number) {
     this.volume = v;
     if (this.ctx) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.1);

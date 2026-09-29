@@ -27,6 +27,14 @@ class Sfx {
     return this.ctx;
   }
 
+  suspend() {
+    if (this.ctx?.state === 'running') void this.ctx.suspend();
+  }
+
+  resume() {
+    if (this.ctx?.state === 'suspended') void this.ctx.resume();
+  }
+
   play(kind: Kind) {
     const vol = getSfxVolume();
     if (vol <= 0) return;

@@ -576,6 +576,11 @@ export class BattleScene extends Phaser.Scene {
 
   // ───────────────────────── кадр ─────────────────────────
 
+  /** Кнопка «Назад» в бою: пауза и обратно. */
+  togglePause() {
+    if (!this.finished) this.paused = !this.paused;
+  }
+
   update(_t: number, deltaMs: number) {
     const dtReal = Math.min(0.05, deltaMs / 1000);
     this.readKeys();
