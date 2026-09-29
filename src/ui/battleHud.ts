@@ -140,6 +140,14 @@ export class BattleHud {
   private tactics = h('div', { class: 'b-tactics' });
   private tacticsBtn!: HTMLButtonElement;
   private tacticsOpen = false;
+
+  /** Кнопка «Назад»: закрыть панель тактики. true — была открыта. */
+  closeTactics(): boolean {
+    if (!this.tacticsOpen) return false;
+    this.tacticsOpen = false;
+    this.renderTactics();
+    return true;
+  }
   private deployEl = h('div', { class: 'b-deploy' });
   private deploying = false;
   private abilBox!: HTMLElement;

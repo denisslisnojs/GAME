@@ -576,8 +576,9 @@ export class BattleScene extends Phaser.Scene {
 
   // ───────────────────────── кадр ─────────────────────────
 
-  /** Кнопка «Назад» в бою: пауза и обратно. */
+  /** Кнопка «Назад» в бою: закрыть тактику, иначе пауза и обратно. */
   togglePause() {
+    if (this.hud?.closeTactics()) return;
     if (!this.finished) this.paused = !this.paused;
   }
 

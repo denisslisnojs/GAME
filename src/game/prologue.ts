@@ -8,7 +8,7 @@ import { COMPANION_BY_ID } from '../data/companions';
 import { TROOPS } from '../data/troops';
 import { mulberry32 } from '../util/rng';
 import { gainHeroXp } from './battleResult';
-import { addTroops, partySize } from './logic';
+import { addTroops, canEnter, partySize } from './logic';
 import { spawn, type MapParty } from './parties';
 import { addRelation, hostOf } from './quests';
 import type { GameState } from './state';
@@ -171,6 +171,17 @@ function keepPrologueSane(state: GameState) {
     const own = world.settlements.filter((x) => x.type === 'village' && state.settlements[x.id].owner === f);
     const near = own.sort((a, b) => Math.hypot(a.x - v.x, a.y - v.y) - Math.hypot(b.x - v.x, b.y - v.y))[0];
     if (near) p.village = near.id;
+  }
+  const town = world.byId.get(p.town);
+  if (town && !canEnter(state, town) && (step === 'village' || step === 'hire' || step === 'tavern' || step === 'gear' || step === 'ruler')) {
+    // Столицу взял враг: проводник и двор перебрались в ближний свой город
+    const own = world.settlements.filter((x) => x.type === 'town' && state.settlements[x.id].owner === f);
+    const near = own.sort((a, b) => Math.hypot(a.x - state.party.x, a.y - state.party.y) - Math.hypot(b.x - state.party.x, b.y - state.party.y))[0];
+    if (near) {
+      p.town = near.id;
+      const cs = state.companions?.find((c) => c.id === p.comp);
+      if (cs && cs.where !== 'party') cs.where = near.id;
+    }
   }
   if (step === 'gang' && p.gangId && !p.beaten && !prologueGang(state)) p.beaten = true;
 }
