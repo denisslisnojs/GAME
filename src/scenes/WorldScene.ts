@@ -1043,7 +1043,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   private battleOpts(extra: BattleOpts = {}): BattleOpts {
     const hr = (this.state.time % 1) * 24;
     const terrain = this.battleTerrain();
-    return { terrain, night: hr >= 21 || hr < 5, ford: nearRiver(this.party.x, this.party.y), playerDamageK: diff(this.state.difficulty).taken, weather: this.battleWeather(terrain), ...extra };
+    return { terrain, night: hr >= 21 || hr < 5, ford: nearRiver(this.party.x, this.party.y), playerDamageK: diff(this.state.difficulty).taken, weather: this.battleWeather(terrain), pursuit: true, ...extra };
   }
 
   private battleTerrain(): BattleTerrain {

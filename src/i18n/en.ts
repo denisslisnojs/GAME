@@ -2095,4 +2095,6 @@ export const EN: Record<string, string> = {
   "Золотистый скакун пустынь, быстрейший из коней.": "A golden desert steed, the fastest of horses.",
   "Конь в чешуйчатой попоне": "Scale-barded horse",
   "Степной боевой конь под пластинчатой бронёй.": "A steppe warhorse under lamellar barding.",
+  "Завершить бой": "End battle",
+  "Гоните бегущих до края поля": "Chase them to the edge of the field",
 };

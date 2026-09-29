@@ -149,6 +149,8 @@ export class BattleHud {
     return true;
   }
   private deployEl = h('div', { class: 'b-deploy' });
+  /** Погоня за бегущим врагом: можно гнать дальше или закончить бой. */
+  private chaseEl = h('div', { class: 'b-deploy b-chase' });
   private deploying = false;
   private abilBox!: HTMLElement;
 
@@ -292,8 +294,20 @@ export class BattleHud {
       go,
     );
     this.deployEl.style.display = 'none';
+    const stop = h('button', { class: 'btn primary' }, tr('Завершить бой')) as HTMLButtonElement;
+    stop.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sfxClick();
+      this.b.endChase();
+      this.update();
+    });
+    this.chaseEl.append(
+      h('div', { class: 'col', style: 'gap:0' }, h('b', { class: 'gold' }, tr('Враг бежит!')), h('span', { class: 'small' }, tr('Гоните бегущих до края поля'))),
+      stop,
+    );
+    this.chaseEl.style.display = 'none';
     this.tactics.style.display = 'none';
-    this.root = h('div', { class: 'passthrough battle-ui' }, top, bottom, ...extra, this.deployEl, this.tactics, this.bannerEl);
+    this.root = h('div', { class: 'passthrough battle-ui' }, top, bottom, ...extra, this.deployEl, this.chaseEl, this.tactics, this.bannerEl);
     uiRoot().append(this.root);
     this.select('all');
     // Режим управления героем запоминается между боями
@@ -497,13 +511,14 @@ export class BattleHud {
     }
     if (this.ctlBtn && this.pad) {
       const hero = b.units.find((u) => u.isHero && u.side === ps);
-      const alive = !!hero && hero.state !== 'dead' && hero.state !== 'fled' && b.winner === null && !b.routed[ps];
+      const alive = !!hero && hero.state !== 'dead' && hero.state !== 'fled' && (b.winner === null || b.chasing) && !b.routed[ps];
       if (!alive && b.heroCtl.on) b.heroCtl.on = false;
       this.ctlBtn.style.display = alive && !this.deploying ? '' : 'none';
       this.ctlBtn.classList.toggle('active', b.heroCtl.on);
       this.ctlBtn.textContent = b.heroCtl.on ? tr('✋ Отдать приказам') : tr('⚔ Управлять героем');
       this.pad.style.display = b.heroCtl.on && !this.deploying ? '' : 'none';
     }
+    this.chaseEl.style.display = b.chasing ? '' : 'none';
     this.pauseBtn.textContent = this.o.isPaused() ? '▶' : '❚❚';
     this.pauseBtn.classList.toggle('active', this.o.isPaused());
     this.speedBtns.forEach((s, i) => s.classList.toggle('active', this.o.getSpeed() === i + 1));

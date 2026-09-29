@@ -218,7 +218,12 @@ export interface BattleOpts {
   wagons?: Side;
   /** Без холмов и рощ (ристалище, поединок). */
   noField?: boolean;
+  /** Погоня: когда враг побежал, бой идёт дальше, пока бегущие не покинут поле. */
+  pursuit?: boolean;
 }
+
+/** Сколько секунд длится погоня, прежде чем бой закончится сам. */
+const CHASE_MAX = 60;
 
 /** Полоса брода посреди поля. */
 export const FORD_X = FIELD_W / 2;
@@ -281,6 +286,9 @@ export class Battle {
   time = 0;
   winner: Side | null = null;
   routed: [boolean, boolean] = [false, false];
+  /** Враг бежит, победа за нами, но бегущих ещё можно догнать. */
+  chasing = false;
+  private chaseT = 0;
   heroDown = false;
   heroCtl: HeroControl = { on: false, mx: 0, my: 0, attack: false, tap: false, block: false };
   /** Холмы, рощи, телеги. */
@@ -604,7 +612,7 @@ export class Battle {
 
   canUse(a: Ability): boolean {
     const s = this.abilities[a];
-    if (s.charges <= 0 || s.cd > 0 || this.winner !== null || this.routed[this.playerSide]) return false;
+    if (s.charges <= 0 || s.cd > 0 || (this.winner !== null && !this.chasing) || this.routed[this.playerSide]) return false;
     const mine = this.active(this.playerSide);
     if (a === 'volley') return mine.some((u) => u.troop.role === 'ranged');
     if (a === 'stakes') return mine.some((u) => u.group === 'inf' || u.group === 'ranged');
@@ -678,8 +686,13 @@ export class Battle {
     return this.units.filter((u) => u.side === side && u.state !== 'dead' && u.state !== 'fled');
   }
 
+  /** Прекратить погоню и закончить бой. */
+  endChase() {
+    this.chasing = false;
+  }
+
   step(dt: number) {
-    if (this.winner !== null) {
+    if (this.winner !== null && !this.chasing) {
       // После победы ещё немного двигаем бегущих ради красоты
       for (const u of this.units) if (u.routed && u.state !== 'dead' && u.state !== 'fled') this.moveUnit(u, dt);
       this.updateProjectiles(dt);
@@ -736,7 +749,11 @@ export class Battle {
     }
     this.updateProjectiles(dt);
     this.reinforce();
-    this.checkEnd();
+    if (this.chasing) {
+      // Погоня кончается, когда бегущие покинули поле или все пали
+      this.chaseT += dt;
+      if (this.chaseT > CHASE_MAX || !this.active((1 - this.playerSide) as Side).length) this.chasing = false;
+    } else this.checkEnd();
   }
 
   /** Верблюды пугают вражеских коней поблизости. */
@@ -1347,7 +1364,7 @@ export class Battle {
 
   private moveUnit(u: BUnit, dt: number) {
     const dir = u.side === 0 ? -1 : 1;
-    this.steer(u, dir * 100, 0, dt, u.routed ? 1.15 : 1);
+    this.steer(u, dir * 100, 0, dt, u.routed ? 0.92 : 1);
     if (u.x < -40 || u.x > FIELD_W + 40) u.state = 'fled';
   }
 
@@ -1710,6 +1727,8 @@ export class Battle {
       const standing = this.routed[side] ? (this.time > 330 ? 0 : this.active(side).filter((u) => !u.routed).length) : alive;
       if (standing === 0) {
         this.winner = (1 - side) as Side;
+        // Бежит враг игрока — его можно гнать до края поля
+        if (side !== this.playerSide && this.opts.pursuit && !this.siege && this.active(side).length) this.chasing = true;
         // Бегущие продолжают уходить с поля
         for (const u of this.units) if (u.side === side && u.state !== 'dead') u.routed = true;
         this.routed[side] = true;
@@ -1730,7 +1749,7 @@ export class Battle {
     }
     this.autoBoth = true;
     let guard = 0;
-    while (this.winner === null && this.time < maxTime && guard++ < maxTime * 12) {
+    while ((this.winner === null || this.chasing) && this.time < maxTime && guard++ < maxTime * 12) {
       this.step(dt);
       this.events.length = 0;
     }

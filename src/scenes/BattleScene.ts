@@ -645,7 +645,7 @@ export class BattleScene extends Phaser.Scene {
     this.followCamera(dtReal);
     this.hud.update();
 
-    if (this.battle.winner !== null && !this.finished) {
+    if (this.battle.winner !== null && !this.battle.chasing && !this.finished) {
       if (this.endTimer < 0) {
         this.endTimer = 2.8;
         if (this.cfg.arena) setTimeout(() => sfx.play('cheer'), 950);
