@@ -25,11 +25,15 @@ export class BootScene extends Phaser.Scene {
 
     await progress(tr('Шрифты'));
     try {
-      await Promise.all([
-        document.fonts.load('16px "Kurale"', tr('Кириллица')),
-        document.fonts.load('16px "Ruslan Display"', tr('Кириллица')),
-        document.fonts.load('500 16px "Fira Sans Condensed"', tr('Кириллица') + ' 0123'),
-        document.fonts.load('700 16px "Fira Sans Condensed"', tr('Кириллица') + ' 0123'),
+      // Не ждём шрифты дольше 3 с: на некоторых WebView загрузка шрифта может не завершиться никогда
+      await Promise.race([
+        Promise.all([
+          document.fonts.load('16px "Kurale"', tr('Кириллица')),
+          document.fonts.load('16px "Ruslan Display"', tr('Кириллица')),
+          document.fonts.load('500 16px "Fira Sans Condensed"', tr('Кириллица') + ' 0123'),
+          document.fonts.load('700 16px "Fira Sans Condensed"', tr('Кириллица') + ' 0123'),
+        ]),
+        new Promise((r) => setTimeout(r, 3000)),
       ]);
     } catch {
       /* шрифты не критичны */

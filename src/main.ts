@@ -12,6 +12,17 @@ import { closeTopModal } from './ui/dom';
 import { loadSettings } from './ui/screens';
 import { tr } from './i18n';
 
+// Ошибка при запуске видна на экране (в APK нет консоли под рукой)
+let bootError: HTMLElement | null = null;
+const showBootError = (msg: string) => {
+  if (document.querySelector('.menu, .hud-top')) return; // игра уже идёт — не мешаем
+  bootError ??= document.body.appendChild(document.createElement('pre'));
+  bootError.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;margin:0;padding:8px;background:#2a1010;color:#ffd0c0;font:12px monospace;white-space:pre-wrap;max-height:40vh;overflow:auto';
+  bootError.textContent += msg + '\n';
+};
+window.addEventListener('error', (e) => showBootError(`${e.message} @ ${e.filename?.split('/').pop()}:${e.lineno}`));
+window.addEventListener('unhandledrejection', (e) => showBootError(String((e.reason as Error)?.stack ?? e.reason)));
+
 loadSettings();
 
 // Подсказка повернуть телефон
@@ -66,11 +77,13 @@ function back(): boolean {
 }
 
 if (Capacitor.isNativePlatform()) {
-  void App.addListener('backButton', () => {
+  App.addListener('backButton', () => {
     if (!back()) {
       worldScene()?.saveOnHide();
       void App.exitApp();
     }
+  }).catch(() => {
+    /* плагина нет — «Назад» работает по умолчанию */
   });
 } else {
   window.addEventListener('keydown', (e) => {
