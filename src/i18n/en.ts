@@ -1994,4 +1994,5 @@ export const EN: Record<string, string> = {
   "▲ Холм": "▲ Hill",
   "Роща": "Grove",
   "Людей слишком мало для боя с шайкой ({0}). Наймите крестьян в деревнях, потом разбейте Чёрного Лиса у деревни {1}.": "Too few men to fight the gang ({0}). Hire peasants in villages, then defeat the Black Fox near {1}.",
+  "Отмена": "Cancel",
 };

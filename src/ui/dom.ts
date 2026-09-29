@@ -1,5 +1,5 @@
 // Мини-помощники для DOM-интерфейса поверх холста Phaser.
-import { LANG } from '../i18n';
+import { LANG, tr } from '../i18n';
 
 type Attrs = Record<string, string | number | boolean | EventListener | undefined> & { class?: string; style?: string };
 type Child = Node | string | number | null | undefined | false;
@@ -74,6 +74,17 @@ export function openModal(content: HTMLElement, opts: { onClose?: () => void; cl
   modalClosers.set(back, opts.closeOnBack !== false ? close : null);
   uiRoot().append(back);
   return close;
+}
+
+/** Своё окно подтверждения: системный confirm() в песочнице браузера (и в части WebView) молча отвечает «нет». */
+export function askConfirm(text: string, yes: string, onYes: () => void) {
+  let close = () => {};
+  const content = panel(
+    'modal narrow',
+    h('div', { class: 'body col' }, h('p', {}, text)),
+    h('div', { class: 'row', style: 'justify-content:flex-end;gap:6px' }, btn(tr('Отмена'), () => close(), 'ghost'), btn(yes, () => { close(); onYes(); }, 'danger')),
+  );
+  close = openModal(content);
 }
 
 /** Окна и то, как их закрыть кнопкой «Назад» (null — окно ждёт выбора и само не закрывается). */

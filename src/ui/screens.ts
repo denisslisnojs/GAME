@@ -2,7 +2,7 @@ import { music } from '../audio/music';
 import { SETTINGS_KEY } from '../config';
 import { FACTIONS, FACTION_IDS, type FactionId } from '../data/factions';
 import { emblemURL, portraitURL } from '../gfx/icons';
-import { btn, getSfxVolume, h, img, openModal, panel, setSfxVolume, uiRoot } from './dom';
+import { askConfirm, btn, getSfxVolume, h, img, openModal, panel, setSfxVolume, uiRoot } from './dom';
 import { DIFFICULTY, type Difficulty } from '../game/difficulty';
 import { ACHIEVEMENTS, unlocked } from '../game/achievements';
 import { dateString, listSlots, deleteSlot } from '../game/state';
@@ -47,10 +47,14 @@ export function showSlots(mode: 'load' | 'new', onPick: (slot: number) => void) 
             h('span', { class: 'name' }, info ? `${slot}. ${info.name}` : tr`${slot}. Пусто`),
             info ? h('span', { class: 'sub' }, tr`${f!.short} · уровень ${info.level} · ${dateString(info.time)} · ${DIFFICULTY[info.difficulty].name}`) : null,
           ),
-          info && mode === 'load' ? btn(tr('Удалить'), () => { if (confirm(tr`Удалить сохранение «${info.name}»?`)) { deleteSlot(slot); render(); } }, 'small ghost') : null,
+          info && mode === 'load' ? btn(tr('Удалить'), () => askConfirm(tr`Удалить сохранение «${info.name}»?`, tr('Удалить'), () => { deleteSlot(slot); render(); }), 'small ghost') : null,
           mode === 'load'
             ? btn(tr('Загрузить'), () => { close(); onPick(slot); }, 'small primary', !info)
-            : btn(info ? tr('Записать поверх') : tr('Выбрать'), () => { if (!info || confirm(tr`Сохранение «${info.name}» будет стёрто. Продолжить?`)) { close(); onPick(slot); } }, `small${info ? ' danger' : ' primary'}`),
+            : btn(info ? tr('Записать поверх') : tr('Выбрать'), () => {
+                const pick = () => { close(); onPick(slot); };
+                if (info) askConfirm(tr`Сохранение «${info.name}» будет стёрто. Продолжить?`, tr('Записать поверх'), pick);
+                else pick();
+              }, `small${info ? ' danger' : ' primary'}`),
         ),
       );
     });
