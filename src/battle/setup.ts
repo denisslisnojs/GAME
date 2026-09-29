@@ -23,7 +23,7 @@ export function enemyArmy(name: string, culture: FactionId | 'outlaw', troops: {
     culture,
     troops,
     formation: 'classic',
-    morale: culture === 'outlaw' ? 70 : 100,
+    morale: culture === 'outlaw' ? 85 : 100,
   };
 }
 

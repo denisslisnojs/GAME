@@ -268,6 +268,8 @@ export class Battle {
   morale: [number, number];
   maxMorale: [number, number];
   initialCount: [number, number];
+  /** Стойкость сторон: во сколько раз медленнее тает дух (опытные воины держатся дольше). */
+  resolve: [number, number] = [1, 1];
   orders: [Record<Group, Order>, Record<Group, Order>];
   /** Строй групп. */
   forms: [Record<Group, Form>, Record<Group, Form>];
@@ -349,6 +351,17 @@ export class Battle {
       else this.deploy(side, all, army.formation);
     }
     this.initialCount = counts;
+    for (const side of [0, 1] as Side[]) {
+      // Средняя ступень воинов (без героя): новобранцы дрожат, ветераны стоят
+      let n = 0, sum = 0;
+      for (const u of [...this.units, ...this.reserves[side]]) {
+        if (u.side !== side || u.isHero) continue;
+        n++;
+        sum += u.troop.tier;
+      }
+      const tier = n ? sum / n : 3;
+      this.resolve[side] = 1 + 0.1 * (tier - 1);
+    }
     if (opts.ambush && !this.siege) {
       // Враг выскакивает из засады: ближе к нашему строю, а наши не успели построиться
       const es = (1 - playerSide) as Side;
@@ -618,7 +631,7 @@ export class Battle {
         break;
       case 'cry':
         this.morale[side] = Math.min(this.maxMorale[side], this.morale[side] + 20);
-        this.morale[1 - side] = Math.max(0, this.morale[1 - side] - 6);
+        this.shake((1 - side) as Side, 6);
         this.buff[side] = 10;
         this.events.push({ kind: 'cry', x: front, y: FIELD_Y0, side });
         break;
@@ -772,7 +785,7 @@ export class Battle {
     for (const sd of [0, 1] as Side[]) {
       const my = this.active(sd).length + this.reserves[sd].length;
       const their = this.active((1 - sd) as Side).length + this.reserves[1 - sd].length;
-      if (my > 0 && their > my * 2) this.morale[sd] = Math.max(0, this.morale[sd] - 1.5 * dt);
+      if (my > 0 && their > my * 2) this.shake(sd, 0.6 * dt);
     }
     if (this.siege && !this.breached) {
       // Ворота пали, когда перед стеной не осталось защитников
@@ -868,8 +881,9 @@ export class Battle {
       default:
         once('cav', t > 2, () => this.setOrder(side, 'cav', 'attack'));
     }
-    // Стрелки идут вперёд, если противник держится далеко
-    this.orders[side].ranged = gap > 600 ? 'attack' : 'hold';
+    // Стрелки идут вперёд, если противник держится далеко или прикрывать уже некого
+    const alone = !mine.some((u) => u.troop.role !== 'ranged' && !u.isHero) && !this.reserves[side].some((u) => u.troop.role !== 'ranged');
+    this.orders[side].ranged = gap > 600 || alone ? 'attack' : 'hold';
   }
 
   private findTarget(u: BUnit): BUnit | null {
@@ -1470,7 +1484,7 @@ export class Battle {
     if (gun) {
       this.events.push({ kind: 'gun', x: u.x + u.facing * 30, y: muzzleY, side: u.side });
       // Грохот бьёт по духу, кони шарахаются
-      this.morale[t.side] = Math.max(0, this.morale[t.side] - 0.45);
+      this.shake(t.side, 0.3);
     } else this.events.push({ kind: 'shoot', x: u.x, y: u.y, side: u.side });
   }
 
@@ -1511,7 +1525,7 @@ export class Battle {
       if (d.troop.line === 'cavalry' && !hasTrait(d.troop, 'berserk')) d.stun = Math.max(d.stun, 0.9);
       this.damage(a, d, Math.max(1, Math.round(dmg)), 'hit');
     }
-    if (hitAny) this.morale[(1 - a.side) as Side] = Math.max(0, this.morale[1 - a.side] - 1.2);
+    if (hitAny) this.shake((1 - a.side) as Side, 0.8);
   }
 
   /** Аркан долетел: всадник может оказаться на земле. */
@@ -1602,7 +1616,7 @@ export class Battle {
       }
       if (behind) {
         mult *= 1.35;
-        this.morale[d.side] = Math.max(0, this.morale[d.side] - 0.3);
+        this.shake(d.side, 0.15);
         if (Math.random() < 0.3) this.events.push({ kind: 'rear', x: d.x, y: d.y, side: d.side });
       } else if (flank) mult *= 1.15;
     }
@@ -1639,7 +1653,7 @@ export class Battle {
       d.burn = 0;
       if (a) a.xp += d.troop.tier * 14 + 6;
       const side = d.side;
-      let loss = 125 / Math.max(8, this.initialCount[side]);
+      let loss = 118 / Math.max(8, this.initialCount[side]);
       if (hasTrait(d.troop, 'berserk')) loss *= 0.5;
       if (d.isHero) {
         loss += 15;
@@ -1653,10 +1667,15 @@ export class Battle {
         this.bannerDrop[side] = 4;
         this.events.push({ kind: 'bannerDown', x: d.x, y: d.y, side });
       }
-      this.morale[side] = Math.max(0, this.morale[side] - loss);
+      this.shake(side, loss);
       this.morale[1 - side] = Math.min(this.maxMorale[1 - side], this.morale[1 - side] + 0.5);
       this.events.push({ kind: 'death', x: d.x, y: d.y, side });
     }
+  }
+
+  /** Удар по боевому духу стороны: чем опытнее её воины, тем слабее. */
+  private shake(side: Side, amount: number) {
+    this.morale[side] = Math.max(0, this.morale[side] - amount / this.resolve[side]);
   }
 
   private reinforce() {
