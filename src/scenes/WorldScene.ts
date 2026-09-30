@@ -30,7 +30,7 @@ import { openRoadEvent } from '../ui/events';
 import { isPlagued, plagueDaily } from '../game/plague';
 import { activeLords, alliesNear, capture, news, lordsNear, outlawsNear, placeName, withAllies, initWar, isLooted, mergeTroops, onNews, siegeAttackers, siegeDefenders, takeOwnershipChanged, troopCount, villageMilitia, warDaily, warUpdate } from '../game/war';
 import { dailySpawn, partyCount, partyRuntime, powerRatio, resetPartyRuntime, updateParties, type MapParty } from '../game/parties';
-import { hasSave, listSlots, loadGame, newGame, saveGame, type GameState } from '../game/state';
+import { hasSave, listSlots, loadGame, newGame, restoredFromBackup, saveGame, type GameState } from '../game/state';
 import { heroLook } from '../game/hero';
 import { heroEmblemURL, heroPortraitURL } from '../gfx/icons';
 import { isWaterCell, world, type Settlement } from '../game/world';
@@ -264,6 +264,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   // ───────────────────────── игра ─────────────────────────
 
   private startGame(state: GameState) {
+    if (restoredFromBackup) setTimeout(() => toast(tr('Последнее сохранение было повреждено — загружено предыдущее'), 5000), 800);
     this.menuTween?.stop();
     this.menuTween = null;
     this.state = state;
@@ -325,9 +326,19 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   commit() {
     this.state.party.x = this.party.x;
     this.state.party.y = this.party.y;
-    saveGame(this.state);
+    this.save();
     this.updateHud();
   }
+
+  /** Сохранить; если не вышло (нет места) — сказать об этом, но не чаще раза в пять минут. */
+  private save() {
+    if (saveGame(this.state)) return;
+    const now = Date.now();
+    if (now - this.saveWarnAt < 300000) return;
+    this.saveWarnAt = now;
+    toast(tr('Не удалось сохранить игру: мало места на устройстве'), 5000);
+  }
+  private saveWarnAt = 0;
 
   /** Открыть окно, ставящее игру на паузу, пока открыто хоть одно окно. */
   modal(open: (close: () => void) => unknown) {

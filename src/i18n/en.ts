@@ -2107,4 +2107,6 @@ export const EN: Record<string, string> = {
   "Выкл": "Off",
   "Кровь": "Blood",
   "Размер интерфейса": "Interface size",
+  "Последнее сохранение было повреждено — загружено предыдущее": "The last save was damaged — the previous one was loaded",
+  "Не удалось сохранить игру: мало места на устройстве": "Could not save the game: not enough space on the device",
 };

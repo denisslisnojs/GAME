@@ -236,33 +236,79 @@ export function lastSlot(): number | null {
   }
 }
 
+/** Резервная копия слота: предыдущее удачное сохранение. */
+const backupKey = (n: number) => `w1347_slot_${n}_bak`;
+
 export function deleteSlot(n: number) {
   try {
     localStorage.removeItem(slotKey(n));
+    localStorage.removeItem(backupKey(n));
   } catch {
     /* нет хранилища */
   }
 }
 
-export function saveGame(state: GameState) {
+/** Сохранение читается и выглядит целым (иначе в резервную копию его не кладём). */
+function looksValid(raw: string | null): raw is string {
+  if (!raw) return false;
   try {
-    const n = state.slot ?? 1;
-    localStorage.setItem(slotKey(n), JSON.stringify(state));
-    localStorage.setItem(LAST_KEY, String(n));
-  } catch (e) {
-    console.warn(tr('Не удалось сохранить игру'), e);
+    const s = JSON.parse(raw) as GameState;
+    return s.version === 1 && FACTION_IDS.includes(s.hero?.faction) && typeof s.time === 'number' && isFinite(s.time) && !!s.party;
+  } catch {
+    return false;
   }
 }
 
+/**
+ * Сохранить игру в её слот. Прежнее сохранение слота сначала уходит в резервную копию —
+ * если новое окажется испорченным (сбой, нехватка места), игра загрузит прошлое.
+ * false — сохранить не удалось (обычно нет места на устройстве).
+ */
+export function saveGame(state: GameState): boolean {
+  const n = state.slot ?? 1;
+  let data: string;
+  try {
+    data = JSON.stringify(state);
+  } catch (e) {
+    console.warn('save: serialize failed', e);
+    return false;
+  }
+  try {
+    const prev = localStorage.getItem(slotKey(n));
+    if (looksValid(prev)) {
+      try {
+        localStorage.setItem(backupKey(n), prev);
+      } catch {
+        // Нет места и на копию — старую копию убираем, главное сохранить текущую игру
+        localStorage.removeItem(backupKey(n));
+      }
+    }
+    localStorage.setItem(slotKey(n), data);
+    localStorage.setItem(LAST_KEY, String(n));
+    return true;
+  } catch (e) {
+    console.warn('save failed', e);
+    return false;
+  }
+}
+
+/** Последняя загрузка взята из резервной копии (основное сохранение было испорчено). */
+export let restoredFromBackup = false;
+
 export function loadGame(slot?: number): GameState | null {
+  restoredFromBackup = false;
   try {
     const n = slot ?? lastSlot();
     if (!n) return null;
-    const raw = localStorage.getItem(slotKey(n));
-    if (!raw) return null;
+    let raw = localStorage.getItem(slotKey(n));
+    if (!looksValid(raw)) {
+      const bak = localStorage.getItem(backupKey(n));
+      if (!looksValid(bak)) return null;
+      raw = bak;
+      restoredFromBackup = true;
+    }
     const s = JSON.parse(raw) as GameState;
     s.slot = n;
-    if (s.version !== 1 || !FACTION_IDS.includes(s.hero?.faction)) return null;
     // Сохранения старых версий: герой без снаряжения получает стартовый набор
     s.hero.attrs ??= { str: 3, agi: 3, vit: 3, lead: 3 };
     s.hero.points ??= 3 + (s.hero.level - 1) * 2;
