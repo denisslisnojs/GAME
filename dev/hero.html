@@ -15,8 +15,8 @@ const kits = [
 for (const [faction, equip] of kits) {
   const state = { hero: { name: 'x', faction, level: 5, xp: 0, attrs: { str: 5, agi: 5, vit: 5, lead: 5 }, equip: Object.fromEntries(Object.entries(equip).filter(([,v]) => v)) } };
   const row = document.createElement('div'); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.gap = '10px';
-  const c = drawUnitSheet(heroLook(state)); c.style.width = c.width * 2 + 'px'; c.style.imageRendering = 'pixelated'; row.append(c);
-  const im = new Image(); im.src = heroPortraitURL(state); im.style.width = '72px'; im.style.imageRendering = 'pixelated'; row.append(im);
+  const c = drawUnitSheet(heroLook(state)); c.style.width = c.width * 2 + 'px'; row.append(c);
+  const im = new Image(); im.src = heroPortraitURL(state); im.style.width = '72px'; row.append(im);
   const st = heroStats(state.hero); const t = document.createElement('span'); t.style.font = '12px monospace'; t.textContent = `hp ${st.hp} dmg ${st.damage} arm ${st.armor.cut.toFixed(2)} dodge ${st.dodge} spd ${st.speed.toFixed(2)}`; row.append(t);
   document.body.append(row);
 }

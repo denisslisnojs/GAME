@@ -50,8 +50,8 @@ export function drawSnowCover(): HTMLCanvasElement {
       if (t === T.FOREST || t === T.TAIGA) p *= 0.62;
       p *= 0.85;
       if (p <= 0) continue;
-      // Снег лежит пятнами: крупный плавный шум плюс мелкая зернистость по краям
-      const n = vnoise(x / 14, y / 14) * 0.55 + vnoise(x / 5, y / 5) * 0.3 + hash01(x * 73856093 ^ y * 19349663) * 0.15;
+      // Снег лежит пятнами: крупный плавный шум и мелкие мягкие пятна по краям
+      const n = vnoise(x / 14, y / 14) * 0.55 + vnoise(x / 5, y / 5) * 0.3 + vnoise(x / 2, y / 2) * 0.15;
       if (n < p * 0.95) px[y * ART_W + x] = n > p * 0.95 - 0.06 ? shadow : white;
     }
   }

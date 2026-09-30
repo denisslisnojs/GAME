@@ -1,12 +1,12 @@
 // Боевые спрайты воинов (вид сбоку, лицом вправо). Детальные фигуры на «скелете»:
 // суставы задаются позой, руки ставятся обратной кинематикой, тело собирается из форм
-// и растеризуется со светотенью (см. figure.ts).
+// и рисуется со светотенью (см. paint.ts).
 // Кадры: 0 — стойка, 1..4 — шаг, 5..7 — атака, 8 — павший.
 
 import type { BodyKind } from '../data/items';
 import type { Helmet, ShieldShape, Weapon } from '../data/troops';
 import { lumOf, mix } from './color';
-import { cap, ell, poly, rasterize, rotateShapes, scaleShapes, type Mat, type Pat, type Pt, type Shape } from './figure';
+import { cap, ell, poly, rotateShapes, scaleShapes, type Mat, type Pat, type Pt, type Shape } from './figure';
 import { outline, paintShapes } from './paint';
 
 /** Размер кадра в пикселях (рисуется в 1:1, без растяжения). */
@@ -994,65 +994,10 @@ function frameShapes(L: UnitLook, frame: number): Shape[] {
 }
 
 /**
- * Лист кадров: 9 кадров в ряд. ss — сверхвыборка: кадр рисуется в ss раз крупнее (для гладкой графики в бою),
- * а aa — во сколько раз крупнее считать перед усреднением (сглаживание краёв).
+ * Лист кадров: 9 кадров в ряд. ss — чёткость: кадр рисуется в ss раз крупнее (для гладкой графики в бою).
+ * Формы рисуются средствами Canvas 2D: гладкие края, светотень, фактура, мягкие тени, тонкий контур.
  */
-export function drawUnitSheet(L: UnitLook, ss = 1, aa = 1): HTMLCanvasElement {
-  if (unitStyle === 'paint') return paintUnitSheet(L, ss);
-  const W = FRAME_W * ss;
-  const H = FRAME_H * ss;
-  const R = ss * aa;
-  const sheet = document.createElement('canvas');
-  sheet.width = W * 9;
-  sheet.height = H;
-  const ctx = sheet.getContext('2d')!;
-  const img = ctx.createImageData(W * 9, H);
-  const dst = new Uint32Array(img.data.buffer);
-  for (let f = 0; f < 9; f++) {
-    const px = rasterize(frameShapes(L, f), FRAME_W * R, FRAME_H * R, K * R, OX * R, FEET_Y * R, R);
-    if (aa === 1) {
-      for (let y = 0; y < H; y++) dst.set(px.subarray(y * W, (y + 1) * W), y * W * 9 + f * W);
-      continue;
-    }
-    // Усреднение aa×aa с учётом прозрачности (цвет взвешен альфой)
-    const SW = FRAME_W * R;
-    const n = aa * aa;
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        let r = 0;
-        let g = 0;
-        let b = 0;
-        let a = 0;
-        for (let dy = 0; dy < aa; dy++) {
-          const row = (y * aa + dy) * SW + x * aa;
-          for (let dx = 0; dx < aa; dx++) {
-            const v = px[row + dx];
-            const al = v >>> 24;
-            if (!al) continue;
-            r += (v & 255) * al;
-            g += ((v >>> 8) & 255) * al;
-            b += ((v >>> 16) & 255) * al;
-            a += al;
-          }
-        }
-        if (!a) continue;
-        const A = Math.round(a / n);
-        dst[y * W * 9 + f * W + x] = ((A << 24) | (Math.round(b / a) << 16) | (Math.round(g / a) << 8) | Math.round(r / a)) >>> 0;
-      }
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return sheet;
-}
-
-/** Стиль рисовки воинов: «живописный» (гладкий, по умолчанию) или прежний попиксельный. */
-let unitStyle: 'paint' | 'pixel' = 'paint';
-export function setUnitStyle(s: 'paint' | 'pixel') {
-  unitStyle = s;
-}
-
-/** Лист кадров в «живописном» стиле: формы рисуются средствами Canvas 2D. */
-function paintUnitSheet(L: UnitLook, ss: number): HTMLCanvasElement {
+export function drawUnitSheet(L: UnitLook, ss = 1): HTMLCanvasElement {
   const W = FRAME_W * ss;
   const H = FRAME_H * ss;
   const sheet = document.createElement('canvas');
@@ -1121,23 +1066,13 @@ export function drawGearIcon(L: UnitLook, what: 'weapon' | 'horse' | 'hands', si
   }
   const [x0, y0, x1, y1] = bounds(shapes);
   const kk = Math.min((size - 3) / (x1 - x0), (size - 3) / (y1 - y0));
+  const f = document.createElement('canvas');
+  f.width = size;
+  f.height = size;
+  paintShapes(f.getContext('2d')!, shapes, kk, size / 2 - ((x0 + x1) / 2) * kk, size / 2 - ((y0 + y1) / 2) * kk, Math.max(1, size / 48));
   const c = document.createElement('canvas');
-  if (unitStyle === 'paint') {
-    const f = document.createElement('canvas');
-    f.width = size;
-    f.height = size;
-    paintShapes(f.getContext('2d')!, shapes, kk, size / 2 - ((x0 + x1) / 2) * kk, size / 2 - ((y0 + y1) / 2) * kk, Math.max(1, size / 48));
-    c.width = size;
-    c.height = size;
-    outline(c.getContext('2d')!, f, 0, 0, Math.max(0.8, size / 48));
-    return c;
-  }
-  const px = rasterize(shapes, size, size, kk, size / 2 - ((x0 + x1) / 2) * kk, size / 2 - ((y0 + y1) / 2) * kk);
   c.width = size;
   c.height = size;
-  const ctx = c.getContext('2d')!;
-  const img = ctx.createImageData(size, size);
-  new Uint32Array(img.data.buffer).set(px);
-  ctx.putImageData(img, 0, 0);
+  outline(c.getContext('2d')!, f, 0, 0, Math.max(0.8, size / 48));
   return c;
 }

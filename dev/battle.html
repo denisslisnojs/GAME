@@ -17,7 +17,7 @@ for (const a of [A, E]) a.troops = a.troops.map((t) => ({ ...t, count: Math.max(
 if (mul < 1) { A.troops = [{ id: 'aurelia_i3m', count: 2 }]; E.troops = [{ id: 'horde_i3m', count: 3 }]; }
 const battle = new Battle([A, E], 0, { siege });
 window.__battle = battle;
-const game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', pixelArt: true, backgroundColor: '#14110f', scale: { mode: Phaser.Scale.RESIZE, width: innerWidth, height: innerHeight }, scene: [] });
+const game = new Phaser.Game({ type: Phaser.AUTO, parent: 'game', backgroundColor: '#14110f', scale: { mode: Phaser.Scale.RESIZE, width: innerWidth, height: innerHeight }, scene: [] });
 game.scene.add('battle', BattleScene, true, { battle, terrain: q.get('t') || 'grass', heroFaction: 'aurelia', enemyName: E.name, enemyColor: '#e0aa24', weather: q.get('w') || undefined, wall: siege ? { culture: q.get('wc') || 'horde', color: '#e0aa24', color2: '#2a2320' } : undefined, onFinish: (b) => { window.__finished = b.winner; } });
 window.__game = game; setTimeout(() => window.__done = true, 800);
 </script></body></html>

@@ -1,6 +1,7 @@
-// Личный герб героя: поле, деление, фигура. Рисуется пиксель-артом на щите.
+// Личный герб героя: поле, деление, фигура на щите.
 
-import { Pix, shade } from './pixel';
+import { smoothGlyph, surface, tone } from './brush';
+import { shieldFinish, shieldPath } from './mapart';
 import { tr } from '../i18n';
 
 export type Division = 'plain' | 'pale' | 'fess' | 'quarterly' | 'chevron' | 'bend';
@@ -64,40 +65,51 @@ const FIG: Record<Exclude<Charge, 'none'>, string[]> = {
 
 export const DEFAULT_ARMS = (field: string, charge: string): Arms => ({ division: 'plain', field, field2: '#eeeae0', charge: 'lion', chargeColor: charge });
 
-/** Щит с гербом 16×18. */
+/** Щит с гербом 16×18 (рисуется в 4 раза чётче): поле, деление, фигура, глянец. */
 export function drawArms(a: Arms): HTMLCanvasElement {
-  const P = new Pix(16, 18);
-  for (let y = 0; y < 18; y++) {
-    const hw = y < 11 ? 7 : Math.max(0, 7 - Math.round((y - 10) * 1.1));
-    for (let dx = -hw; dx < hw; dx++) {
-      const x = 8 + dx;
-      let second = false;
-      switch (a.division) {
-        case 'pale':
-          second = x >= 8;
-          break;
-        case 'fess':
-          second = y >= 9;
-          break;
-        case 'quarterly':
-          second = x >= 8 !== y >= 9;
-          break;
-        case 'chevron': {
-          const d = Math.abs(x - 7.5);
-          second = y > 5 + d && y < 10 + d;
-          break;
-        }
-        case 'bend':
-          second = Math.abs(x - y * 0.9 + 1) < 2.2;
-          break;
-      }
-      const c = second ? a.field2 : a.field;
-      P.p(x, y, dx < -hw + 1 ? shade(c, 0.2) : c);
-    }
+  const Q = 4;
+  const { c, g } = surface(16, 18, Q);
+  shieldPath(g);
+  g.fillStyle = a.field;
+  g.fill();
+  g.save();
+  shieldPath(g);
+  g.clip();
+  g.fillStyle = a.field2;
+  g.beginPath();
+  switch (a.division) {
+    case 'pale':
+      g.rect(8, 0, 8, 18);
+      break;
+    case 'fess':
+      g.rect(0, 9, 16, 9);
+      break;
+    case 'quarterly':
+      g.rect(8, 0, 8, 9);
+      g.rect(0, 9, 8, 9);
+      break;
+    case 'chevron':
+      g.moveTo(0, 12);
+      g.lineTo(8, 5);
+      g.lineTo(16, 12);
+      g.lineTo(16, 16.5);
+      g.lineTo(8, 9.5);
+      g.lineTo(0, 16.5);
+      break;
+    case 'bend':
+      g.moveTo(0, 0.6);
+      g.lineTo(3.2, 0.6);
+      g.lineTo(16, 15);
+      g.lineTo(16, 18);
+      g.lineTo(13, 18);
+      g.lineTo(0, 3.6);
+      break;
   }
-  if (a.charge !== 'none') P.pattern(2, 4, FIG[a.charge], { x: a.chargeColor, X: shade(a.chargeColor, -0.25) });
-  P.outline('#1a1410');
-  return P.canvas;
+  if (a.division !== 'plain') g.fill();
+  g.restore();
+  if (a.charge !== 'none') g.drawImage(smoothGlyph(FIG[a.charge], { x: a.chargeColor, X: tone(a.chargeColor, -0.8) }, Q * 2), 2.5, 4, 11, 7);
+  shieldFinish(g);
+  return c;
 }
 
 const cache = new Map<string, string>();

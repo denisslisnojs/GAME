@@ -2,10 +2,10 @@
 // последующие берут готовую картинку и сетку из памяти устройства.
 
 import { ART_H, ART_W, GRID_H, GRID_W } from '../config';
-import type { MapData } from './terrain';
+import { MAP_RES, type MapData } from './terrain';
 
 /** Менять при любой правке генератора карты или данных суши. */
-export const MAP_VERSION = 'map-v3';
+export const MAP_VERSION = 'map-v4-painted';
 const DB = 'w1347';
 const STORE = 'cache';
 
@@ -36,12 +36,12 @@ export async function loadCachedMap(): Promise<MapData | null> {
       req.onerror = () => reject(req.error);
     });
     db.close();
-    if (!rec || rec.version !== MAP_VERSION || rec.w !== ART_W || rec.h !== ART_H) return null;
+    if (!rec || rec.version !== MAP_VERSION || rec.w !== ART_W * MAP_RES || rec.h !== ART_H * MAP_RES) return null;
     if (rec.terrain.length !== GRID_W * GRID_H || rec.cost.length !== GRID_W * GRID_H) return null;
     const bmp = await createImageBitmap(rec.image);
     const canvas = document.createElement('canvas');
-    canvas.width = ART_W;
-    canvas.height = ART_H;
+    canvas.width = rec.w;
+    canvas.height = rec.h;
     canvas.getContext('2d')!.drawImage(bmp, 0, 0);
     bmp.close?.();
     return { canvas, terrain: rec.terrain, cost: rec.cost };
@@ -57,12 +57,12 @@ export function saveMapLater(map: MapData) {
       if (!blob) return;
       try {
         const db = await openDb();
-        const rec: Stored = { version: MAP_VERSION, w: ART_W, h: ART_H, image: blob, terrain: map.terrain, cost: map.cost };
+        const rec: Stored = { version: MAP_VERSION, w: map.canvas.width, h: map.canvas.height, image: blob, terrain: map.terrain, cost: map.cost };
         db.transaction(STORE, 'readwrite').objectStore(STORE).put(rec, 'map');
         db.close();
       } catch {
         /* кэш не обязателен */
       }
-    }, 'image/png');
+    }, 'image/webp', 0.92);
   }, 3000);
 }

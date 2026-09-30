@@ -2,7 +2,7 @@
 
 import { FACTIONS } from '../data/factions';
 import { armsURL, CHARGES, DEFAULT_ARMS, DIVISIONS, TINCTURES, type Arms } from '../gfx/heraldry';
-import { hex } from '../gfx/pixel';
+import { hex } from '../gfx/color';
 import { btn, h, img, openModal, panel, toast } from './dom';
 import type { GameCtx } from './panels';
 import { tr } from '../i18n';

@@ -1,7 +1,7 @@
 import { FACTIONS } from '../data/factions';
 import { ITEMS, SLOT_WEIGHT, type Item, type Slot } from '../data/items';
 import { TROOPS, type DamageType, type TroopDef } from '../data/troops';
-import { hex } from '../gfx/pixel';
+import { hex } from '../gfx/color';
 import { SKILL_MAX, type SkillId } from '../data/skills';
 import type { UnitLook } from '../gfx/units';
 import type { GameState, Hero, HeroAttrs } from './state';

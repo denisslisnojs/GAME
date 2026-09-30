@@ -1,12 +1,17 @@
 import Phaser from 'phaser';
 import { FACTIONS, FACTION_IDS } from '../data/factions';
-import { hex } from '../gfx/pixel';
-import { allSettlementTextures, drawBandits, drawBoat, drawCamp, drawCaravan, drawCrown, drawLord, drawPlague, drawRider, drawSmoke } from '../gfx/sprites';
+import { hex } from '../gfx/color';
+import { allSettlementTextures, drawBandits, drawBoat, drawCamp, drawCaravan, drawCrown, drawLord, drawPlague, drawRider, drawSmoke } from '../gfx/mapart';
 import { buildWorld } from '../game/world';
 import { loadCachedMap, saveMapLater } from '../map/cache';
-import { generateMap } from '../map/terrain';
+import { generateMap, mapTiles } from '../map/terrain';
 import { showLoading } from '../ui/screens';
 import { tr } from '../i18n';
+
+/** Текстура со сглаживанием при масштабе (игра по умолчанию рисует «по пикселям»). */
+function addSmooth(scene: Phaser.Scene, key: string, canvas: HTMLCanvasElement) {
+  scene.textures.addCanvas(key, canvas)?.setFilter(Phaser.Textures.FilterMode.LINEAR);
+}
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -47,38 +52,39 @@ export class BootScene extends Phaser.Scene {
       map = await generateMap(progress);
       saveMapLater(map);
     }
-    this.textures.addCanvas('map', map.canvas);
+    // Карта режется на плитки не шире 2048 точек (предел текстур на многих телефонах), сглаживание при масштабе
+    for (const t of mapTiles(map.canvas)) addSmooth(this, t.key, t.canvas);
 
     await progress(tr('Города и деревни'));
     buildWorld(map);
-    for (const { key, canvas } of allSettlementTextures()) this.textures.addCanvas(key, canvas);
+    for (const { key, canvas } of allSettlementTextures()) addSmooth(this, key, canvas);
     for (const id of FACTION_IDS) {
       const f = FACTIONS[id];
       for (const player of [false, true]) {
         const suffix = player ? '_player' : '';
-        this.textures.addCanvas(`rider_${id}${suffix}_0`, drawRider(hex(f.color), hex(f.color2), 0, player));
-        this.textures.addCanvas(`rider_${id}${suffix}_1`, drawRider(hex(f.color), hex(f.color2), 1, player));
-        this.textures.addCanvas(`boat_${id}${suffix}_0`, drawBoat(hex(f.color), hex(f.color2), 0));
-        this.textures.addCanvas(`boat_${id}${suffix}_1`, drawBoat(hex(f.color), hex(f.color2), 1));
+        addSmooth(this, `rider_${id}${suffix}_0`, drawRider(hex(f.color), hex(f.color2), 0, player));
+        addSmooth(this, `rider_${id}${suffix}_1`, drawRider(hex(f.color), hex(f.color2), 1, player));
+        addSmooth(this, `boat_${id}${suffix}_0`, drawBoat(hex(f.color), hex(f.color2), 0));
+        addSmooth(this, `boat_${id}${suffix}_1`, drawBoat(hex(f.color), hex(f.color2), 1));
       }
-      this.textures.addCanvas(`caravan_${id}_0`, drawCaravan(hex(f.color), hex(f.color2), 0));
-      this.textures.addCanvas(`caravan_${id}_1`, drawCaravan(hex(f.color), hex(f.color2), 1));
-      this.textures.addCanvas(`lord_${id}_0`, drawLord(hex(f.color), hex(f.color2), 0));
-      this.textures.addCanvas(`lord_${id}_1`, drawLord(hex(f.color), hex(f.color2), 1));
+      addSmooth(this, `caravan_${id}_0`, drawCaravan(hex(f.color), hex(f.color2), 0));
+      addSmooth(this, `caravan_${id}_1`, drawCaravan(hex(f.color), hex(f.color2), 1));
+      addSmooth(this, `lord_${id}_0`, drawLord(hex(f.color), hex(f.color2), 0));
+      addSmooth(this, `lord_${id}_1`, drawLord(hex(f.color), hex(f.color2), 1));
     }
 
     for (const f of [0, 1] as const) {
-      this.textures.addCanvas(`band_${f}`, drawBandits(f));
-      this.textures.addCanvas(`band_p_${f}`, drawBandits(f, '#2a3a5a'));
-      this.textures.addCanvas(`band_d_${f}`, drawBandits(f, '#5a5a52'));
-      this.textures.addCanvas(`raider_${f}`, drawRider('#7a5a32', '#3a2a1e', f, false, false, '#8a6a45'));
-      this.textures.addCanvas(`camp_${f}`, drawCamp(f));
-      this.textures.addCanvas(`smoke_${f}`, drawSmoke(f));
-      this.textures.addCanvas(`plague_${f}`, drawPlague(f));
-      this.textures.addCanvas(`desertr_${f}`, drawRider('#3a3028', '#e8dcc0', f, false, false, '#c8c0b0'));
+      addSmooth(this, `band_${f}`, drawBandits(f));
+      addSmooth(this, `band_p_${f}`, drawBandits(f, '#2a3a5a'));
+      addSmooth(this, `band_d_${f}`, drawBandits(f, '#5a5a52'));
+      addSmooth(this, `raider_${f}`, drawRider('#7a5a32', '#3a2a1e', f, false, false, '#8a6a45'));
+      addSmooth(this, `camp_${f}`, drawCamp(f));
+      addSmooth(this, `smoke_${f}`, drawSmoke(f));
+      addSmooth(this, `plague_${f}`, drawPlague(f));
+      addSmooth(this, `desertr_${f}`, drawRider('#3a3028', '#e8dcc0', f, false, false, '#c8c0b0'));
     }
 
-    this.textures.addCanvas('crown', drawCrown());
+    addSmooth(this, 'crown', drawCrown());
     loading.set(1, tr('Готово'));
     loading.close();
     this.scene.start('world');

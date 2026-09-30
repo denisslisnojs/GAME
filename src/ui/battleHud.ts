@@ -1,7 +1,7 @@
 import type { Ability, Battle, Form, Group, Order } from '../battle/sim';
 import { FACTIONS, type FactionId } from '../data/factions';
 import { emblemURL, portraitURL } from '../gfx/icons';
-import { Pix } from '../gfx/pixel';
+import { outlined, smoothGlyph } from '../gfx/brush';
 import { h, img, sfxClick, uiRoot } from './dom';
 import { tr } from '../i18n';
 
@@ -24,16 +24,13 @@ export interface BattleHudOpts {
   arena?: boolean;
 }
 
-// ───────────── пиксельные иконки ─────────────
+// ───────────── иконки (рисунок по строкам → гладкие формы) ─────────────
 
 const iconCache = new Map<string, string>();
 function icon(name: string, rows: string[], pal: Record<string, string>): string {
   let v = iconCache.get(name);
   if (!v) {
-    const P = new Pix(16, 16);
-    P.pattern(0, 0, rows, pal);
-    P.outline('#140f0c');
-    v = P.dataURL();
+    v = outlined(smoothGlyph(rows, pal, 6), 4, '#140f0c').toDataURL();
     iconCache.set(name, v);
   }
   return v;

@@ -1,4 +1,4 @@
-// Цветовые утилиты: смешение, «лесенка тонов» со сдвигом оттенка, дизеринг.
+// Цветовые утилиты: смешение, «лесенка тонов» со сдвигом оттенка.
 
 export type RGB = [number, number, number];
 
@@ -61,41 +61,13 @@ export function ramp(hex: string, step: number): string {
   return hexOf(fromHsl(h, s, l));
 }
 
-export function desat(hex: string, amt: number, dl = 0): string {
-  const [h, s, l] = toHsl(rgb(hex));
-  return hexOf(fromHsl(h, s * (1 - amt), Math.max(0, Math.min(1, l + dl))));
-}
-
-export function satOf(hex: string): number {
-  return toHsl(rgb(hex))[1];
-}
-
-export function hueOf(hex: string): number {
-  return toHsl(rgb(hex))[0];
-}
-
 export function lumOf(hex: string): number {
   const [r, g, b] = rgb(hex);
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
-/** Ближайший цвет из палитры. */
-export function nearest(hex: string, pal: string[]): string {
-  const c = rgb(hex);
-  let best = pal[0];
-  let bd = Infinity;
-  for (const p of pal) {
-    const q = rgb(p);
-    const d = (c[0] - q[0]) ** 2 * 0.3 + (c[1] - q[1]) ** 2 * 0.59 + (c[2] - q[2]) ** 2 * 0.11;
-    if (d < bd) {
-      bd = d;
-      best = p;
-    }
-  }
-  return best;
-}
 
-export const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
-export function bayer(x: number, y: number): number {
-  return BAYER4[(y & 3) * 4 + (x & 3)];
+/** Число 0xRRGGBB → «#rrggbb». */
+export function hex(n: number): string {
+  return '#' + n.toString(16).padStart(6, '0');
 }

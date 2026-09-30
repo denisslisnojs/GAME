@@ -1,6 +1,6 @@
 import { FACTIONS } from '../data/factions';
 import { TROOPS, type TroopDef } from '../data/troops';
-import { hex } from '../gfx/pixel';
+import { hex } from '../gfx/color';
 import type { UnitLook } from '../gfx/units';
 
 function hashStr(s: string): number {

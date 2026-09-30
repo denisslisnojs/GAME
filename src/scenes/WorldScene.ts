@@ -3,7 +3,7 @@ import { drawSnowCover, hash01 } from '../map/season';
 import { music } from '../audio/music';
 import { ART_SCALE, DPR, GRID_H, GRID_W, LABEL_FONT, PARTY_SPEED, SECONDS_PER_DAY, TILE, WORLD_H, WORLD_W } from '../config';
 import { FACTIONS, type FactionId } from '../data/factions';
-import { drawRider, settlementTextureKey } from '../gfx/sprites';
+import { drawRider, settlementTextureKey, SPRITE_Q } from '../gfx/mapart';
 import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo, totalReady } from '../game/logic';
 import { hint, openHelp, resetHints } from '../ui/hints';
 import { enemyArmy, playerArmy } from '../battle/setup';
@@ -37,7 +37,7 @@ import { isWaterCell, world, type Settlement } from '../game/world';
 import { cellCenterWorld, geoToWorld, worldToCell } from '../map/geo';
 import { findPath, smoothPath } from '../map/pathfinding';
 import { computeTerritory, drawTerritory } from '../map/territory';
-import { T, TERRAIN_COST, TERRAIN_NAME } from '../map/terrain';
+import { MAP_RES, MAP_TILES, T, TERRAIN_COST, TERRAIN_NAME } from '../map/terrain';
 import { openBattleResult, openChronicle, openEncounter, openOutcome, openSiegeDialog } from '../ui/encounter';
 import { openHero } from '../ui/heroUi';
 import { btn, h, openModal, panel, toast, uiRoot } from '../ui/dom';
@@ -54,6 +54,8 @@ const MIN_ZOOM_ABS = 0.12 * DPR;
 const MAX_ZOOM = 2.5 * DPR;
 const TYPE_NAME = { town: tr('Город'), castle: tr('Замок'), village: tr('Деревня') } as const;
 /** Масштаб фигурок отрядов на карте относительно пиксель-арта поселений: мельче, чтобы не загромождать карту. */
+/** Масштаб спрайтов карты: они нарисованы в SPRITE_Q раз чётче арт-пикселей. */
+const SPR = ART_SCALE / SPRITE_Q;
 const PARTY_K = 0.6;
 const LORD_K = 0.56;
 const PLAYER_K = 0.68;
@@ -117,10 +119,14 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     cam.setBackgroundColor('#1a3150');
     cam.roundPixels = false;
 
-    this.add.image(0, 0, 'map').setOrigin(0).setScale(ART_SCALE).setDepth(-10);
+    const k = ART_SCALE / MAP_RES;
+    for (let ty = 0; ty < MAP_TILES.ny; ty++) {
+      for (let tx = 0; tx < MAP_TILES.nx; tx++) this.add.image(tx * MAP_TILES.tw * k, ty * MAP_TILES.th * k, `map_${tx}_${ty}`).setOrigin(0).setScale(k).setDepth(-10);
+    }
 
     this.territoryCanvas = drawTerritory(computeTerritory((s) => s.culture));
     this.textures.addCanvas('territory', this.territoryCanvas);
+    this.textures.get('territory').setFilter(Phaser.Textures.FilterMode.LINEAR);
     this.add.image(0, 0, 'territory').setOrigin(0).setScale(ART_SCALE).setDepth(-9);
     // Зимний снег поверх карты (рисуется при первой надобности)
     this.snowImg = null;
@@ -134,7 +140,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       const img = this.add
         .image(s.x, s.y + TILE * 0.4, settlementTextureKey(s.type, s.culture, s.culture))
         .setOrigin(0.5, 1)
-        .setScale(ART_SCALE * (s.type === 'village' ? 0.8 : 1))
+        .setScale(SPR * (s.type === 'village' ? 0.8 : 1))
         .setDepth(s.y);
       this.settleSprites.set(s.id, img);
       const t = this.add
@@ -152,7 +158,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       this.labels.push({ t, s });
     }
 
-    this.party = this.add.sprite(0, 0, 'rider_aurelia_player_0').setOrigin(0.5, 0.9).setScale(ART_SCALE * PLAYER_K).setVisible(false);
+    this.party = this.add.sprite(0, 0, 'rider_aurelia_player_0').setOrigin(0.5, 0.9).setScale(SPR * PLAYER_K).setVisible(false);
     this.ring = this.add.ellipse(0, 0, 62, 24).setStrokeStyle(4, 0xffd24a, 0.9).setVisible(false);
 
     this.setupInput();
@@ -932,7 +938,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     for (const p of list) {
       let v = this.partySprites.get(p.id);
       if (!v) {
-        const s = this.add.sprite(p.x, p.y, this.partyTexture(p, 0)).setOrigin(0.5, 0.9).setScale(ART_SCALE * PARTY_K);
+        const s = this.add.sprite(p.x, p.y, this.partyTexture(p, 0)).setOrigin(0.5, 0.9).setScale(SPR * PARTY_K);
         const res = Math.min(3, window.devicePixelRatio || 1);
         const label = this.add
           .text(p.x, p.y + 6, '', { fontFamily: LABEL_FONT, fontStyle: '500', fontSize: p.kind === 'lord' ? '12.5px' : '11.5px', color: '#e8e0c8', stroke: '#1a1410', strokeThickness: 3 })
@@ -963,7 +969,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         }
       }
       v.s.setTexture(this.partyTexture(p, v.frame)).setPosition(p.x, p.y).setFlipX(r.facing < 0).setDepth(p.y);
-      v.s.setScale(ART_SCALE * (p.kind === 'lord' ? LORD_K : PARTY_K));
+      v.s.setScale(SPR * (p.kind === 'lord' ? LORD_K : PARTY_K));
       v.label.setText(p.name).setScale(k);
       v.badge.setText(String(partyCount(p))).setScale(k);
       // Плашка слева от имени, вместе по центру отряда
@@ -1410,12 +1416,12 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
       if (!m) {
         const s = world.byId.get(k.split(':')[1])!;
         m = k.startsWith('siege')
-          ? this.add.sprite(s.x - TILE * 3.2, s.y + TILE * 1.6, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.7).setDepth(s.y + TILE)
+          ? this.add.sprite(s.x - TILE * 3.2, s.y + TILE * 1.6, tex).setOrigin(0.5, 1).setScale(SPR * 0.7).setDepth(s.y + TILE)
           : k.startsWith('fief')
-            ? this.add.sprite(s.x, s.y - TILE * 4.2, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.8).setDepth(s.y + 4)
+            ? this.add.sprite(s.x, s.y - TILE * 4.2, tex).setOrigin(0.5, 1).setScale(SPR * 0.8).setDepth(s.y + 4)
           : k.startsWith('plague')
-            ? this.add.sprite(s.x + TILE * 2.2, s.y - TILE * 2.2, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.8).setDepth(s.y + 3).setAlpha(0.9)
-            : this.add.sprite(s.x, s.y - TILE * 0.2, tex).setOrigin(0.5, 1).setScale(ART_SCALE * 0.9).setDepth(s.y + 2).setAlpha(0.85);
+            ? this.add.sprite(s.x + TILE * 2.2, s.y - TILE * 2.2, tex).setOrigin(0.5, 1).setScale(SPR * 0.8).setDepth(s.y + 3).setAlpha(0.9)
+            : this.add.sprite(s.x, s.y - TILE * 0.2, tex).setOrigin(0.5, 1).setScale(SPR * 0.9).setDepth(s.y + 2).setAlpha(0.85);
         this.warMarks.set(k, m);
       }
       m.setTexture(tex);
@@ -1433,7 +1439,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
   private updateSeason() {
     const w = this.mode === 'play' ? this.winter() : 0;
     if (w > 0 && !this.snowImg) {
-      if (!this.textures.exists('snowcover')) this.textures.addCanvas('snowcover', drawSnowCover());
+      if (!this.textures.exists('snowcover')) this.textures.addCanvas('snowcover', drawSnowCover())?.setFilter(Phaser.Textures.FilterMode.LINEAR);
       this.snowImg = this.add.image(0, 0, 'snowcover').setOrigin(0).setScale(ART_SCALE).setDepth(-9.5);
     }
     if (this.snowImg) this.snowImg.setAlpha(w).setVisible(w > 0);
@@ -1513,7 +1519,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
     if (!water && a) {
       // Всадник героя в цветах личного герба
       const key = `rider_arms_${a.field}_${a.chargeColor}_${frame}`;
-      if (!this.textures.exists(key)) this.textures.addCanvas(key, drawRider(a.field, a.chargeColor, frame as 0 | 1, true));
+      if (!this.textures.exists(key)) this.textures.addCanvas(key, drawRider(a.field, a.chargeColor, frame as 0 | 1, true))?.setFilter(Phaser.Textures.FilterMode.LINEAR);
       this.party.setTexture(key);
       return;
     }

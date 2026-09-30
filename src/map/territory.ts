@@ -115,20 +115,39 @@ export function drawTerritory(owner: Int8Array, canvas?: HTMLCanvasElement): HTM
     const i = cy * GRID_W + cx;
     return isWaterCell(i) ? -2 : owner[i];
   };
-  for (let y = RY; y < RY + RH; y++) {
-    const cy = (y / CELL) | 0;
-    const ey = y % CELL;
-    for (let x = RX; x < RX + RW; x++) {
-      const cx = (x / CELL) | 0;
-      const o = landOwner(cx, cy);
+  // Владелец в каждой точке — «голосованием» четырёх ближайших клеток с весами по расстоянию:
+  // границы идут плавными диагоналями, а не лесенкой из клеток
+  const PW = RW + 2;
+  const PH = RH + 2;
+  const smooth = new Int8Array(PW * PH);
+  const votes = new Float32Array(FACTION_IDS.length + 2);
+  for (let yy = 0; yy < PH; yy++) {
+    const y = RY + yy - 1;
+    const v = (y + 0.5) / CELL - 0.5;
+    const cy = Math.floor(v);
+    const fy = v - cy;
+    for (let xx = 0; xx < PW; xx++) {
+      const x = RX + xx - 1;
+      const u = (x + 0.5) / CELL - 0.5;
+      const cx = Math.floor(u);
+      const fx = u - cx;
+      votes.fill(0);
+      votes[landOwner(cx, cy) + 2] += (1 - fx) * (1 - fy);
+      votes[landOwner(cx + 1, cy) + 2] += fx * (1 - fy);
+      votes[landOwner(cx, cy + 1) + 2] += (1 - fx) * fy;
+      votes[landOwner(cx + 1, cy + 1) + 2] += fx * fy;
+      let best = 0;
+      for (let k = 1; k < votes.length; k++) if (votes[k] > votes[best]) best = k;
+      smooth[yy * PW + xx] = best - 2;
+    }
+  }
+  for (let yy = 1; yy < PH - 1; yy++) {
+    for (let xx = 1; xx < PW - 1; xx++) {
+      const o = smooth[yy * PW + xx];
       if (o < 0) continue;
-      const ex = x % CELL;
-      let isBorder = false;
-      if (ex === 0) { const n = landOwner(cx - 1, cy); if (n !== -2 && n !== o) isBorder = true; }
-      if (ex === CELL - 1) { const n = landOwner(cx + 1, cy); if (n !== -2 && n !== o) isBorder = true; }
-      if (ey === 0) { const n = landOwner(cx, cy - 1); if (n !== -2 && n !== o) isBorder = true; }
-      if (ey === CELL - 1) { const n = landOwner(cx, cy + 1); if (n !== -2 && n !== o) isBorder = true; }
-      px[(y - RY) * RW + (x - RX)] = isBorder ? border[o] : fill[o];
+      const diff = (n: number) => n !== -2 && n !== o;
+      const isBorder = diff(smooth[yy * PW + xx - 1]) || diff(smooth[yy * PW + xx + 1]) || diff(smooth[(yy - 1) * PW + xx]) || diff(smooth[(yy + 1) * PW + xx]);
+      px[(yy - 1) * RW + (xx - 1)] = isBorder ? border[o] : fill[o];
     }
   }
   ctx.putImageData(img, RX, RY);

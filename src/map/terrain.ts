@@ -65,7 +65,7 @@ export const TERRAIN_COST: Record<number, number> = {
 const MAX_SAIL_DIST = 9;
 
 export interface MapData {
-  /** Готовая пиксельная картинка карты ART_W × ART_H. */
+  /** Готовая картинка карты (ART_W × ART_H арт-пикселей, в MAP_RES раз чётче). */
   canvas: HTMLCanvasElement;
   /** Тип местности каждой клетки GRID_W × GRID_H. */
   terrain: Uint8Array;
@@ -74,13 +74,6 @@ export interface MapData {
 }
 
 // ───────────────────────── вспомогательное ─────────────────────────
-
-function rgb(hex: number): number {
-  const r = (hex >> 16) & 255;
-  const g = (hex >> 8) & 255;
-  const b = hex & 255;
-  return (0xff << 24) | (b << 16) | (g << 8) | r;
-}
 
 function toArt(lon: number, lat: number): [number, number] {
   return [(lon - LON_MIN) * PX_PER_DEG_LON, (LAT_MAX - lat) * PX_PER_DEG_LAT];
@@ -212,48 +205,85 @@ function biomeAt(lon0: number, lat0: number, n1: number, n2: number, forestNoise
 
 // ───────────────────────── палитра ─────────────────────────
 
+/** Цвета — 0xRRGGBB. Внутри тройки: [основной, темнее, светлее]. */
 const C = {
-  deep: [rgb(0x1a3150), rgb(0x1c3555)],
-  mid: [rgb(0x22436a), rgb(0x25486f)],
-  shallow: [rgb(0x2d5c88), rgb(0x31628e)],
-  coast: [rgb(0x3f7aa6), rgb(0x4580ab)],
-  foam: rgb(0x78b0d0),
-  wave: rgb(0x5b90ba),
-  beach: [rgb(0xd6c68c), rgb(0xcbb97d)],
-  grass: [rgb(0x6b9a3f), rgb(0x5f8e37), rgb(0x78a748)],
-  farm: [rgb(0x8ba84a), rgb(0x9fb152), rgb(0x7c9a40)],
-  forest: [rgb(0x4d7b32), rgb(0x44702c)],
-  taiga: [rgb(0x4b6a44), rgb(0x42603d)],
-  steppe: [rgb(0xa6a55b), rgb(0xb3b068), rgb(0x979651)],
-  dry: [rgb(0x9ca155), rgb(0xabaa62), rgb(0x8c924a)],
-  desert: [rgb(0xdcb56d), rgb(0xe4c27e), rgb(0xd2aa62)],
-  dune: rgb(0xc59b55),
-  duneLight: rgb(0xecd08f),
-  tundra: [rgb(0x8d9a82), rgb(0x99a58f), rgb(0x7f8c75)],
-  snow: [rgb(0xe9eef2), rgb(0xdde5eb), rgb(0xf3f6f8)],
-  jungle: [rgb(0x3d7733), rgb(0x356c2d)],
-  rock: [rgb(0x8a7f6d), rgb(0x7d7363), rgb(0x978c79)],
-  hillShade: rgb(0x5d6e3a),
-  hillLight: rgb(0x8fa25a),
-  peakLight: rgb(0xb7ad9a),
-  peakMid: rgb(0x8f8472),
-  peakDark: rgb(0x5f574b),
-  peakOutline: rgb(0x453f36),
-  snowCap: rgb(0xf3f5f6),
-  snowShade: rgb(0xc9d3dc),
-  river: rgb(0x3b78ad),
-  riverLight: rgb(0x5d98c6),
-  tree: { dark: rgb(0x2b4e1e), mid: rgb(0x3d6a29), light: rgb(0x5a903a), trunk: rgb(0x4a3520) },
-  pine: { dark: rgb(0x1f3924), mid: rgb(0x2e4d33), light: rgb(0x416948), trunk: rgb(0x3b2a1b) },
-  palm: { dark: rgb(0x2a5e25), mid: rgb(0x3b7f30), light: rgb(0x5aa244), trunk: rgb(0x6b4a2a) },
-  shrub: rgb(0x6d7b3b),
-  tuft: rgb(0x8a8a47),
-  moss: rgb(0x6f7f5e),
+  deep: 0x19304f,
+  mid: 0x234569,
+  shallow: 0x2e5e8a,
+  coast: 0x4585b0,
+  foam: 0xa6d0e6,
+  beach: 0xd8c890,
+  grass: [0x6b9a3f, 0x5c8a36, 0x7eaa4a],
+  farm: [0x8ba84a, 0x9fb152, 0x7c9a40, 0xc9b35a],
+  forest: [0x4d7b32, 0x41702b, 0x588638],
+  taiga: [0x4b6a44, 0x3f5e3a, 0x55744d],
+  steppe: [0xa6a55b, 0x979651, 0xb6b36a],
+  dry: [0x9ca155, 0x8c924a, 0xabaa62],
+  desert: [0xdcb56d, 0xd0a860, 0xe6c47f],
+  dune: 0xc0954f,
+  duneLight: 0xf0d696,
+  tundra: [0x8d9a82, 0x7f8c75, 0x9ba790],
+  snow: [0xe9eef2, 0xd8e0e8, 0xf6f8fa],
+  jungle: [0x3d7733, 0x336a2c, 0x468439],
+  rock: [0x8a7f6d, 0x786e5f, 0x9a8f7c],
+  river: 0x3b78ad,
+  riverDark: 0x2a5b88,
+  riverLight: 0x74aad2,
 };
+
+function mixRGB(a: number, b: number, t: number): number {
+  const k = t < 0 ? 0 : t > 1 ? 1 : t;
+  const r = ((a >> 16) & 255) + ((((b >> 16) & 255) - ((a >> 16) & 255)) * k);
+  const g = ((a >> 8) & 255) + ((((b >> 8) & 255) - ((a >> 8) & 255)) * k);
+  const bl = (a & 255) + (((b & 255) - (a & 255)) * k);
+  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(bl);
+}
+
+function css(c: number): string {
+  return '#' + c.toString(16).padStart(6, '0');
+}
+
+/** Плавный переход по тройке цветов: n=0 — темнее, 0.5 — основной, 1 — светлее. */
+function tri(arr: number[], n: number): number {
+  return n < 0.5 ? mixRGB(arr[1], arr[0], n * 2) : mixRGB(arr[0], arr[2], (n - 0.5) * 2);
+}
+
+function smoothstep(e0: number, e1: number, x: number): number {
+  const t = clamp((x - e0) / (e1 - e0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+/** Чёткость готовой картинки карты: точек на арт-пиксель. */
+export const MAP_RES = 2;
+
+/** Плитки карты: сетка кусков не шире и не выше 2048 точек. */
+export const MAP_TILES = { nx: 0, ny: 0, tw: 0, th: 0 };
+
+export function mapTiles(src: HTMLCanvasElement): { key: string; canvas: HTMLCanvasElement }[] {
+  const nx = Math.ceil(src.width / 2048);
+  const ny = Math.ceil(src.height / 2048);
+  const tw = Math.ceil(src.width / nx);
+  const th = Math.ceil(src.height / ny);
+  Object.assign(MAP_TILES, { nx, ny, tw, th });
+  const out: { key: string; canvas: HTMLCanvasElement }[] = [];
+  for (let ty = 0; ty < ny; ty++) {
+    for (let tx = 0; tx < nx; tx++) {
+      const c = document.createElement('canvas');
+      c.width = Math.min(tw, src.width - tx * tw);
+      c.height = Math.min(th, src.height - ty * th);
+      c.getContext('2d')!.drawImage(src, tx * tw, ty * th, c.width, c.height, 0, 0, c.width, c.height);
+      out.push({ key: `map_${tx}_${ty}`, canvas: c });
+    }
+  }
+  return out;
+}
 
 // ───────────────────────── генерация ─────────────────────────
 
 export type Progress = (label: string) => Promise<void>;
+
+type Deco = { kind: 'tree' | 'pine' | 'palm' | 'hill' | 'peak'; x: number; y: number; r: number; h?: number; snow?: boolean };
+type RiverLine = { pts: [number, number][]; w: number[] };
 
 export async function generateMap(progress: Progress): Promise<MapData> {
   const W = ART_W;
@@ -346,12 +376,12 @@ export async function generateMap(progress: Progress): Promise<MapData> {
     return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
   };
 
-  // 4. Биомы и базовая раскраска
+  // 4. Биомы и плавная раскраска (без пиксельного шума: цвет меняется крупными мягкими пятнами)
   await progress(tr('Леса, степи и пустыни'));
   const biome = new Uint8Array(N);
   const elev = new Float32Array(N);
-  const img = ctx.createImageData(W, H);
-  const px = new Uint32Array(img.data.buffer);
+  const col = new Int32Array(N);
+  const waves: [number, number][] = [];
 
   for (let y = 0; y < H; y++) {
     const lat = artLat(y);
@@ -362,18 +392,17 @@ export async function generateMap(progress: Progress): Promise<MapData> {
 
       if (!land[i]) {
         const d = distWater[i];
-        const nd = d + (valueNoise(x * 0.08, y * 0.08, 11) - 0.5) * 4;
-        let col: number;
-        if (d <= 1) col = C.foam;
-        else if (nd < 4) col = C.coast[h < 0.5 ? 0 : 1];
-        else if (nd < 7.5) col = C.shallow[h < 0.5 ? 0 : 1];
-        else if (nd < 12) col = C.mid[h < 0.5 ? 0 : 1];
-        else col = C.deep[h < 0.5 ? 0 : 1];
-        // редкие блики волн
-        if (d > 3 && hash2(x >> 1, y, 5) < 0.006) col = C.wave;
-        if (d > 3 && hash2((x - 1) >> 1, y, 5) < 0.006) col = C.wave;
+        const nd = d + (valueNoise(x * 0.06, y * 0.06, 11) - 0.5) * 4;
+        let c: number;
+        if (nd < 3.5) c = mixRGB(C.coast, C.shallow, nd / 3.5);
+        else if (nd < 8) c = mixRGB(C.shallow, C.mid, (nd - 3.5) / 4.5);
+        else c = mixRGB(C.mid, C.deep, (nd - 8) / 6);
+        c = mixRGB(c, 0x000000, (valueNoise(x * 0.02, y * 0.02, 12) - 0.5) * 0.12);
+        if (d <= 1) c = mixRGB(c, C.foam, 0.6);
+        else if (d === 2) c = mixRGB(c, C.foam, 0.2);
+        if (d > 4 && h < 0.0025) waves.push([x, y]);
         biome[i] = d > 2 * MAX_SAIL_DIST ? T.DEEP : T.SEA;
-        px[i] = col;
+        col[i] = c;
         continue;
       }
 
@@ -391,18 +420,30 @@ export async function generateMap(progress: Progress): Promise<MapData> {
       else if (e > 0.32 && b !== T.SNOW && b !== T.DESERT) b = T.HILLS;
 
       biome[i] = b;
-      px[i] = landColor(b, x, y, lon, lat, h, e);
-
+      let c = landColor(b, x, y, lon, lat, e);
       // Пляж у воды
-      if (distLand[i] === 1 && (b === T.DRY || b === T.DESERT || b === T.STEPPE || b === T.GRASS || b === T.FARM) && h < 0.8) {
-        px[i] = C.beach[h < 0.4 ? 0 : 1];
-      }
+      if (distLand[i] <= 2 && (b === T.DRY || b === T.DESERT || b === T.STEPPE || b === T.GRASS || b === T.FARM)) c = mixRGB(c, C.beach, distLand[i] === 1 ? 0.75 : 0.35);
+      col[i] = c;
+    }
+  }
+
+  // Светотень рельефа: свет с северо-запада, склоны гор и холмов объёмные
+  for (let y = 2; y < H - 2; y++) {
+    for (let x = 2; x < W - 2; x++) {
+      const i = y * W + x;
+      if (!land[i]) continue;
+      const e = elev[i];
+      if (e < 0.08) continue;
+      const g = elev[i - 2 - 2 * W] - elev[i + 2 + 2 * W];
+      const k = clamp(g * 6, -0.45, 0.45) * Math.min(1, e * 3);
+      col[i] = k > 0 ? mixRGB(col[i], 0xfff2d8, k) : mixRGB(col[i], 0x2a2638, -k * 0.9);
     }
   }
 
   // 5. Реки (+ плодородные берега в засушливых землях)
   await progress(tr('Реки'));
-  for (const r of RIVERS) drawRiver(r.pts, r.width, W, H, land, biome, px);
+  const rivers: RiverLine[] = [];
+  for (const r of RIVERS) rivers.push(traceRiver(r.pts, r.width, W, H, land, biome, col));
   // Дельта Нила
   for (let y = 0; y < H; y++) {
     const lat = artLat(y);
@@ -414,16 +455,23 @@ export async function generateMap(progress: Progress): Promise<MapData> {
       const spread = (lat - 29.8) * 0.75;
       if (land[i] && Math.abs(lon - 31.1) < spread && biome[i] === T.DESERT) {
         biome[i] = T.FARM;
-        px[i] = landColor(T.FARM, x, y, lon, lat, hash2(x, y, 3), 0);
+        col[i] = landColor(T.FARM, x, y, lon, lat, 0);
       }
     }
   }
 
-  // 6. Деревья, холмы, вершины (сверху вниз, чтобы ближние перекрывали дальние)
+  // 6. Деревья, холмы, вершины
   await progress(tr('Деревья и вершины'));
-  decorate(W, H, biome, elev, px);
+  const decos = decorate(W, H, biome, elev);
 
+  const img = ctx.createImageData(W, H);
+  const px = new Uint32Array(img.data.buffer);
+  for (let i = 0; i < N; i++) {
+    const c = col[i];
+    px[i] = (0xff000000 | ((c & 255) << 16) | (c & 0xff00) | ((c >> 16) & 255)) >>> 0;
+  }
   ctx.putImageData(img, 0, 0);
+  const art = paintMap(canvas, rivers, decos, waves);
 
   // 7. Навигационная сетка
   await progress(tr('Дороги и переправы'));
@@ -467,50 +515,51 @@ export async function generateMap(progress: Progress): Promise<MapData> {
     }
   }
 
-  return { canvas, terrain, cost };
+  return { canvas: art, terrain, cost };
 }
 
-function landColor(b: number, x: number, y: number, lon: number, lat: number, h: number, e: number): number {
-  const n = valueNoise(x * 0.18, y * 0.18, 13);
-  const pick = (arr: number[]) => (n < 0.33 ? arr[1] : n > 0.7 ? arr[2] ?? arr[0] : arr[0]);
-  const dither = (arr: number[]) => (h < 0.12 ? arr[1] : h > 0.9 ? arr[2] ?? arr[0] : pick(arr));
+function landColor(b: number, x: number, y: number, lon: number, lat: number, e: number): number {
+  // Крупные мягкие пятна и едва заметное зерно
+  const n = fbm(x * 0.03, y * 0.03, 2, 13);
+  const grain = (valueNoise(x * 0.3, y * 0.3, 14) - 0.5) * 0.1;
+  const soft = (arr: number[]) => mixRGB(tri(arr, n), grain > 0 ? 0xffffff : 0x000000, Math.abs(grain));
   switch (b) {
     case T.GRASS:
-      return h < 0.015 ? C.shrub : dither(C.grass);
+      return soft(C.grass);
     case T.FARM: {
       // Лоскуты полей
       const fx = Math.floor((x + valueNoise(y * 0.05, 1, 4) * 6) / 7);
       const fy = Math.floor((y + valueNoise(x * 0.05, 2, 4) * 6) / 5);
       const f = hash2(fx, fy, 31);
-      const base = f < 0.33 ? C.farm[0] : f < 0.66 ? C.farm[1] : C.farm[2];
-      return (y % 2 === 0 && f > 0.5 && h < 0.5) ? C.farm[2] : base;
+      return mixRGB(f < 0.3 ? C.farm[0] : f < 0.55 ? C.farm[1] : f < 0.8 ? C.farm[2] : C.farm[3], 0x000000, grain * 0.6);
     }
     case T.FOREST:
-      return dither(C.forest);
+      return soft(C.forest);
     case T.TAIGA:
-      return dither(C.taiga);
+      return soft(C.taiga);
     case T.STEPPE:
-      return h < 0.02 ? C.tuft : dither(C.steppe);
+      return soft(C.steppe);
     case T.DRY:
-      return h < 0.025 ? C.shrub : dither(C.dry);
+      return soft(C.dry);
     case T.DESERT: {
       const wave = Math.sin(x * 0.55 + y * 0.9 + valueNoise(x * 0.04, y * 0.04, 5) * 14);
-      if (wave > 0.93) return C.dune;
-      if (wave > 0.8) return C.duneLight;
-      return dither(C.desert);
+      const base = soft(C.desert);
+      return wave > 0 ? mixRGB(base, C.duneLight, smoothstep(0.55, 1, wave) * 0.55) : mixRGB(base, C.dune, smoothstep(-0.6, -1, wave) * 0.45);
     }
     case T.TUNDRA:
-      return h < 0.03 ? C.moss : dither(C.tundra);
+      return soft(C.tundra);
     case T.SNOW:
-      return dither(C.snow);
+      return soft(C.snow);
     case T.JUNGLE:
-      return dither(C.jungle);
+      return soft(C.jungle);
     case T.HILLS:
-      return lat > 62 ? dither(C.tundra) : inDesert(lon, lat) ? dither(C.desert) : lat < 40 ? dither(C.dry) : dither(C.grass);
+      return lat > 62 ? soft(C.tundra) : inDesert(lon, lat) ? soft(C.desert) : lat < 40 ? soft(C.dry) : soft(C.grass);
     case T.MOUNTAIN:
-    case T.PEAK:
-      if (e > 0.72 || lat > 64) return h < 0.5 ? C.snow[1] : C.snow[0];
-      return dither(C.rock);
+    case T.PEAK: {
+      const rock = soft(C.rock);
+      const snowK = lat > 64 ? 1 : smoothstep(0.66, 0.78, e);
+      return mixRGB(rock, tri(C.snow, n), snowK);
+    }
   }
   return C.grass[0];
 }
@@ -554,7 +603,8 @@ function bfsDistance(land: Uint8Array, W: number, H: number, target: number, cap
   return dist;
 }
 
-function drawRiver(pts: LonLat[], width: number, W: number, H: number, land: Uint8Array, biome: Uint8Array, px: Uint32Array) {
+/** Путь реки: сглаженная извилистая линия; попутно — плодородные берега в засушливых землях. */
+function traceRiver(pts: LonLat[], width: number, W: number, H: number, land: Uint8Array, biome: Uint8Array, col: Int32Array): RiverLine {
   // Сглаживание Чайкина + извилистость шумом
   let path = pts.map(([lo, la]) => toArt(lo, la));
   for (let k = 0; k < 3; k++) {
@@ -567,21 +617,24 @@ function drawRiver(pts: LonLat[], width: number, W: number, H: number, land: Uin
     out.push(path[path.length - 1]);
     path = out;
   }
+  const line: RiverLine = { pts: [], w: [] };
   const total = path.length;
   for (let i = 0; i < total - 1; i++) {
     const [ax, ay] = path[i];
     const [bx, by] = path[i + 1];
-    const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) * 2));
-    const w = i / total > 0.45 ? width : 1;
-    for (let s = 0; s <= steps; s++) {
+    const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay)));
+    // Исток тоньше, к устью река расширяется
+    const w = 0.8 + Math.min(1, i / (total * 0.45)) * (width - 0.8);
+    for (let s = 0; s < steps; s++) {
       const t = s / steps;
       let x = ax + (bx - ax) * t;
       let y = ay + (by - ay) * t;
       x += (valueNoise(x * 0.12, y * 0.12, 41) - 0.5) * 3;
       y += (valueNoise(x * 0.12 + 9, y * 0.12, 42) - 0.5) * 3;
+      line.pts.push([x, y]);
+      line.w.push(w);
       const ix = Math.round(x);
       const iy = Math.round(y);
-      // Плодородные берега в засушливых землях
       for (let dy = -3; dy <= 3; dy++) {
         for (let dx = -3; dx <= 3; dx++) {
           const xx = ix + dx;
@@ -589,38 +642,23 @@ function drawRiver(pts: LonLat[], width: number, W: number, H: number, land: Uin
           if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
           const j = yy * W + xx;
           if (!land[j]) continue;
-          if (biome[j] === T.DESERT || biome[j] === T.DRY || biome[j] === T.STEPPE) {
-            if (dx * dx + dy * dy <= 9) {
-              biome[j] = T.FARM;
-              const h = hash2(xx, yy, 3);
-              px[j] = h < 0.5 ? C.grass[0] : C.grass[1];
-            }
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= 9 && (biome[j] === T.DESERT || biome[j] === T.DRY || biome[j] === T.STEPPE)) {
+            biome[j] = T.FARM;
+            col[j] = mixRGB(col[j], tri(C.grass, hash2(xx >> 2, yy >> 2, 3)), 0.85);
           }
-        }
-      }
-      for (let dy = 0; dy < w; dy++) {
-        for (let dx = 0; dx < w; dx++) {
-          const xx = ix + dx;
-          const yy = iy + dy;
-          if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
-          const j = yy * W + xx;
-          if (!land[j]) continue;
-          px[j] = w > 1 && dx === 0 && dy === 0 ? C.riverLight : C.river;
-          if (biome[j] === T.FOREST || biome[j] === T.TAIGA || biome[j] === T.JUNGLE) biome[j] = T.GRASS;
+          // Лес не растёт в самом русле
+          if (d2 <= 1 && (biome[j] === T.FOREST || biome[j] === T.TAIGA || biome[j] === T.JUNGLE)) biome[j] = T.GRASS;
         }
       }
     }
   }
+  return line;
 }
 
-function setPx(px: Uint32Array, W: number, H: number, x: number, y: number, c: number) {
-  if (x < 0 || y < 0 || x >= W || y >= H) return;
-  px[y * W + x] = c;
-}
-
-function decorate(W: number, H: number, biome: Uint8Array, elev: Float32Array, px: Uint32Array) {
-  // Вершины: кандидаты на разреженной решётке с дрожанием
-  const peaks: { x: number; y: number; h: number; snow: boolean }[] = [];
+function decorate(W: number, H: number, biome: Uint8Array, elev: Float32Array): Deco[] {
+  const out: Deco[] = [];
+  // Вершины и холмы: кандидаты на разреженной решётке с дрожанием
   const STEP_P = 6;
   for (let gy = 0; gy < H; gy += STEP_P) {
     for (let gx = 0; gx < W; gx += STEP_P) {
@@ -632,95 +670,256 @@ function decorate(W: number, H: number, biome: Uint8Array, elev: Float32Array, p
       if (b === T.MOUNTAIN || b === T.PEAK) {
         const e = elev[i];
         const lat = artLat(y);
-        peaks.push({ x, y, h: Math.round(4 + clamp(e, 0.5, 1) * 7 + hash2(x, y, 53) * 2), snow: e > 0.66 || lat > 60 });
-      } else if (b === T.HILLS && hash2(x, y, 54) < 0.7) {
-        // Холм: пологая «шапка»
-        const cx = x;
-        const cy = y;
-        for (let dx = -3; dx <= 3; dx++) {
-          const top = cy - (3 - Math.abs(dx) > 1 ? 2 : 1);
-          setPx(px, W, H, cx + dx, top, dx < 0 ? C.hillLight : C.hillShade);
-        }
-        setPx(px, W, H, cx - 1, cy - 3, C.hillLight);
-        setPx(px, W, H, cx, cy - 3, C.hillLight);
-        setPx(px, W, H, cx + 1, cy - 3, C.hillShade);
-      }
+        out.push({ kind: 'peak', x, y, r: hash2(x, y, 55), h: 4 + clamp(e, 0.5, 1) * 7 + hash2(x, y, 53) * 2, snow: e > 0.66 || lat > 60 });
+      } else if (b === T.HILLS && hash2(x, y, 54) < 0.7) out.push({ kind: 'hill', x, y, r: hash2(x, y, 56) });
     }
   }
-
   // Деревья
   const STEP_T = 3;
   for (let gy = 0; gy < H; gy += STEP_T) {
-    // вершины этой полосы рисуем перед деревьями полосы — порядок по y сохраняется приблизительно
     for (let gx = 0; gx < W; gx += STEP_T) {
       const x = gx + Math.floor(hash2(gx, gy, 61) * STEP_T);
       const y = gy + Math.floor(hash2(gx, gy, 62) * STEP_T);
       if (x >= W || y >= H) continue;
-      const i = y * W + x;
-      const b = biome[i];
+      const b = biome[y * W + x];
       const r = hash2(x, y, 63);
-      if (b === T.FOREST && r < 0.8) drawTree(px, W, H, x, y, C.tree, r);
-      else if (b === T.TAIGA && r < 0.75) drawPine(px, W, H, x, y, C.pine);
-      else if (b === T.JUNGLE && r < 0.8) drawTree(px, W, H, x, y, C.palm, r);
-      else if (b === T.GRASS && r < 0.035) drawTree(px, W, H, x, y, C.tree, r);
-      else if (b === T.DRY && r < 0.02) drawTree(px, W, H, x, y, C.tree, r);
+      if (b === T.FOREST && r < 0.8) out.push({ kind: 'tree', x, y, r });
+      else if (b === T.TAIGA && r < 0.75) out.push({ kind: 'pine', x, y, r });
+      else if (b === T.JUNGLE && r < 0.8) out.push({ kind: 'palm', x, y, r });
+      else if (b === T.GRASS && r < 0.035) out.push({ kind: 'tree', x, y, r });
+      else if (b === T.DRY && r < 0.02) out.push({ kind: 'tree', x, y, r });
     }
   }
-
-  peaks.sort((a, b) => a.y - b.y);
-  for (const p of peaks) drawPeak(px, W, H, p.x, p.y, p.h, p.snow);
+  // Ближние (ниже на карте) перекрывают дальние
+  out.sort((a, b) => a.y - b.y);
+  return out;
 }
 
-type TreePal = { dark: number; mid: number; light: number; trunk: number };
+// ───────────────────────── рисование ─────────────────────────
 
-function drawTree(px: Uint32Array, W: number, H: number, x: number, y: number, c: TreePal, r: number) {
-  //  .LL.
-  //  LMMD
-  //  MMDD
-  //  .DT.
-  const big = r < 0.3;
-  setPx(px, W, H, x, y, c.trunk);
-  setPx(px, W, H, x - 1, y - 1, c.mid);
-  setPx(px, W, H, x, y - 1, c.dark);
-  setPx(px, W, H, x + 1, y - 1, c.dark);
-  setPx(px, W, H, x - 1, y - 2, c.light);
-  setPx(px, W, H, x, y - 2, c.mid);
-  setPx(px, W, H, x + 1, y - 2, c.dark);
-  setPx(px, W, H, x, y - 3, c.light);
+/** Готовые значки деревьев (рисуются один раз и штампуются). */
+function treeStamp(kind: 'tree' | 'pine' | 'palm', big: boolean, R: number): HTMLCanvasElement {
+  const S = 8;
+  const c = document.createElement('canvas');
+  c.width = S * R;
+  c.height = S * R;
+  const g = c.getContext('2d')!;
+  g.scale(R, R);
+  const cx = S / 2;
+  const base = S - 1.2;
+  // Тень на земле
+  g.fillStyle = 'rgba(20,24,10,0.28)';
+  g.beginPath();
+  g.ellipse(cx + 0.9, base + 0.3, big ? 2.1 : 1.6, 0.55, 0, 0, Math.PI * 2);
+  g.fill();
+  if (kind === 'pine') {
+    g.fillStyle = '#3b2a1b';
+    g.fillRect(cx - 0.3, base - 1, 0.6, 1.2);
+    const tiers: [number, number, number][] = [[base - 0.6, 2, 2.6], [base - 2, 1.5, 2.4], [base - 3.2, 1, 2.1]];
+    for (const [yb, hw, hh] of tiers) {
+      g.beginPath();
+      g.moveTo(cx - hw, yb);
+      g.lineTo(cx, yb - hh);
+      g.lineTo(cx + hw, yb);
+      g.closePath();
+      const gr = g.createLinearGradient(cx - hw, 0, cx + hw, 0);
+      gr.addColorStop(0, '#4f7a55');
+      gr.addColorStop(0.45, '#2e4d33');
+      gr.addColorStop(1, '#1b3020');
+      g.fillStyle = gr;
+      g.fill();
+      g.lineWidth = 0.3;
+      g.strokeStyle = '#132016';
+      g.stroke();
+    }
+    return c;
+  }
+  if (kind === 'palm') {
+    g.strokeStyle = '#6b4a2a';
+    g.lineWidth = 0.55;
+    g.beginPath();
+    g.moveTo(cx, base);
+    g.quadraticCurveTo(cx + 0.6, base - 1.8, cx + 0.3, base - 3.4);
+    g.stroke();
+    for (const [dx, dy] of [[-2, 0.5], [2, 0.6], [-1.4, -0.9], [1.5, -0.8], [0.2, -1.4]]) {
+      g.strokeStyle = '#1e4a1a';
+      g.lineWidth = 0.9;
+      g.beginPath();
+      g.moveTo(cx + 0.3, base - 3.4);
+      g.quadraticCurveTo(cx + 0.3 + dx * 0.5, base - 3.9 + dy * 0.3, cx + 0.3 + dx, base - 3.4 + dy + 0.6);
+      g.stroke();
+      g.strokeStyle = '#5aa244';
+      g.lineWidth = 0.5;
+      g.stroke();
+    }
+    return c;
+  }
+  const r = big ? 2 : 1.55;
+  const cy = base - r - 0.9;
+  g.fillStyle = '#4a3520';
+  g.fillRect(cx - 0.3, cy + r * 0.5, 0.6, base - cy - r * 0.5);
+  g.fillStyle = '#1d3514';
+  g.beginPath();
+  g.arc(cx, cy, r + 0.3, 0, Math.PI * 2);
+  g.fill();
+  const gr = g.createRadialGradient(cx - r * 0.4, cy - r * 0.45, 0, cx - r * 0.1, cy - r * 0.1, r * 1.2);
+  gr.addColorStop(0, '#7cae4c');
+  gr.addColorStop(0.5, '#3d6a29');
+  gr.addColorStop(1, '#264a1b');
+  g.fillStyle = gr;
+  g.beginPath();
+  g.arc(cx, cy, r, 0, Math.PI * 2);
+  g.fill();
   if (big) {
-    setPx(px, W, H, x - 2, y - 2, c.mid);
-    setPx(px, W, H, x + 2, y - 2, c.dark);
-    setPx(px, W, H, x - 1, y - 3, c.light);
-    setPx(px, W, H, x + 1, y - 3, c.mid);
+    g.fillStyle = 'rgba(40,74,28,0.8)';
+    g.beginPath();
+    g.arc(cx + r * 0.5, cy + r * 0.3, r * 0.55, 0, Math.PI * 2);
+    g.fill();
   }
+  return c;
 }
 
-function drawPine(px: Uint32Array, W: number, H: number, x: number, y: number, c: TreePal) {
-  setPx(px, W, H, x, y, c.trunk);
-  setPx(px, W, H, x - 1, y - 1, c.mid);
-  setPx(px, W, H, x, y - 1, c.dark);
-  setPx(px, W, H, x + 1, y - 1, c.dark);
-  setPx(px, W, H, x - 1, y - 2, c.light);
-  setPx(px, W, H, x, y - 2, c.mid);
-  setPx(px, W, H, x + 1, y - 2, c.dark);
-  setPx(px, W, H, x, y - 3, c.mid);
-  setPx(px, W, H, x, y - 4, c.light);
-}
-
-function drawPeak(px: Uint32Array, W: number, H: number, x: number, y: number, h: number, snow: boolean) {
-  // Треугольник: левый склон освещён, правый в тени, снежная шапка сверху.
-  for (let r = 0; r < h; r++) {
-    const half = Math.floor((r * 1.1) / 1) ;
-    const yy = y - h + 1 + r;
-    for (let dx = -half; dx <= half; dx++) {
-      const xx = x + dx;
-      let c: number;
-      const isSnow = snow && r < h * 0.45 + (dx % 2 === 0 ? 1 : 0);
-      if (dx === -half || dx === half || r === h - 1) c = C.peakOutline;
-      else if (dx < 0) c = isSnow ? C.snowCap : r > h * 0.7 && dx > -half + 1 ? C.peakMid : C.peakLight;
-      else if (dx === 0) c = isSnow ? C.snowCap : C.peakMid;
-      else c = isSnow ? C.snowShade : C.peakDark;
-      setPx(px, W, H, xx, yy, c);
+/** Картинка карты в MAP_RES раз чётче арт-пикселей: цвет — плавно растянутый, поверх — реки, волны, холмы, деревья и вершины. */
+function paintMap(base: HTMLCanvasElement, rivers: RiverLine[], decos: Deco[], waves: [number, number][]): HTMLCanvasElement {
+  const R = MAP_RES;
+  const W = base.width;
+  const H = base.height;
+  const out = document.createElement('canvas');
+  out.width = W * R;
+  out.height = H * R;
+  const g = out.getContext('2d')!;
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(base, 0, 0, W * R, H * R);
+  g.scale(R, R);
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  // Блики волн
+  g.strokeStyle = 'rgba(170,210,235,0.45)';
+  g.lineWidth = 0.45;
+  for (const [x, y] of waves) {
+    g.beginPath();
+    g.moveTo(x - 1.4, y + 0.3);
+    g.quadraticCurveTo(x - 0.7, y - 0.5, x, y + 0.2);
+    g.quadraticCurveTo(x + 0.7, y - 0.5, x + 1.4, y + 0.3);
+    g.stroke();
+  }
+  // Реки: тёмный берег, вода, светлая середина
+  for (const pass of [0, 1, 2]) {
+    g.strokeStyle = css(pass === 0 ? C.riverDark : pass === 1 ? C.river : C.riverLight);
+    g.globalAlpha = pass === 2 ? 0.55 : 1;
+    for (const r of rivers) {
+      for (let i = 0; i < r.pts.length - 1; i += 1) {
+        const w = r.w[i];
+        if (pass === 2 && w < 1.5) continue;
+        g.lineWidth = pass === 0 ? w + 0.6 : pass === 1 ? w : w * 0.3;
+        g.beginPath();
+        g.moveTo(r.pts[i][0] + 0.5, r.pts[i][1] + 0.5);
+        g.lineTo(r.pts[i + 1][0] + 0.5, r.pts[i + 1][1] + 0.5);
+        g.stroke();
+      }
     }
   }
+  g.globalAlpha = 1;
+  // Значки деревьев
+  const stamps = {
+    tree: [treeStamp('tree', false, R), treeStamp('tree', true, R)],
+    pine: [treeStamp('pine', false, R), treeStamp('pine', true, R)],
+    palm: [treeStamp('palm', false, R), treeStamp('palm', true, R)],
+  };
+  for (const d of decos) {
+    if (d.kind === 'tree' || d.kind === 'pine' || d.kind === 'palm') {
+      const s = stamps[d.kind][d.r < 0.3 ? 1 : 0];
+      g.drawImage(s, d.x + 0.5 - 4, d.y + 1.2 - 8 + 0.5, 8, 8);
+    } else if (d.kind === 'hill') {
+      const x = d.x + 0.5;
+      const y = d.y + 0.5;
+      const w = 3.4 + d.r * 1.2;
+      g.beginPath();
+      g.moveTo(x - w, y);
+      g.quadraticCurveTo(x - w * 0.5, y - 3.6, x, y - 3.4);
+      g.quadraticCurveTo(x + w * 0.5, y - 3.6, x + w, y);
+      g.closePath();
+      const gr = g.createLinearGradient(x - w, 0, x + w, 0);
+      gr.addColorStop(0, 'rgba(210,220,150,0.55)');
+      gr.addColorStop(0.5, 'rgba(120,140,70,0.15)');
+      gr.addColorStop(1, 'rgba(40,50,20,0.45)');
+      g.fillStyle = gr;
+      g.fill();
+      g.strokeStyle = 'rgba(60,70,30,0.55)';
+      g.lineWidth = 0.35;
+      g.beginPath();
+      g.moveTo(x - w, y);
+      g.quadraticCurveTo(x - w * 0.5, y - 3.6, x, y - 3.4);
+      g.quadraticCurveTo(x + w * 0.5, y - 3.6, x + w, y);
+      g.stroke();
+    } else {
+      paintPeak(g, d.x + 0.5, d.y + 1, d.h!, d.snow!, d.r);
+    }
+  }
+  return out;
+}
+
+/** Вершина: освещённый левый склон, теневой правый, снежная шапка с рваным краем, тонкий контур. */
+function paintPeak(g: CanvasRenderingContext2D, x: number, y: number, h: number, snow: boolean, r: number) {
+  const hw = h * 0.95;
+  const ax = x + (r - 0.5) * h * 0.25;
+  const ay = y - h;
+  const mid = x + (r - 0.5) * h * 0.2 + h * 0.08;
+  // Левый склон
+  g.beginPath();
+  g.moveTo(x - hw, y);
+  g.lineTo(ax, ay);
+  g.lineTo(mid, y);
+  g.closePath();
+  const lg = g.createLinearGradient(x - hw, y, ax, ay);
+  lg.addColorStop(0, '#978b77');
+  lg.addColorStop(1, '#c2b8a4');
+  g.fillStyle = lg;
+  g.fill();
+  // Правый склон
+  g.beginPath();
+  g.moveTo(mid, y);
+  g.lineTo(ax, ay);
+  g.lineTo(x + hw, y);
+  g.closePath();
+  const rg = g.createLinearGradient(ax, ay, x + hw, y);
+  rg.addColorStop(0, '#6f6556');
+  rg.addColorStop(1, '#4f473d');
+  g.fillStyle = rg;
+  g.fill();
+  if (snow) {
+    const k = 0.44;
+    const lx = ax + (x - hw - ax) * k;
+    const ly = ay + (y - ay) * k;
+    const rx = ax + (x + hw - ax) * k;
+    const ry = ly;
+    const mx = ax + (mid - ax) * k;
+    g.beginPath();
+    g.moveTo(ax, ay);
+    g.lineTo(lx, ly);
+    g.lineTo(lx + (mx - lx) * 0.35, ly - h * 0.08);
+    g.lineTo(lx + (mx - lx) * 0.7, ly + h * 0.05);
+    g.lineTo(mx, ly - h * 0.04);
+    g.closePath();
+    g.fillStyle = '#f4f6f8';
+    g.fill();
+    g.beginPath();
+    g.moveTo(ax, ay);
+    g.lineTo(mx, ly - h * 0.04);
+    g.lineTo(mx + (rx - mx) * 0.4, ly + h * 0.06);
+    g.lineTo(mx + (rx - mx) * 0.75, ly - h * 0.05);
+    g.lineTo(rx, ry);
+    g.closePath();
+    g.fillStyle = '#c3cfdb';
+    g.fill();
+  }
+  // Контур
+  g.beginPath();
+  g.moveTo(x - hw, y);
+  g.lineTo(ax, ay);
+  g.lineTo(x + hw, y);
+  g.strokeStyle = 'rgba(55,48,40,0.85)';
+  g.lineWidth = 0.35;
+  g.stroke();
 }

@@ -41,8 +41,7 @@ const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#14110f',
-  pixelArt: true,
-  antialias: false,
+  antialias: true,
   // Холст в пикселях устройства, а на странице — в CSS-размер окна: чёткая картинка без «квадратиков»
   scale: {
     mode: Phaser.Scale.NONE,
