@@ -1,11 +1,15 @@
 @import '@fontsource/kurale/cyrillic-400.css';
 @import '@fontsource/kurale/latin-400.css';
+@import '@fontsource/kurale/latin-ext-400.css';
 @import '@fontsource/ruslan-display/cyrillic-400.css';
 @import '@fontsource/ruslan-display/latin-400.css';
+@import '@fontsource/ruslan-display/latin-ext-400.css';
 @import '@fontsource/fira-sans-condensed/cyrillic-500.css';
 @import '@fontsource/fira-sans-condensed/latin-500.css';
+@import '@fontsource/fira-sans-condensed/latin-ext-500.css';
 @import '@fontsource/fira-sans-condensed/cyrillic-700.css';
 @import '@fontsource/fira-sans-condensed/latin-700.css';
+@import '@fontsource/fira-sans-condensed/latin-ext-700.css';
 
 :root {
   --bg: #14110f;
@@ -1458,6 +1462,11 @@ body:has(#ui .modal-back) .toasts {
 .hero-layout > .col {
   overflow: auto;
   min-height: 0;
+}
+
+/* Строки в колонке не сжимаются по высоте, иначе при длинной сумке они наезжают друг на друга */
+.hero-layout > .col > * {
+  flex-shrink: 0;
 }
 
 .hero-figure {
