@@ -17,7 +17,13 @@ export interface CompanionState {
   woundedUntil?: number;
   /** День, когда перебрался в этот город. */
   movedAt: number;
+  /** Каким родом войск командует в отряде героя. */
+  command?: CommandGroup;
 }
+
+/** Рода войск, которыми может командовать спутник. */
+export type CommandGroup = 'inf' | 'ranged' | 'cav';
+export const COMMAND_GROUPS: CommandGroup[] = ['inf', 'ranged', 'cav'];
 
 export function companionXpToLevel(level: number) {
   return 150 * level;
@@ -58,6 +64,7 @@ export function hireCompanion(state: GameState, id: string): boolean {
   state.gold -= def.price;
   cs.where = 'party';
   cs.loyalty = 60;
+  cs.command = undefined;
   return true;
 }
 
@@ -67,6 +74,32 @@ export function dismissCompanion(state: GameState, id: string) {
   cs.where = randomTown(COMPANION_BY_ID[id].culture);
   cs.movedAt = state.time;
   cs.loyalty = 50;
+  cs.command = undefined;
+}
+
+// ───────────────────────── командование ─────────────────────────
+
+/** Сколько воинов добавляет к пределу отряда спутник-командир: растёт с его уровнем. */
+export function commandBonus(cs: CompanionState): number {
+  return Math.round(3 + cs.level * 1.5);
+}
+
+/** Кто из спутников в отряде командует этим родом войск. */
+export function commanderOf(state: GameState, g: CommandGroup): { def: CompanionDef; cs: CompanionState } | undefined {
+  return inParty(state).find(({ cs }) => cs.command === g);
+}
+
+/** Назначить спутника командиром (прежний командир этого рода войск освобождается); null — снять. */
+export function setCommand(state: GameState, id: string, g: CommandGroup | null) {
+  const cs = state.companions?.find((c) => c.id === id);
+  if (!cs || cs.where !== 'party') return;
+  if (g) for (const { cs: o } of inParty(state)) if (o.command === g) o.command = undefined;
+  cs.command = g ?? undefined;
+}
+
+/** Прибавка к пределу отряда от всех спутников-командиров. */
+export function commandersBonus(state: GameState): number {
+  return inParty(state).reduce((n, { cs }) => n + (cs.command ? commandBonus(cs) : 0), 0);
 }
 
 // ───────────────────────── умения ─────────────────────────
@@ -170,6 +203,7 @@ function checkLeaving(state: GameState): string[] {
     cs.where = randomTown(def.culture);
     cs.movedAt = state.time;
     cs.loyalty = 40;
+    cs.command = undefined;
     out.push(tr`${def.name} покинул отряд: «С меня хватит. Ищи себе других людей».`);
   }
   return out;

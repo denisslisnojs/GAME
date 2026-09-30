@@ -2073,6 +2073,19 @@ body:has(#ui .modal-back) .toasts {
 }
 
 /* Порядок отряда */
+.limit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+.command-row {
+  gap: 4px;
+  font-size: 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
 .sort-row {
   gap: 6px;
   padding: 2px 4px 4px;

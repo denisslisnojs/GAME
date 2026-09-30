@@ -1,6 +1,6 @@
 import { FACTIONS } from '../data/factions';
 import { canPropose, claimCrown, courtship, crownCheck, GIFT_COST, ladyOf, VISITS_NEEDED, visitLady, WEDDING_COST, wed } from '../game/crown';
-import { atWar } from '../game/logic';
+import { atWar, partyRoom } from '../game/logic';
 import { BUILDINGS, TAX_INFO, fiefIncomeOf, fiefState, startBuilding, type Tax } from '../game/fief';
 import { ELDER_TALK, lordBio, REALM_LORE, WORLD_LORE } from '../data/lore';
 import { portraitURL } from '../gfx/icons';
@@ -289,7 +289,8 @@ export function openFief(ctx: GameCtx, s: Settlement) {
     const move = (from: { id: string; count: number }[], to: { id: string; count: number; xp?: number }[], id: string, n: number) => {
       const a = from.find((t) => t.id === id);
       if (!a) return;
-      const k = Math.min(n, a.count);
+      const k = Math.min(n, a.count, to === state.party.troops ? partyRoom(state) : Infinity);
+      if (k <= 0) return void toast(tr('Отряд полон. Предел растёт с уровнем героя, Лидерством и спутниками-командирами.'));
       a.count -= k;
       const b = to.find((t) => t.id === id);
       if (b) b.count += k;

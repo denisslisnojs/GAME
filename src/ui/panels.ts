@@ -11,6 +11,9 @@ import {
   hirePrice,
   atWar,
   ownerOf,
+  partyLimit,
+  partyLimitParts,
+  partyRoom,
   partySize,
   readyToUpgrade,
   relationTo,
@@ -29,11 +32,11 @@ import { isPlagued } from '../game/plague';
 import { canTurnIn, hostOf, offerQuest, questsOf } from '../game/quests';
 import { openFief, openHost } from './nobles';
 import { world, type Settlement } from '../game/world';
-import { btn, h, img, openModal, panel, plural, sfxCoins, stars, toast } from './dom';
+import { btn, h, img, openModal, panel, sfxCoins, stars, toast } from './dom';
 import { openHero, openShop } from './heroUi';
 import { openTroopTree } from './troopTree';
 import { openTavern, skillLine } from './tavern';
-import { companionsAt, dismissCompanion, inParty, isWounded, mood } from '../game/companions';
+import { COMMAND_GROUPS, commandBonus, companionsAt, dismissCompanion, inParty, isWounded, mood, setCommand, type CommandGroup } from '../game/companions';
 import { companionPortraitURL, heroEmblemURL } from '../gfx/icons';
 import { declareWar, offerPeace } from '../game/crown';
 import { lordRansom, prisonerCap, prisonerCount, ransomPrice, recruitPrisoner, releaseLord } from '../game/prisoners';
@@ -215,7 +218,7 @@ export function openRecruit(ctx: GameCtx, s: Settlement) {
 
   const render = () => {
     body.replaceChildren();
-    sub.replaceChildren(goldLine(state), tr` · В отряде: ${partySize(state)}`);
+    sub.replaceChildren(goldLine(state), tr` · В отряде: ${partySize(state)}/${partyLimit(state)}`);
     const st = state.settlements[s.id];
     const ids = Object.keys(st.recruits);
     if (!ids.length) body.append(h('div', { class: 'muted' }, tr('Здесь некого нанять.')));
@@ -229,7 +232,8 @@ export function openRecruit(ctx: GameCtx, s: Settlement) {
           sfxCoins();
           toast(tr`Нанято: ${t.name} ×${got}`);
           ctx.commit();
-        } else if (state.gold < price) toast(tr('Не хватает денег'));
+        } else if (partyRoom(state) <= 0) toast(tr('Отряд полон. Предел растёт с уровнем героя, Лидерством и спутниками-командирами.'));
+        else if (state.gold < price) toast(tr('Не хватает денег'));
         render();
       };
       body.append(
@@ -322,6 +326,8 @@ export function openMarket(ctx: GameCtx, s: Settlement) {
 
 // ───────────────────────── отряд ─────────────────────────
 
+const COMMAND_NAME: Record<CommandGroup, () => string> = { inf: () => tr('Пехота'), ranged: () => tr('Стрелки'), cav: () => tr('Конница') };
+
 export function openParty(ctx: GameCtx) {
   const { state } = ctx;
   let close = () => {};
@@ -330,7 +336,8 @@ export function openParty(ctx: GameCtx) {
 
   const render = () => {
     const size = partySize(state);
-    sub.replaceChildren(`${size} ${plural(size, tr('воин'), tr('воина'), tr('воинов'))} · `, goldLine(state));
+    const limit = partyLimit(state);
+    sub.replaceChildren(goldLine(state), h('span', { style: size > limit ? 'color:#e07a6a' : '' }, tr` · В отряде: ${size}/${limit}`));
     body.replaceChildren();
     const f = FACTIONS[state.hero.faction];
     body.append(
@@ -343,6 +350,14 @@ export function openParty(ctx: GameCtx) {
           h('div', { class: 'sub' }, tr`Уровень ${state.hero.level} · Опыт ${state.hero.xp}${state.hero.points ? tr` · свободных очков: ${state.hero.points}` : ''}`),
         ),
         btn(tr('Снаряжение'), () => openHero(ctx), 'small primary'),
+      ),
+    );
+    const lp = partyLimitParts(state);
+    body.append(
+      h('div', { class: 'limit-row' },
+        h('span', { class: 'gold' }, tr`Предел отряда: ${limit}`),
+        h('span', { class: 'muted' }, tr` = основа ${lp.base} + уровень героя ${lp.level} + Лидерство ${lp.lead} + командиры ${lp.command}`),
+        size > limit ? h('span', { style: 'color:#e07a6a' }, tr(' · отряд сверх предела: новых воинов не нанять')) : null,
       ),
     );
     for (const { def, cs } of inParty(state)) {
@@ -364,6 +379,13 @@ export function openParty(ctx: GameCtx) {
               h('div', { style: 'flex:none;width:90px;height:6px;background:#0e0f10;border:1px solid #45494e' }, h('div', { style: `height:100%;width:${Math.max(0, Math.min(100, cs.loyalty))}%;background:${m.color}` })),
               h('span', { style: `color:${m.color};white-space:nowrap` }, tr`Настроение: ${m.text}`),
               h('span', { class: 'muted' }, tr`· любит: ${def.likes.map(deedName).join(', ') || '—'} · не терпит: ${def.dislikes.map(deedName).join(', ') || '—'}`),
+            ),
+            h('div', { class: 'row command-row' },
+              h('span', { class: 'muted' }, tr('Командует:')),
+              ...COMMAND_GROUPS.map((g) =>
+                btn(COMMAND_NAME[g](), () => { setCommand(state, def.id, cs.command === g ? null : g); ctx.commit(); render(); }, cs.command === g ? 'small primary' : 'small'),
+              ),
+              h('span', { class: cs.command ? 'gold' : 'muted' }, cs.command ? tr`+${commandBonus(cs)} к пределу отряда` : tr`назначьте — и предел отряда вырастет на ${commandBonus(cs)}`),
             ),
           ),
           btn(tr('Отпустить'), () => { dismissCompanion(state, def.id); toast(tr`${def.name} ушёл искать другую службу`); ctx.commit(); render(); }, 'small ghost'),
@@ -464,7 +486,7 @@ export function openParty(ctx: GameCtx) {
           h('div', { class: 'grow col', style: 'gap:2px' }, h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'name' }, t.name), h('span', { class: 'stars' }, stars(t.tier))), h('div', { class: 'sub' }, tr`Выкуп ${ransomPrice(p.id)} ¤ за голову. Можно уговорить служить.`)),
           h('div', { class: 'col', style: 'align-items:flex-end;gap:4px' },
             h('span', { class: 'count' }, `×${p.count}`),
-            btn(tr('Уговорить служить'), () => { toast(recruitPrisoner(state, p.id) ? tr`${t.name} согласился служить вам` : tr`${t.name} плюнул под ноги и отказался`); ctx.commit(); render(); }, 'small'),
+            btn(tr('Уговорить служить'), () => { if (partyRoom(state) <= 0) return toast(tr('Отряд полон. Предел растёт с уровнем героя, Лидерством и спутниками-командирами.')); toast(recruitPrisoner(state, p.id) ? tr`${t.name} согласился служить вам` : tr`${t.name} плюнул под ноги и отказался`); ctx.commit(); render(); }, 'small'),
           ),
         ),
       );

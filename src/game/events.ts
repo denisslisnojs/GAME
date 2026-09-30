@@ -6,7 +6,7 @@ import { TROOPS } from '../data/troops';
 import { cellCenterWorld, worldToCell } from '../map/geo';
 import { companionDeed, inParty, isWounded, partySkill } from './companions';
 import { gainHeroXp } from './battleResult';
-import { addTroops, partySize } from './logic';
+import { addTroops, partyRoom, partySize } from './logic';
 import { spawn } from './parties';
 import { addRelation } from './quests';
 import type { GameState } from './state';
@@ -141,7 +141,8 @@ export const EVENTS: RoadEvent[] = [
         hint: tr('бесплатно, но вдруг сбегут и от вас'),
         run: (s) => {
           const f = FACTION_IDS[Math.floor(s.time) % 4];
-          const n = rnd(3, 5);
+          const n = Math.min(rnd(3, 5), partyRoom(s));
+          if (n <= 0) return tr('Места в отряде нет: вам и так не прокормить и не удержать в узде больше людей. Дезертиры пожимают плечами и уходят в лес.');
           addTroops(s, `${f}_i2`, n);
           return tr`${n} бывалых ополченцев встают в строй. Кто бросил одного господина, может бросить и другого — но пока они благодарны.`;
         },

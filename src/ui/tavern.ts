@@ -9,6 +9,7 @@ import { btn, h, img, openModal, panel, sfxCoins, stars, toast } from './dom';
 import { troopStats, type GameCtx } from './panels';
 import { TROOPS } from '../data/troops';
 import { portraitURL } from '../gfx/icons';
+import { partyRoom } from '../game/logic';
 import { companionRumors, diceLeft, hireMercs, mercsAt, rollDice } from '../game/tavern';
 import { rumor } from './nobles';
 import { lordRansom, ransomLord, ransomPrice, sellPrisoners } from '../game/prisoners';
@@ -89,7 +90,7 @@ export function openTavern(ctx: GameCtx, s: Settlement) {
         sfxCoins();
         toast(tr`Нанято: ${t.name} ×${got}`);
         ctx.commit();
-      } else toast(tr('Не хватает денег'));
+      } else toast(partyRoom(state) <= 0 ? tr('Отряд полон. Предел растёт с уровнем героя, Лидерством и спутниками-командирами.') : tr('Не хватает денег'));
       render();
     };
     body.append(

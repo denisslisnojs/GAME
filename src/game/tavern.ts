@@ -2,7 +2,7 @@
 
 import { COMPANION_BY_ID } from '../data/companions';
 import { TROOPS } from '../data/troops';
-import { addTroops } from './logic';
+import { addTroops, partyRoom } from './logic';
 import type { GameState } from './state';
 import { world, type Settlement } from './world';
 import { tr } from '../i18n';
@@ -38,7 +38,7 @@ export function mercsAt(state: GameState, s: Settlement): MercOffer {
 export function hireMercs(state: GameState, s: Settlement, n: number): number {
   const m = mercsAt(state, s);
   const price = TROOPS[m.id].hireCost;
-  const k = Math.min(n, m.count, Math.floor(state.gold / price));
+  const k = Math.min(n, m.count, Math.floor(state.gold / price), partyRoom(state));
   if (k <= 0) return 0;
   m.count -= k;
   state.gold -= k * price;

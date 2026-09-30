@@ -2,7 +2,7 @@ import type { FactionId } from '../data/factions';
 import { GOODS, SELL_RATIO, type GoodId } from '../data/goods';
 import { TROOPS } from '../data/troops';
 import { heroStats } from './hero';
-import { partySkill } from './companions';
+import { commandersBonus, partySkill } from './companions';
 import { recruitSlots, type GameState } from './state';
 import { world, type Settlement } from './world';
 
@@ -26,6 +26,23 @@ export function partySize(state: GameState): number {
   return state.party.troops.reduce((n, t) => n + t.count, 0);
 }
 
+/** Из чего складывается предел отряда: основа, уровень героя, Лидерство и спутники-командиры. */
+export function partyLimitParts(state: GameState) {
+  const lead = state.hero.attrs?.lead ?? 3;
+  return { base: 12, level: state.hero.level * 2, lead: lead * 3, command: commandersBonus(state) };
+}
+
+/** Сколько воинов может вести герой (сам герой и спутники не в счёт). */
+export function partyLimit(state: GameState): number {
+  const p = partyLimitParts(state);
+  return p.base + p.level + p.lead + p.command;
+}
+
+/** Сколько ещё воинов поместится в отряд. */
+export function partyRoom(state: GameState): number {
+  return Math.max(0, partyLimit(state) - partySize(state));
+}
+
 /** Цена найма: в чужих (мирных) землях дороже. */
 export function hirePrice(state: GameState, s: Settlement, troopId: string): number {
   const base = TROOPS[troopId].hireCost * (1 - heroStats(state.hero).hireDiscount);
@@ -42,7 +59,7 @@ export function hire(state: GameState, s: Settlement, troopId: string, count: nu
   const st = state.settlements[s.id];
   const avail = Math.floor(st.recruits[troopId] ?? 0);
   const price = hirePrice(state, s, troopId);
-  const n = Math.min(count, avail, Math.floor(state.gold / price));
+  const n = Math.min(count, avail, Math.floor(state.gold / price), partyRoom(state));
   if (n <= 0) return 0;
   st.recruits[troopId] = (st.recruits[troopId] ?? 0) - n;
   state.gold -= n * price;

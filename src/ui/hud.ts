@@ -1,7 +1,7 @@
 import { FACTIONS } from '../data/factions';
 import { heroXpToLevel } from '../game/battleResult';
 import { heroPortraitURL } from '../gfx/icons';
-import { partySize, totalReady } from '../game/logic';
+import { partyLimit, partySize, totalReady } from '../game/logic';
 import { dateString, timeOfDay, type GameState } from '../game/state';
 import { btn, h, uiRoot } from './dom';
 import { TUTORIAL, tutorialStep } from '../game/tutorial';
@@ -115,7 +115,7 @@ export class Hud {
     const hour = (state.time % 1) * 24;
     this.dayTime.textContent = `${hour >= 6 && hour < 20 ? '☀' : '☾'} ${timeOfDay(state.time)}`;
     this.gold.textContent = `${state.gold} ¤`;
-    this.men.textContent = String(partySize(state));
+    this.men.textContent = `${partySize(state)}/${partyLimit(state)}`;
     const caps = (state.prisoners ?? []).reduce((n, t) => n + t.count, 0);
     this.captives.textContent = String(caps);
     this.captivesChip.style.display = caps ? '' : 'none';

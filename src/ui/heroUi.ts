@@ -178,7 +178,7 @@ const ATTR_INFO: { k: keyof HeroAttrs; name: string; hint: string }[] = [
   { k: 'str', name: tr('Сила'), hint: tr('+5% урона за очко') },
   { k: 'agi', name: tr('Ловкость'), hint: tr('уклонение, крит, скорость удара') },
   { k: 'vit', name: tr('Живучесть'), hint: tr('+12 здоровья за очко') },
-  { k: 'lead', name: tr('Лидерство'), hint: tr('+3 боевого духа армии, скидка на найм') },
+  { k: 'lead', name: tr('Лидерство'), hint: tr('+3 к пределу отряда, +3 боевого духа армии, скидка на найм') },
 ];
 
 export function openHero(ctx: GameCtx) {

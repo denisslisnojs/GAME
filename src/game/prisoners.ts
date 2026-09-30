@@ -3,7 +3,7 @@
 import { FACTIONS, type FactionId } from '../data/factions';
 import { TROOPS } from '../data/troops';
 import { heroStats } from './hero';
-import { addTroops, partySize } from './logic';
+import { addTroops, partyRoom, partySize } from './logic';
 import type { MapParty } from './parties';
 import type { GameState, TroopStack } from './state';
 import { news } from './war';
@@ -114,7 +114,7 @@ export function sellPrisoners(state: GameState, id: string, n: number): number {
 /** Уговорить пленного служить: шанс растёт с лидерством. Возвращает, согласился ли. */
 export function recruitPrisoner(state: GameState, id: string): boolean {
   const st = state.prisoners?.find((p) => p.id === id);
-  if (!st || st.count <= 0) return false;
+  if (!st || st.count <= 0 || partyRoom(state) <= 0) return false;
   st.count--;
   state.prisoners = (state.prisoners ?? []).filter((p) => p.count > 0);
   const lead = heroStats(state.hero).morale / 3;
