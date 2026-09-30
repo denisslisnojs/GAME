@@ -7,6 +7,7 @@ import type { BodyKind } from '../data/items';
 import type { Helmet, ShieldShape, Weapon } from '../data/troops';
 import { lumOf, mix } from './color';
 import { cap, ell, poly, rasterize, rotateShapes, scaleShapes, type Mat, type Pat, type Pt, type Shape } from './figure';
+import { outline, paintShapes } from './paint';
 
 /** Размер кадра в пикселях (рисуется в 1:1, без растяжения). */
 export const FRAME_W = 112;
@@ -997,6 +998,7 @@ function frameShapes(L: UnitLook, frame: number): Shape[] {
  * а aa — во сколько раз крупнее считать перед усреднением (сглаживание краёв).
  */
 export function drawUnitSheet(L: UnitLook, ss = 1, aa = 1): HTMLCanvasElement {
+  if (unitStyle === 'paint') return paintUnitSheet(L, ss);
   const W = FRAME_W * ss;
   const H = FRAME_H * ss;
   const R = ss * aa;
@@ -1040,6 +1042,32 @@ export function drawUnitSheet(L: UnitLook, ss = 1, aa = 1): HTMLCanvasElement {
     }
   }
   ctx.putImageData(img, 0, 0);
+  return sheet;
+}
+
+/** Стиль рисовки воинов: «живописный» (гладкий, по умолчанию) или прежний попиксельный. */
+let unitStyle: 'paint' | 'pixel' = 'paint';
+export function setUnitStyle(s: 'paint' | 'pixel') {
+  unitStyle = s;
+}
+
+/** Лист кадров в «живописном» стиле: формы рисуются средствами Canvas 2D. */
+function paintUnitSheet(L: UnitLook, ss: number): HTMLCanvasElement {
+  const W = FRAME_W * ss;
+  const H = FRAME_H * ss;
+  const sheet = document.createElement('canvas');
+  sheet.width = W * 9;
+  sheet.height = H;
+  const ctx = sheet.getContext('2d')!;
+  const frame = document.createElement('canvas');
+  frame.width = W;
+  frame.height = H;
+  const fc = frame.getContext('2d')!;
+  for (let f = 0; f < 9; f++) {
+    fc.clearRect(0, 0, W, H);
+    paintShapes(fc, frameShapes(L, f), K * ss, OX * ss, FEET_Y * ss, ss);
+    outline(ctx, frame, f * W, 0, 0.9 * ss);
+  }
   return sheet;
 }
 
@@ -1093,8 +1121,18 @@ export function drawGearIcon(L: UnitLook, what: 'weapon' | 'horse' | 'hands', si
   }
   const [x0, y0, x1, y1] = bounds(shapes);
   const kk = Math.min((size - 3) / (x1 - x0), (size - 3) / (y1 - y0));
-  const px = rasterize(shapes, size, size, kk, size / 2 - ((x0 + x1) / 2) * kk, size / 2 - ((y0 + y1) / 2) * kk);
   const c = document.createElement('canvas');
+  if (unitStyle === 'paint') {
+    const f = document.createElement('canvas');
+    f.width = size;
+    f.height = size;
+    paintShapes(f.getContext('2d')!, shapes, kk, size / 2 - ((x0 + x1) / 2) * kk, size / 2 - ((y0 + y1) / 2) * kk, Math.max(1, size / 48));
+    c.width = size;
+    c.height = size;
+    outline(c.getContext('2d')!, f, 0, 0, Math.max(0.8, size / 48));
+    return c;
+  }
+  const px = rasterize(shapes, size, size, kk, size / 2 - ((x0 + x1) / 2) * kk, size / 2 - ((y0 + y1) / 2) * kk);
   c.width = size;
   c.height = size;
   const ctx = c.getContext('2d')!;
