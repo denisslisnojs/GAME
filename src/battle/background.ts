@@ -8,7 +8,7 @@ import { fbm, hash2, mulberry32, valueNoise } from '../util/rng';
 
 export type BattleTerrain = 'grass' | 'forest' | 'steppe' | 'desert' | 'snow' | 'dry';
 
-interface Palette {
+export interface Palette {
   sky: [string, string, string, string];
   sun: string;
   cloud: [string, string, string];
@@ -24,7 +24,7 @@ interface Palette {
   flowers: string[];
 }
 
-const PAL: Record<BattleTerrain, Palette> = {
+export const PAL: Record<BattleTerrain, Palette> = {
   grass: {
     sky: ['#5d86bf', '#7ea3d2', '#a6c3e3', '#cfe0ee'], sun: '#fff4d8', cloud: ['#ffffff', '#e6edf6', '#b4c6dc'], clouds: 14,
     far: '#6e82a0', farBack: '#93a6c0', farSnow: true, mid: '#5e8a46', midTree: '#3a6a34',

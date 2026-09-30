@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { DPR, LABEL_FONT } from '../config';
 import { sfx } from '../audio/sfx';
 import { music } from '../audio/music';
-import { drawArena, drawBush, drawCart, drawFar, drawFieldTree, drawGround, drawHill, drawMid, drawSky, drawStake, drawWall, type BattleTerrain } from '../battle/background';
+import type { BattleTerrain } from '../battle/background';
+import { paintArena, paintBush, paintCart, paintFar, paintFieldTree, paintGround, paintHill, paintMid, paintSky, paintStake, paintWall } from '../battle/backdrop';
 import { lookKey, troopLook } from '../battle/looks';
 import { FIELD_W, FIELD_Y0, FIELD_Y1, FORD_HALF, FORD_X, MID_Y, WALL_X, type Battle, type BattleEvent, type BUnit, type Group, type Side } from '../battle/sim';
 import { FACTIONS, type FactionId } from '../data/factions';
@@ -62,47 +63,61 @@ function cssNum(c: string): number {
 const LAYER_PAD = 900;
 const LAYER_W = (FIELD_W + LAYER_PAD * 2) / 2;
 
-/**
- * Мягкий фон: лёгкое размытие сливает пиксельный дизеринг в плавные переходы — фон выглядит рисованным,
- * а не пиксельным. Дальние слои размыты сильнее (воздушная перспектива).
- */
-function soften(src: HTMLCanvasElement, blur: number): HTMLCanvasElement {
-  const c = document.createElement('canvas');
-  c.width = src.width;
-  c.height = src.height;
-  const ctx = c.getContext('2d')!;
-  ctx.filter = `blur(${blur}px)`;
-  ctx.drawImage(src, 0, 0);
-  ctx.filter = 'none';
-  // Под размытым слоем — исходник, чтобы у кромки не появилась прозрачная кайма
-  ctx.globalCompositeOperation = 'destination-over';
-  ctx.drawImage(src, 0, 0);
-  return c;
-}
-
 /** Текстура из холста со сглаживанием при масштабе (без «ступенек»). */
 function addSmooth(textures: Phaser.Textures.TextureManager, key: string, canvas: HTMLCanvasElement) {
   textures.addCanvas(key, canvas)?.setFilter(Phaser.Textures.FilterMode.LINEAR);
 }
 
-/** Слои фона местности: ключ текстуры и как её нарисовать. */
-function terrainLayers(t: BattleTerrain): { key: string; make: () => HTMLCanvasElement }[] {
+/** Чёткость слоёв: точек текстуры на арт-пиксель (1 арт-пиксель = SCALE пикселей мира). */
+const Q = { sky: 1, far: 1, mid: 2, ground: 2, hill: 2, obj: 3, wall: 2, arena: 2 };
+/** Предел ширины текстуры: на многих телефонах больше 4096 нельзя, берём с запасом. */
+const CHUNK = 2048;
+const chunkMap = new Map<string, { key: string; x: number }[]>();
+
+/** Широкий холст режется на полосы с перекрытием в пару точек (чтобы не было швов). */
+function ensureChunks(textures: Phaser.Textures.TextureManager, key: string, make: () => HTMLCanvasElement): { key: string; x: number }[] {
+  const known = chunkMap.get(key);
+  if (known && known.every((c) => textures.exists(c.key))) return known;
+  const src = make();
+  const parts: { key: string; x: number }[] = [];
+  if (src.width <= CHUNK) {
+    addSmooth(textures, key, src);
+    parts.push({ key, x: 0 });
+  } else {
+    for (let x = 0, i = 0; x < src.width; x += CHUNK - 2, i++) {
+      const w = Math.min(CHUNK, src.width - x);
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = src.height;
+      c.getContext('2d')!.drawImage(src, x, 0, w, src.height, 0, 0, w, src.height);
+      const k = `${key}#${i}`;
+      if (!textures.exists(k)) addSmooth(textures, k, c);
+      parts.push({ key: k, x });
+      if (x + w >= src.width) break;
+    }
+  }
+  chunkMap.set(key, parts);
+  return parts;
+}
+
+/** Слои фона местности: ключ текстуры, чёткость и как нарисовать. */
+function terrainLayers(t: BattleTerrain): { key: string; q: number; make: () => HTMLCanvasElement }[] {
   return [
-    { key: `bg_sky_${t}`, make: () => soften(drawSky(t, LAYER_W, 260), 1.6) },
-    { key: `bg_far_${t}`, make: () => soften(drawFar(t, LAYER_W, 90), 1.1) },
-    { key: `bg_mid_${t}`, make: () => soften(drawMid(t, LAYER_W, 60), 0.8) },
-    { key: `bg_ground_${t}`, make: () => soften(drawGround(t, LAYER_W, (WORLD_H - GROUND_Y + 200) / 2), 0.7) },
+    { key: `bg_sky_${t}`, q: Q.sky, make: () => paintSky(t, LAYER_W, 260, Q.sky) },
+    { key: `bg_far_${t}`, q: Q.far, make: () => paintFar(t, LAYER_W, 90, Q.far) },
+    { key: `bg_mid_${t}`, q: Q.mid, make: () => paintMid(t, LAYER_W, 60, Q.mid) },
+    { key: `bg_ground_${t}`, q: Q.ground, make: () => paintGround(t, LAYER_W, (WORLD_H - GROUND_Y + 200) / 2, Q.ground) },
   ];
 }
 
 /** Заранее нарисовать фоны местности в свободное время (по слою за раз), чтобы бой открывался без паузы. */
 export function prewarmBattleTerrain(textures: Phaser.Textures.TextureManager, terrains: BattleTerrain[]) {
-  const jobs = terrains.flatMap(terrainLayers).filter((j) => !textures.exists(j.key));
+  const jobs = terrains.flatMap(terrainLayers).filter((j) => !chunkMap.has(j.key));
   const idle = (fn: () => void) => ((window as unknown as { requestIdleCallback?: (f: () => void) => void }).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 50)))(fn);
   const next = () => {
     const j = jobs.shift();
     if (!j) return;
-    if (!textures.exists(j.key)) addSmooth(textures, j.key, j.make());
+    ensureChunks(textures, j.key, j.make);
     idle(next);
   };
   idle(next);
@@ -240,18 +255,18 @@ export class BattleScene extends Phaser.Scene {
     const PAD = 900;
     const W = (FIELD_W + PAD * 2) / SCALE;
     const L = terrainLayers(t);
-    this.addLayer(L[0].key, L[0].make, -PAD, -120, 0.1);
-    this.addLayer(L[1].key, L[1].make, -PAD, GROUND_Y - 180 + 10, 0.3);
+    this.addLayer(L[0].key, L[0].make, L[0].q, -PAD, -120, 0.1);
+    this.addLayer(L[1].key, L[1].make, L[1].q, -PAD, GROUND_Y - 180 + 10, 0.3);
     const arena = this.cfg.arena;
-    if (arena) this.addLayer(`bg_arena_${arena.colors.join('')}`, () => soften(drawArena(W, 60, arena.colors), 0.7), -PAD, GROUND_Y - 120 + 8, 0.6);
-    else this.addLayer(L[2].key, L[2].make, -PAD, GROUND_Y - 120 + 8, 0.6);
-    this.addLayer(L[3].key, L[3].make, -PAD, GROUND_Y, 1);
-    if (!this.textures.exists('stake')) addSmooth(this.textures, 'stake', soften(drawStake(), 0.4));
+    if (arena) this.addLayer(`bg_arena_${arena.colors.join('')}`, () => paintArena(W, 60, arena.colors, Q.arena), Q.arena, -PAD, GROUND_Y - 120 + 8, 0.6);
+    else this.addLayer(L[2].key, L[2].make, L[2].q, -PAD, GROUND_Y - 120 + 8, 0.6);
+    this.addLayer(L[3].key, L[3].make, L[3].q, -PAD, GROUND_Y, 1);
+    if (!this.textures.exists('stake')) addSmooth(this.textures, 'stake', paintStake(Q.obj));
 
     if (this.battle.siege && this.cfg.wall) {
       const key = `wall_${this.cfg.wall.culture}_${this.cfg.wall.color}`;
-      if (!this.textures.exists(key)) addSmooth(this.textures, key, soften(drawWall(this.cfg.wall.culture, this.cfg.wall.color, this.cfg.wall.color2), 0.5));
-      this.add.image(WALL_X - 20, WALL_TOP - 48, key).setOrigin(0, 0).setScale(SCALE).setDepth(380);
+      if (!this.textures.exists(key)) addSmooth(this.textures, key, paintWall(this.cfg.wall.culture, this.cfg.wall.color, this.cfg.wall.color2, Q.wall));
+      this.add.image(WALL_X - 20, WALL_TOP - 48, key).setOrigin(0, 0).setScale(SCALE / Q.wall).setDepth(380);
       this.ladders = this.add.graphics().setDepth(390);
     }
     if (this.battle.opts.ford && !this.battle.siege) this.drawFord();
@@ -382,12 +397,12 @@ export class BattleScene extends Phaser.Scene {
     for (const h of f.hills) {
       const w = Math.ceil((h.x1 - h.x0) / SCALE);
       const key = `hill_${t}_${w}`;
-      if (!this.textures.exists(key)) addSmooth(this.textures, key, soften(drawHill(t, w, 110, Math.round(HILL_LIFT / SCALE) + 4), 1.4));
-      this.add.image(h.x0, FIELD_Y0 - 60, key).setOrigin(0, 0).setScale(SCALE).setDepth(0.4);
+      if (!this.textures.exists(key)) addSmooth(this.textures, key, paintHill(t, w, 110, Math.round(HILL_LIFT / SCALE) + 4, Q.hill));
+      this.add.image(h.x0, FIELD_Y0 - 60, key).setOrigin(0, 0).setScale(SCALE / Q.hill).setDepth(0.4);
     }
     for (let v = 0; v < 4; v++) {
-      if (!this.textures.exists(`ftree_${t}_${v}`)) addSmooth(this.textures, `ftree_${t}_${v}`, soften(drawFieldTree(t, v), 0.6));
-      if (!this.textures.exists(`bush_${t}_${v}`)) addSmooth(this.textures, `bush_${t}_${v}`, soften(drawBush(t, v), 0.6));
+      if (!this.textures.exists(`ftree_${t}_${v}`)) addSmooth(this.textures, `ftree_${t}_${v}`, paintFieldTree(t, v, Q.obj));
+      if (!this.textures.exists(`bush_${t}_${v}`)) addSmooth(this.textures, `bush_${t}_${v}`, paintBush(t, v, Q.obj));
     }
     for (const g of f.groves) {
       const r = mulberry32(g.seed);
@@ -401,14 +416,14 @@ export class BattleScene extends Phaser.Scene {
         const x = g.x + Math.cos(a) * g.rx * d;
         const y = g.y + Math.sin(a) * g.ry * d;
         const key = r() < 0.72 ? `ftree_${t}_${Math.floor(r() * 4)}` : `bush_${t}_${Math.floor(r() * 4)}`;
-        this.add.image(Math.round(x), Math.round(y), key).setOrigin(0.5, 1).setScale(SCALE).setDepth(y + 0.5).setAlpha(0.94);
+        this.add.image(Math.round(x), Math.round(y), key).setOrigin(0.5, 1).setScale(SCALE / Q.obj).setDepth(y + 0.5).setAlpha(0.96);
       }
     }
     for (const c of f.carts) {
       const color = c.side === this.battle.playerSide ? FACTIONS[this.cfg.heroFaction].css : this.cfg.enemyColor;
       const key = `cart_${color}`;
-      if (!this.textures.exists(key)) addSmooth(this.textures, key, soften(drawCart(color), 0.4));
-      this.add.image(c.x, c.y + 8, key).setOrigin(0.5, 1).setScale(SCALE).setFlipX(c.side === 1).setDepth(c.y + 0.4);
+      if (!this.textures.exists(key)) addSmooth(this.textures, key, paintCart(color, Q.obj));
+      this.add.image(c.x, c.y + 8, key).setOrigin(0.5, 1).setScale(SCALE / Q.obj).setFlipX(c.side === 1).setDepth(c.y + 0.4);
     }
   }
 
@@ -454,9 +469,11 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  private addLayer(key: string, make: () => HTMLCanvasElement, x: number, y: number, sf: number) {
-    if (!this.textures.exists(key)) addSmooth(this.textures, key, make());
-    this.add.image(x, y, key).setOrigin(0, 0).setScale(SCALE).setScrollFactor(sf, 1).setDepth(-100 + sf);
+  private addLayer(key: string, make: () => HTMLCanvasElement, q: number, x: number, y: number, sf: number) {
+    const k = SCALE / q;
+    for (const part of ensureChunks(this.textures, key, make)) {
+      this.add.image(x + part.x * k, y, part.key).setOrigin(0, 0).setScale(k).setScrollFactor(sf, 1).setDepth(-100 + sf);
+    }
   }
 
   /** Видимая полоса мира (от гор до переднего ряда) вписывается между верхней и нижней панелями. */
@@ -855,7 +872,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // Колья
-    while (this.stakeImgs.length < b.stakes.length) this.stakeImgs.push(this.add.image(0, 0, 'stake').setOrigin(0.5, 1).setScale(SCALE));
+    while (this.stakeImgs.length < b.stakes.length) this.stakeImgs.push(this.add.image(0, 0, 'stake').setOrigin(0.5, 1).setScale(SCALE / Q.obj));
     this.stakeImgs.forEach((img, i) => {
       const st = b.stakes[i];
       img.setVisible(!!st);
