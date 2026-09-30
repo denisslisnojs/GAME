@@ -99,8 +99,15 @@ const KIT = { head: 'armet', body: 'gothic', hands: 'gothic_gauntlets', legs: 'g
     await p.waitForTimeout(o.wait ?? 600);
     for (let i = 0; i < (o.zoom ?? 1); i++) await p.click('.btn.b-small:has-text("+")').catch(() => {});
     await p.waitForTimeout(o.after ?? 1200);
-    await p.evaluate(() => { window.__game.scene.getScene('battle').paused = true; });
-    await shot(name);
+    await p.evaluate((hideUi) => {
+      window.__game.scene.getScene('battle').paused = true;
+      if (hideUi) document.querySelectorAll('.battle-ui').forEach((e) => (e.style.display = 'none'));
+    }, !!o.hideUi);
+    if (o.out) {
+      await p.waitForTimeout(250);
+      await p.screenshot({ path: o.out, type: 'jpeg', quality: 92 });
+      console.log(L, name);
+    } else await shot(name);
     await p.evaluate(() => {
       const bs = window.__game.scene.getScene('battle');
       window.__game.scene.stop('battle');
@@ -115,6 +122,10 @@ const KIT = { head: 'armet', body: 'gothic', hands: 'gothic_gauntlets', legs: 'g
   await boot();
   await newGame(0);
   const f = 'aurelia';
+
+  // Фон для обложки (feature graphic): крупный план сшибки без интерфейса, язык не важен
+  if (only === 'feature') await battle('feature-bg', { terrain: 'grass', mine: [{ id: 'aurelia_c4m', count: 10 }, { id: 'aurelia_i4m', count: 12 }, { id: 'aurelia_i3r', count: 8 }], enemyCulture: 'nordmark', enemyColor: '#c24040',
+    enemy: [{ id: 'nordmark_i4m', count: 12 }, { id: 'nordmark_i3s', count: 8 }, { id: 'nordmark_c3m', count: 6 }], sim: 15, zoom: 2, hideUi: true, out: path.join(__dirname, '..', 'store', 'feature-bg.jpg') });
 
   if (want('map')) {
     await p.evaluate(() => {

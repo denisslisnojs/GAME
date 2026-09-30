@@ -1,6 +1,6 @@
 // Выгружает иконку и заставку из dev/brand.html:
 //   resources/android/mipmap-*/ic_launcher*.png, resources/android/drawable*/splash.png — их копирует scripts/android-setup.mjs;
-//   store/icon-512.png — иконка для Google Play.
+//   store/icon-512.png — иконка для Google Play, store/emblem.png — герб на прозрачном фоне.
 // Нужен запущенный dev-сервер (npx vite --port 5173). Запуск: node dev/store-brand.cjs
 const path = require('path');
 const fs = require('fs');
@@ -38,6 +38,8 @@ const SPLASH = {
   }
   for (const [dir, [w, h]] of Object.entries(SPLASH)) await save(path.join(RES, dir, 'splash.png'), 'splash', w, h);
   await save(path.join(ROOT, 'store', 'icon-512.png'), 'icon', 512, false);
+  // Герб на прозрачном фоне — для обложки и баннеров
+  await save(path.join(ROOT, 'store', 'emblem.png'), 'foreground', 900);
   console.log('готово');
   await b.close();
 })();
