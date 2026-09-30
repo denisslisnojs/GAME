@@ -3,4 +3,4 @@ dist/
 *.log
 .DS_Store
 # Android-проект генерируется: npm run android:init
-android/
+/android/
