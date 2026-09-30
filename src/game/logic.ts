@@ -1,10 +1,11 @@
 import type { FactionId } from '../data/factions';
 import { GOODS, SELL_RATIO, type GoodId } from '../data/goods';
-import { TROOPS } from '../data/troops';
+import { TROOPS, type TroopDef } from '../data/troops';
 import { heroStats } from './hero';
 import { commandersBonus, partySkill } from './companions';
 import { recruitSlots, type GameState } from './state';
 import { world, type Settlement } from './world';
+import { tr } from '../i18n';
 
 export type Relation = 'own' | 'peace' | 'war';
 
@@ -29,7 +30,8 @@ export function partySize(state: GameState): number {
 /** Из чего складывается предел отряда: основа, уровень героя, Лидерство и спутники-командиры. */
 export function partyLimitParts(state: GameState) {
   const lead = state.hero.attrs?.lead ?? 3;
-  return { base: 12, level: state.hero.level * 2, lead: lead * 3, command: commandersBonus(state) };
+  // Уровни героя выше 25-го места уже не добавляют
+  return { base: 12, level: Math.min(state.hero.level, 25) * 2, lead: lead * 3, command: commandersBonus(state) };
 }
 
 /** Сколько воинов может вести герой (сам герой и спутники не в счёт). */
@@ -41,6 +43,47 @@ export function partyLimit(state: GameState): number {
 /** Сколько ещё воинов поместится в отряд. */
 export function partyRoom(state: GameState): number {
   return Math.max(0, partyLimit(state) - partySize(state));
+}
+
+// ───────────────────────── жалованье ─────────────────────────
+
+const WAGE_BY_TIER = [0, 1, 2, 5, 10];
+
+/** Недельное жалованье воина: новобранцы почти даром, ветераны и конница дорого. */
+export function troopWage(t: TroopDef): number {
+  const base = WAGE_BY_TIER[Math.max(1, Math.min(4, t.tier))];
+  return t.line === 'cavalry' ? Math.round(base * 1.5) : base;
+}
+
+/** Жалованье всего отряда за неделю; Лидерство даёт ту же скидку, что и на найм. */
+export function partyWages(state: GameState): number {
+  const raw = state.party.troops.reduce((n, s) => n + (TROOPS[s.id] ? troopWage(TROOPS[s.id]) * s.count : 0), 0);
+  return Math.round(raw * (1 - heroStats(state.hero).hireDiscount));
+}
+
+/** Воскресенье: платим воинам. Если денег не хватает, часть неоплаченных воинов уходит. */
+export function troopsWeekly(state: GameState): string[] {
+  const day = state.lastDay;
+  const total = partyWages(state);
+  const out: string[] = [];
+  if (day % 7 === 6 && total > state.gold) out.push(tr`Завтра жалованье воинам: ${total} ¤, а в казне ${state.gold} ¤. Не заплатите — часть отряда разбежится.`);
+  if (day % 7 !== 0 || total <= 0) return out;
+  if (state.gold >= total) {
+    state.gold -= total;
+    out.push(tr`Воинам выплачено жалованье: ${total} ¤.`);
+    return out;
+  }
+  const unpaid = 1 - state.gold / total;
+  state.gold = 0;
+  let gone = 0;
+  for (const s of state.party.troops) {
+    const k = Math.min(s.count, Math.round(s.count * unpaid * 0.3));
+    s.count -= k;
+    gone += k;
+  }
+  state.party.troops = state.party.troops.filter((s) => s.count > 0);
+  out.push(gone ? tr`Жалованье не выплачено сполна, и часть воинов ушла. Ушло: ${gone}.` : tr`Жалованье не выплачено сполна — воины ропщут.`);
+  return out;
 }
 
 /** Цена найма: в чужих (мирных) землях дороже. */

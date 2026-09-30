@@ -79,9 +79,9 @@ export function dismissCompanion(state: GameState, id: string) {
 
 // ───────────────────────── командование ─────────────────────────
 
-/** Сколько воинов добавляет к пределу отряда спутник-командир: растёт с его уровнем. */
+/** Сколько воинов добавляет к пределу отряда спутник-командир: растёт с его уровнем, но не больше 18. */
 export function commandBonus(cs: CompanionState): number {
-  return Math.round(3 + cs.level * 1.5);
+  return Math.min(18, 3 + cs.level);
 }
 
 /** Кто из спутников в отряде командует этим родом войск. */

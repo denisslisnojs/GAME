@@ -4,7 +4,7 @@ import { music } from '../audio/music';
 import { ART_SCALE, DPR, GRID_H, GRID_W, LABEL_FONT, PARTY_SPEED, SECONDS_PER_DAY, TILE, WORLD_H, WORLD_W } from '../config';
 import { FACTIONS, type FactionId } from '../data/factions';
 import { drawRider, settlementTextureKey, SPRITE_Q } from '../gfx/mapart';
-import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo, totalReady } from '../game/logic';
+import { atWar, canEnter, dailyTick, ownerOf, partySize, relationTo, totalReady, troopsWeekly } from '../game/logic';
 import { hint, openHelp, resetHints } from '../ui/hints';
 import { enemyArmy, playerArmy } from '../battle/setup';
 import { Battle, type BattleOpts, type Formation, type Weather } from '../battle/sim';
@@ -733,6 +733,7 @@ export class WorldScene extends Phaser.Scene implements GameCtx {
         warDaily(this.state);
         for (const msg of questsDaily(this.state)) this.hud?.news(msg, '#ffd24a');
         for (const msg of plagueDaily(this.state)) this.hud?.news(msg, '#9ab87a');
+        for (const msg of troopsWeekly(this.state)) news(this.state, msg, 'party');
         for (const msg of companionsDaily(this.state)) news(this.state, msg, 'party');
         for (const msg of prisonersDaily(this.state)) news(this.state, msg, 'party');
         for (const msg of fiefDaily(this.state)) this.hud?.news(msg, '#e8c04a');

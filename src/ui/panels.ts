@@ -15,6 +15,8 @@ import {
   partyLimitParts,
   partyRoom,
   partySize,
+  partyWages,
+  troopWage,
   readyToUpgrade,
   relationTo,
   sell,
@@ -113,6 +115,7 @@ export function troopStats(t: TroopDef): HTMLElement {
     h('span', {}, tr`Крит ${Math.round(t.crit * 100)}%`),
     h('span', {}, tr`Уклон ${Math.round(t.dodge * 100)}%`),
     t.block ? h('span', {}, tr`Блок ${Math.round(t.block * 100)}%`) : null,
+    h('span', { class: 'gold' }, tr`${troopWage(t)} ¤/нед.`),
     ...[...traitsOf(t)].map((x) => h('span', { class: 'trait-chip', title: TRAIT_INFO[x].hint }, TRAIT_INFO[x].name)),
   );
 }
@@ -218,7 +221,7 @@ export function openRecruit(ctx: GameCtx, s: Settlement) {
 
   const render = () => {
     body.replaceChildren();
-    sub.replaceChildren(goldLine(state), tr` · В отряде: ${partySize(state)}/${partyLimit(state)}`);
+    sub.replaceChildren(goldLine(state), tr` · В отряде: ${partySize(state)}/${partyLimit(state)}`, tr` · жалованье ${partyWages(state)} ¤/нед.`);
     const st = state.settlements[s.id];
     const ids = Object.keys(st.recruits);
     if (!ids.length) body.append(h('div', { class: 'muted' }, tr('Здесь некого нанять.')));
@@ -358,6 +361,10 @@ export function openParty(ctx: GameCtx) {
         h('span', { class: 'gold' }, tr`Предел отряда: ${limit}`),
         h('span', { class: 'muted' }, tr` = основа ${lp.base} + уровень героя ${lp.level} + Лидерство ${lp.lead} + командиры ${lp.command}`),
         size > limit ? h('span', { style: 'color:#e07a6a' }, tr(' · отряд сверх предела: новых воинов не нанять')) : null,
+      ),
+      h('div', { class: 'limit-row' },
+        h('span', { class: 'gold' }, tr`Жалованье воинам: ${partyWages(state)} ¤ в неделю`),
+        h('span', { class: 'muted' }, tr(' · платится по воскресеньям; новобранцы почти даром, ветераны и конница дороже; Лидерство даёт скидку')),
       ),
     );
     for (const { def, cs } of inParty(state)) {
