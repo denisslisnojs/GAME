@@ -1,12 +1,12 @@
 import { music } from '../audio/music';
-import { SETTINGS_KEY } from '../config';
+import { applyUiScale, saveSettings, settings, UI_SCALES, type Quality } from '../settings';
 import { FACTIONS, FACTION_IDS, type FactionId } from '../data/factions';
 import { emblemURL, portraitURL } from '../gfx/icons';
 import { askConfirm, btn, getSfxVolume, h, img, openModal, panel, setSfxVolume, uiRoot } from './dom';
 import { DIFFICULTY, type Difficulty } from '../game/difficulty';
 import { ACHIEVEMENTS, unlocked } from '../game/achievements';
 import { dateString, listSlots, deleteSlot } from '../game/state';
-import { LANG, setLang, tr, type Lang } from '../i18n';
+import { LANG, LANGS, setLang, tr, type Lang } from '../i18n';
 
 // ───────────────────────── достижения ─────────────────────────
 
@@ -134,65 +134,91 @@ function showAbout() {
 
 // ───────────────────────── настройки ─────────────────────────
 
-interface Settings {
-  music: number;
-  sfx: number;
-}
-
+/** Применить сохранённые настройки при запуске. */
 export function loadSettings() {
-  try {
-    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? 'null') as Settings | null;
-    if (s) {
-      music.setVolume(s.music);
-      setSfxVolume(s.sfx);
-    }
-  } catch {
-    /* по умолчанию */
-  }
+  music.setVolume(settings.music);
+  setSfxVolume(settings.sfx);
+  applyUiScale();
 }
 
-function saveSettings() {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ music: music.getVolume(), sfx: getSfxVolume() }));
-  } catch {
-    /* нет хранилища */
-  }
-}
-
-export function showSettings(extra?: HTMLElement, beforeLangSwitch?: () => void) {
+/**
+ * Окно настроек. beforeReload — сохранить игру перед перезапуском
+ * (смена языка или чёткости графики применяется только после перезапуска).
+ */
+export function showSettings(extra?: HTMLElement, beforeReload?: () => void) {
   let close = () => {};
+  const store = () => {
+    settings.music = music.getVolume();
+    settings.sfx = getSfxVolume();
+    saveSettings();
+  };
+  const reload = () => {
+    store();
+    beforeReload?.();
+    location.reload();
+  };
   const slider = (value: number, onInput: (v: number) => void) => {
     const s = h('input', { type: 'range', min: 0, max: 100, value: Math.round(value * 100), class: 'slider' });
     s.addEventListener('input', () => onInput(+s.value / 100));
     return s;
   };
+  /** Ряд кнопок-переключателей: выбранная подсвечена. */
+  const choice = <T,>(options: [T, string][], get: () => T, set: (v: T) => void) => {
+    const row = h('div', { class: 'row seg', style: 'gap:6px;flex-wrap:wrap' });
+    const draw = () => {
+      row.replaceChildren(
+        ...options.map(([v, name]) =>
+          btn(name, () => {
+            if (v === get()) return;
+            set(v);
+            draw();
+          }, `small${v === get() ? ' primary' : ''}`),
+        ),
+      );
+    };
+    draw();
+    return row;
+  };
+  const line = (label: string, hint: string | null, control: HTMLElement) =>
+    h('div', { class: 'set-row' }, h('div', { class: 'col', style: 'gap:0' }, h('b', {}, label), hint ? h('span', { class: 'small muted' }, hint) : null), control);
   const content = panel(
-    'modal narrow',
+    'modal settings-modal',
     h('div', { class: 'head' }, h('h2', { class: 'title' }, tr('Настройки')), btn('✕', () => close(), 'small close')),
     h(
       'div',
       { class: 'body col' },
-      h('div', {}, tr('Музыка')),
-      slider(music.getVolume(), (v) => music.setVolume(v)),
-      h('div', {}, tr('Звуки')),
-      slider(getSfxVolume(), (v) => setSfxVolume(v)),
-      h('div', {}, tr('Язык / Language')),
-      h(
-        'div',
-        { class: 'row', style: 'gap:6px' },
-        ...([['en', 'English'], ['ru', 'Русский']] as [Lang, string][]).map(([l, name]) =>
-          btn(name, () => {
-            if (l === LANG) return;
-            saveSettings();
-            beforeLangSwitch?.();
-            setLang(l);
-          }, `small${l === LANG ? ' primary' : ''}`),
-        ),
+      line(tr('Музыка'), null, slider(music.getVolume(), (v) => music.setVolume(v))),
+      line(tr('Звуки'), null, slider(getSfxVolume(), (v) => setSfxVolume(v))),
+      line(
+        tr('Графика'),
+        tr('«Быстрее» — для слабых телефонов: меньше точек на экране. Применится после перезапуска.'),
+        choice<Quality>([['high', tr('Чётче')], ['low', tr('Быстрее')]], () => settings.quality, (v) => {
+          settings.quality = v;
+          reload();
+        }),
       ),
+      line(tr('Эффекты в бою'), tr('Пыль, искры, дождь и снег'), choice<boolean>([[true, tr('Вкл')], [false, tr('Выкл')]], () => settings.effects, (v) => {
+        settings.effects = v;
+        store();
+      })),
+      line(tr('Кровь'), null, choice<boolean>([[true, tr('Вкл')], [false, tr('Выкл')]], () => settings.blood, (v) => {
+        settings.blood = v;
+        store();
+      })),
+      line(tr('Размер интерфейса'), null, choice<number>(UI_SCALES.map((k) => [k, `${Math.round(k * 100)}%`]), () => settings.ui, (v) => {
+        settings.ui = v;
+        applyUiScale();
+        store();
+      })),
+      line(tr('Язык / Language'), null, choice<Lang>(LANGS.map((l) => [l.id, l.name]), () => LANG, (l) => {
+        store();
+        beforeReload?.();
+        setLang(l);
+      })),
       extra ?? null,
     ),
   );
-  close = openModal(content, { onClose: saveSettings });
+  close = openModal(content, { onClose: store });
 }
 
 // ───────────────────────── создание персонажа ─────────────────────────

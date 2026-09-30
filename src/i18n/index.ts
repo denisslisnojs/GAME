@@ -1,13 +1,35 @@
 import { EN } from './en';
+import { PT } from './pt';
+import { TR } from './tr';
 
-export type Lang = 'en' | 'ru';
+export type Lang = 'en' | 'ru' | 'pt' | 'tr';
+
+/** Языки игры (название — на самом языке). */
+export const LANGS: { id: Lang; name: string }[] = [
+  { id: 'en', name: 'English' },
+  { id: 'ru', name: 'Русский' },
+  { id: 'pt', name: 'Português' },
+  { id: 'tr', name: 'Türkçe' },
+];
+
+const DICT: Record<Exclude<Lang, 'ru'>, Record<string, string>> = { en: EN, pt: PT, tr: TR };
 
 const KEY = 'w1347_lang';
+
+/** Язык при первом запуске — по языку устройства. */
+function detect(): Lang {
+  const nav = (typeof navigator !== 'undefined' ? navigator.language : 'en').toLowerCase();
+  if (/^(ru|uk|be|kk)/.test(nav)) return 'ru';
+  if (nav.startsWith('pt')) return 'pt';
+  if (nav.startsWith('tr')) return 'tr';
+  return 'en';
+}
 
 /** Язык выбирается один раз при загрузке модуля: смена языка перезагружает страницу. */
 export const LANG: Lang = (() => {
   try {
-    return localStorage.getItem(KEY) === 'ru' ? 'ru' : 'en';
+    const v = localStorage.getItem(KEY);
+    return LANGS.some((l) => l.id === v) ? (v as Lang) : detect();
   } catch {
     return 'en';
   }
@@ -16,7 +38,9 @@ export const LANG: Lang = (() => {
 if (typeof document !== 'undefined') document.documentElement.lang = LANG;
 
 function lookup(key: string): string {
-  return LANG === 'ru' ? key : (EN[key] ?? key);
+  if (LANG === 'ru') return key;
+  // Если перевода на выбранный язык нет — английский, в крайнем случае русский
+  return DICT[LANG][key] ?? EN[key] ?? key;
 }
 
 /**

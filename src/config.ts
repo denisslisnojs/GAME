@@ -37,7 +37,16 @@ export const SETTINGS_KEY = 'w1347_settings_v1';
  * Плотность экрана: холст рисуется в настоящих пикселях устройства (не больше ×2 — ради скорости),
  * иначе на телефоне картинка растягивается «квадратиками». Зум камер умножается на DPR.
  */
-export const DPR = typeof window === 'undefined' ? 1 : Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+export const DPR = typeof window === 'undefined' ? 1 : lowQuality() ? 1 : Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+
+/** Настройка «Графика: быстрее» (читается прямо из хранилища — модуль настроек сам зависит от этого файла). */
+function lowQuality(): boolean {
+  try {
+    return (JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? 'null') as { quality?: string } | null)?.quality === 'low';
+  } catch {
+    return false;
+  }
+}
 
 /** Шрифт подписей на карте и в бою: ровные цифры, легко читать на телефоне. */
 export const LABEL_FONT = '"Fira Sans Condensed", "Arial Narrow", sans-serif';

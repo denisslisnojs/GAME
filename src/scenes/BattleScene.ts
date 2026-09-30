@@ -12,6 +12,7 @@ import { drawUnitSheet, FEET_Y, FRAME_H, FRAME_W, type UnitLook } from '../gfx/u
 import { BattleHud } from '../ui/battleHud';
 import { resetHints } from '../ui/hints';
 import { tr } from '../i18n';
+import { settings } from '../settings';
 
 export interface BattleSceneData {
   battle: Battle;
@@ -280,7 +281,7 @@ export class BattleScene extends Phaser.Scene {
     const weather = this.weather();
     if (weather) {
       this.weatherG = this.add.graphics().setDepth(5500).setScrollFactor(0);
-      const n = weather === 'rain' ? 160 : weather === 'snow' ? 170 : 0;
+      const n = Math.round((weather === 'rain' ? 160 : weather === 'snow' ? 170 : 0) * (settings.effects ? 1 : 0.35));
       for (let i = 0; i < n; i++) this.drops.push({ x: Math.random(), y: Math.random(), v: 0.8 + Math.random() * 0.5, s: Math.random() });
       if (weather === 'fog') for (let i = 0; i < 18; i++) this.fogPuffs.push({ x: Math.random() * FIELD_W, y: FIELD_Y0 - 60 + Math.random() * 170, vx: 6 + Math.random() * 8, vy: 0, life: 1, max: 1, color: 0xe4e8ec, size: 110 + Math.random() * 120, gravity: 0 });
     }
@@ -1099,7 +1100,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private splat(x: number, y: number, r: number) {
-    if (this.cfg.arena || (this.battle.siege && x > WALL_X - 20)) return;
+    if (!settings.blood || this.cfg.arena || (this.battle.siege && x > WALL_X - 20)) return;
     if (this.splats.length >= 60) this.splats.shift();
     this.splats.push({ x: x + (Math.random() - 0.5) * 14, y: y - this.lift(x) + (Math.random() - 0.5) * 6, r, life: 45, seed: Math.floor(Math.random() * 1000) });
   }
@@ -1126,6 +1127,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private burst(x: number, y: number, color: number, n: number, speed = 80) {
+    // Без крови брызги становятся пылью; без эффектов частиц почти нет
+    const red = ((color >> 16) & 255) > 120 && ((color >> 8) & 255) < 60 && (color & 255) < 60;
+    if (red && !settings.blood) color = 0x9a8a70;
+    if (!settings.effects) n = Math.min(n, 2);
     for (let i = 0; i < n; i++) {
       this.particles.push({ x, y, vx: (Math.random() - 0.5) * speed * 2, vy: -Math.random() * speed, life: 0.5 + Math.random() * 0.3, max: 0.8, color, size: 3, gravity: 300 });
     }

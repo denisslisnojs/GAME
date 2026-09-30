@@ -64,6 +64,13 @@ body {
   z-index: 10;
 }
 
+/* Масштаб интерфейса из настроек: окна, меню и подсказки (панели боя и карты рассчитаны под экран) */
+#ui .modal-back,
+#ui > .menu,
+.toasts {
+  zoom: var(--ui-scale, 1);
+}
+
 #ui > * {
   pointer-events: auto;
 }
@@ -2161,4 +2168,32 @@ body:has(#ui .modal-back) .toasts {
 
 .battle-ui:has(.b-chase:not([style*='none'])) .b-banner {
   top: 108px;
+}
+
+/* ───────────── настройки ───────────── */
+
+.settings-modal {
+  width: min(620px, calc(100vw / var(--ui-scale, 1) - 24px));
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.set-row > .col {
+  flex: 1;
+  min-width: 0;
+}
+
+.set-row .slider {
+  width: min(240px, 45%);
+}
+
+.set-row .seg {
+  justify-content: flex-end;
 }

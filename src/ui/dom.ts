@@ -119,7 +119,7 @@ export function stars(n: number): string {
 }
 
 export function plural(n: number, one: string, few: string, many: string): string {
-  if (LANG === 'en') return Math.abs(n) === 1 ? one : many;
+  if (LANG !== 'ru') return Math.abs(n) === 1 ? one : many;
   const a = Math.abs(n) % 100;
   const b = a % 10;
   if (a > 10 && a < 20) return many;
